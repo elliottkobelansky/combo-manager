@@ -46,10 +46,10 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   and contact lists, and `Archive/` with past semesters.
 - **Local (each computer):** the program (unzipped folder now, the packaged app later), `~/.combo-scheduler-python`
   (rebuilt if missing), `~/.combo_scheduler.json` (which data folder, text size, dark mode: per computer on purpose).
-- [ ] First run with no data folder chosen and no `data/` next to the program: ask for the data folder (today an
-  empty `data/` is quietly made next to the program).
-- [ ] The zip (and the packaged app) ship without `data/`; the fake data becomes a separate demo folder.
-- [ ] Quick Start + README: install the program locally, pick the OneDrive data folder, flows write into it.
+- [x] First run with no data folder chosen (and no `data/` with files next to the program) asks for it; a folder that
+  has gone (OneDrive not signed in) is asked for again, never silently swapped.
+- [x] `python dev/make_zip.py [--demo] [--mac]`: the program without data; `--demo` adds the fake data as "Demo data".
+- [x] Quick Start + README describe it (program local, data folder in OneDrive, new computer = pick it again).
 - [ ] Point both flows at the shared data folder.
 - [ ] Try it on the **director's** computer (Windows or Mac), including the Mac "Open Anyway" step.
 - [ ] Walk the director through `Quick Start.pdf` once.

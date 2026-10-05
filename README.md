@@ -20,9 +20,17 @@ tab, see [swaps](#during-the-semester-swaps)):
 plus buttons to open the folder, `Schedule.pdf` and `Schedule.xlsx`, a **Settings** tab (below), a dark
 mode switch and a **Text size** control (A− / A+, 85% to 175%), both remembered on that computer. Lists that are
 wider than the window get a horizontal scrollbar. It works on the **data
-folder** shown at the top: by default the `data` folder next to the launchers; **Change...** picks another
-(remembered). The easiest setup: keep this whole folder in OneDrive, synced to the director's computer, with
-`Combo Approvals.xlsx`, `Conflicts.xlsx` and `settings.json` in `data`, so there's nothing to download.
+folder** shown at the top; **Change...** picks another (remembered on that computer).
+
+**Where things live:** the **program** is installed on each computer (this folder, unzipped locally; it has no
+data in it). The **data folder** is one shared folder in OneDrive (e.g. `Combo Scheduler data`) with everything that
+matters: `Combo Approvals.xlsx` and `Conflicts.xlsx` (point both flows at it), `settings.json`,
+`scheduler_data.json`, `Schedule.xlsx` + `Schedule backups/`, the PDFs, and `Archive/` with past semesters. On first
+run the app asks for that folder; a wiped computer only needs the program reinstalled and the folder picked again.
+Per-computer preferences (the folder, text size, dark mode) are in `~/.combo_scheduler.json`. (For development, a
+`data/` folder next to the program with files in it is used automatically.) Build a zip to hand out with
+`python dev/make_zip.py` (`--demo` adds the fake data as a "Demo data" folder; `--mac` leaves out the `.bat`, which
+Gmail blocks).
 
 **What's in the folder:**
 

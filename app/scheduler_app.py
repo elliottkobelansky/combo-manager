@@ -93,11 +93,15 @@ def open_path(path):
 
 
 def load_folder():
+    """The data folder: the one picked before; else a data/ next to the program that already has files (a developer
+    setup); else None, and the app asks. A picked folder that's gone (e.g. OneDrive not signed in) is asked for again,
+    never silently swapped for another."""
     folder = load_config().get("folder")
     if folder and Path(folder).is_dir():
         return Path(folder)
-    DATA_FOLDER.mkdir(exist_ok=True)
-    return DATA_FOLDER
+    if not folder and DATA_FOLDER.is_dir() and any(DATA_FOLDER.iterdir()):
+        return DATA_FOLDER
+    return None
 
 
 def save_folder(folder):
@@ -151,9 +155,30 @@ class App:
         else:
             self.build_main()
 
+    def ask_first_folder(self):
+        """No data folder yet (first run), or the one picked before is gone: ask for it. False = the user quit."""
+        gone = load_config().get("folder")
+        intro = (f"The data folder used before can't be found:\n{gone}\n\nIs OneDrive running and signed in? "
+                 "Then pick the folder again." if gone else
+                 "Welcome! Pick the Combo Scheduler data folder: the shared folder (in OneDrive) with Combo "
+                 "Approvals.xlsx, Conflicts.xlsx and settings.json.\n\nSetting up for the very first time? Make an "
+                 "empty folder in OneDrive, e.g. 'Combo Scheduler data', and pick that.")
+        while True:
+            if not messagebox.askokcancel("Data folder", intro, icon="info"):
+                return False
+            picked = filedialog.askdirectory(title="The Combo Scheduler data folder")
+            if picked:
+                self.folder = Path(picked)
+                save_folder(self.folder)
+                return True
+
     def build_main(self):
         """The full app: data folder, Run tab, and the other tabs."""
         shell = self.shell
+        if self.folder is None and not self.ask_first_folder():
+            self.closed = True
+            self.root.destroy()
+            return
         where = ttk.Frame(shell)                      # row 2: data folder and its buttons
         where.pack(fill="x", pady=(4, 0))
         ttk.Button(where, text="Open folder", command=lambda: open_path(self.folder)).pack(side="right", padx=(6, 0))
@@ -583,7 +608,9 @@ def bring_to_front(root):
 
 def main():
     root = tk.Tk()
-    App(root)
+    app = App(root)
+    if getattr(app, "closed", False):               # quit at the "pick the data folder" question
+        return
     root.after(200, bring_to_front, root)
     root.mainloop()
 

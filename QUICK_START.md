@@ -5,9 +5,9 @@ The Combo Scheduler makes the combo show calendar from the sign-up and conflict 
 ## First time on a computer (once)
 
 1. Install Python from **python.org** (click **Downloads**, then the big yellow button, then open the file and click through). On Windows, tick **Add python.exe to PATH** on the first screen.
-2. Open the **Combo Scheduler** folder and double-click **Make Schedule** (on a Mac: *Make Schedule.command*; on Windows: *Make Schedule.bat*).
+2. Put the **Combo Scheduler** program folder on this computer (e.g. in Documents), open it and double-click **Make Schedule** (on a Mac: *Make Schedule.command*; on Windows: *Make Schedule.bat*).
 3. Mac only: if it says it can't be opened, go to **System Settings > Privacy & Security**, scroll down and click **Open Anyway**.
-4. The first time, a **Setup** screen appears: click **Install** and wait about a minute. The scheduler then opens by itself. From now on, step 2 is all you need.
+4. The first time, a **Setup** screen appears: click **Install** and wait about a minute. The scheduler then opens and asks for the **data folder**: pick the *Combo Scheduler data* folder in OneDrive. From now on, step 2 is all you need.
 
 ## While combos sign up
 
@@ -31,4 +31,5 @@ The Combo Scheduler makes the combo show calendar from the sign-up and conflict 
 
 - Red text in the Run tab says what's wrong: read it first.
 - *Something went wrong*: copy the text in the window and email it to the person in the **About** tab.
-- **Open folder** (top right) shows all the files. Every saved change keeps a copy of the old schedule in *Schedule backups*.
+- **Open folder** (top right) shows all the files. Every saved change keeps a copy of the old schedule in *Schedule backups*; past semesters are in *Archive*.
+- **New computer?** Do the first-time steps again and pick the same data folder in OneDrive: everything is still there.
