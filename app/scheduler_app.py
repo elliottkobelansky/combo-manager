@@ -551,9 +551,18 @@ class App:
             b.configure(state="normal")
 
 
+def bring_to_front(root):
+    """Started from Terminal (Mac) or a file manager, the window can open behind it: raise it once."""
+    root.lift()
+    root.attributes("-topmost", True)
+    root.after(300, lambda: root.attributes("-topmost", False))
+    root.focus_force()
+
+
 def main():
     root = tk.Tk()
     App(root)
+    root.after(200, bring_to_front, root)
     root.mainloop()
 
 

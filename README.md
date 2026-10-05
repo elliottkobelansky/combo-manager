@@ -32,8 +32,8 @@ folder** shown at the top: by default the `data` folder next to the launchers; *
 
 **First run on a new computer:** Python 3 must be installed (python.org; on Windows tick "Add python.exe to
 PATH"). The launcher then sets up a private Python environment in the user's home folder (once, outside OneDrive),
-and the window offers **Install missing packages** (needs internet, about a minute). On a Mac, if double-clicking
-is blocked, right-click the file > Open. On Linux you may need `sudo apt install python3-venv python3-tk`.
+and the window shows a one-time **Setup** screen: click **Install** (needs internet, about a minute) and the app reopens by itself. On a Mac, if double-clicking
+is blocked ("unidentified developer" / "could not verify"), open System Settings > Privacy & Security and click Open Anyway (on older macOS: right-click the file > Open). Install Python from python.org: Homebrew's Python has no tkinter (the launcher skips a Python without it, and rebuilds the scheduler's private Python if it was made from one). On Linux you may need `sudo apt install python3-venv python3-tk`.
 
 ## Setup (once)
 
