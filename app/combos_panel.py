@@ -169,17 +169,28 @@ class CombosPanel:
                 pid = self.tree.insert(item, "end", text=f"    {self.name(e)}  \u00b7 removed (right-click to put back)",
                                        values=("", "", "", "", e), tags=(shade, "removed"))
                 self.removed[pid] = (c.name, e)
+            if c.professor:
+                pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (supervisor)",
+                                       values=("", "", "", "", self.mail(c.professor)), tags=(shade,))
+                self.people[pid] = (None, c.professor)
         for c in sorted(self.data["withdrawn"].values(), key=lambda c: c.name):
             label = (f"{c.name} ({self.name(c.liaison)})" if c.liaison else c.name) + "  \u00b7 withdrawn"
             if q and q not in (label + " " + " ".join(c.members)).lower():
                 continue
             item = self.tree.insert("", "end", text=label, values=("right-click to put back", "", "", "", ""),
-                                    tags=("removed",))
+                                    open=bool(q) or self.tree_key(label) in open_items, tags=("removed",))
             self.withdrawn_items[item] = c
+            people = [c.liaison] + sorted(c.members - {c.liaison}, key=lambda e: self.name(e).lower())
+            for e in [e for e in people if e]:
+                instrument = self.data["instruments"].get((c.name, e), "")
+                pid = self.tree.insert(item, "end", text="    " + self.name(e) + ("  \u00b7 liaison" if e == c.liaison
+                                                                                 else ""),
+                                       values=("", instrument, "", "", e), tags=("removed",))
+                self.withdrawn_items[pid] = c          # right-click on a member: put the combo back
             if c.professor:
                 pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (supervisor)",
-                                       values=("", "", "", "", self.mail(c.professor)), tags=(shade,))
-                self.people[pid] = (None, c.professor)
+                                       values=("", "", "", "", c.professor), tags=("removed",))
+                self.withdrawn_items[pid] = c
 
     @staticmethod
     def tree_key(label):
@@ -497,9 +508,15 @@ class CombosPanel:
         kind, combo, _ = self.selected()
         if kind != "withdrawn":
             return
+        if self.data["sets"] and not messagebox.askyesno(
+                "Put a combo back", f"Put {combo.name} back?\n\n\u26a0 This does NOT give it its shows back: the schedule "
+                "isn't made again. Its sets were opened when it was withdrawn (others may have taken them since), so "
+                f"{combo.name} will have no shows. It can then claim open sets (Swaps tab), or you can give it sets "
+                "(Schedule tab).", icon="warning"):
+            return
         self.save_changes(lambda s: s.set_withdrawn(self.data["settings"].semester_name, combo.ref, False),
-                          f"{combo.name} is back" + (" with no shows (its sets were opened when it was withdrawn): it "
-                                                     "can claim open sets in the Swaps tab." if self.data["sets"] else "."))
+                          f"{combo.name} is back" + (" with no shows yet: it can claim open sets in the Swaps tab."
+                                                     if self.data["sets"] else "."))
 
     def choose_liaison(self, combo, emails, question, current=None):
         """A small window listing the members; returns the chosen email, or None when cancelled."""
