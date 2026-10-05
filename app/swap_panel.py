@@ -1,6 +1,6 @@
 """The Swaps tab of scheduler_app.py: pick a combo and one of its shows, see every legal swap (core/swaps.py), and
 collect changes in a pending list. Nothing is written until "Confirm changes": then Schedule.xlsx is written once (a copy
-of the old file goes to 'Schedule backups') and Schedule.pdf is rebuilt in the background. While changes are
+of the old file goes to 'App data/Schedule backups') and Schedule.pdf is rebuilt in the background. While changes are
 pending, the tab shows the schedule as if they were done, so the next swap is checked against them too.
 """
 import tkinter as tk
@@ -15,6 +15,7 @@ from outputs.excel_schedule import (ScheduleFileError, check_semester, open_labe
                                     write_swap)
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 from theme import in_background
+from util import app_data
 
 
 class SwapPanel:
@@ -122,7 +123,7 @@ class SwapPanel:
             self.refresh_pending()
         folder = self.get_folder()
         try:
-            settings, _ = load_settings(folder / SETTINGS_FILE)
+            settings, _ = load_settings(app_data(folder) / SETTINGS_FILE)
             files = input_files(folder)
             inp = load_input(folder, settings, files["approvals"], files["conflicts"])
             combos = {c.id: c for c in inp.combos}
@@ -376,7 +377,7 @@ class SwapPanel:
         if not messagebox.askyesno("Confirm changes?", f"Save {len(self.pending)} change(s) into Schedule.xlsx "
                                    f"({len(changes)} set(s) change)?" + (f"\n\n{warns} of them have a heads-up (\u26a0)."
                                                                        if warns else "")
-                                   + "\n\nA copy of the current file goes to 'Schedule backups' first."):
+                                   + "\n\nA copy of the current file goes to 'App data/Schedule backups' first."):
             return
         try:
             backup = write_swap(self.get_folder() / "Schedule.xlsx", changes, st["combos"], open_label(st["settings"]))
@@ -386,7 +387,7 @@ class SwapPanel:
         n = len(self.pending)
         self.pending = []
         self.load(quiet=True)
-        self.save_status.configure(text=f"Saved {n} change(s) to Schedule.xlsx (backup in 'Schedule backups'). "
+        self.save_status.configure(text=f"Saved {n} change(s) to Schedule.xlsx (backup in 'App data/Schedule backups'). "
                                         "Rebuilding Schedule.pdf...")
         self.after_apply(f"Saved {n} change(s). Backup of the old file: {backup}\n",
                          lambda code: (self.pdf_done(code), then and then(code)))

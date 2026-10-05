@@ -65,12 +65,20 @@ def check_semester(path, settings):
                                 "into the data folder's Archive first.")
 
 
+def semester_paths(folder):
+    """The SEMESTER_FILES that are there (Schedule backups is in App data)."""
+    from util import app_data
+    folder = Path(folder)
+    paths = [app_data(folder) / n if n == "Schedule backups" else folder / n for n in SEMESTER_FILES]
+    return [p for p in paths if p.exists()]
+
+
 def archive_semester(folder, semester):
     """Moves a semester's files (SEMESTER_FILES) into folder/Archive/<semester>/ (or '<semester> (2)', ... if that
     exists). Returns the new folder, or None when there was nothing to move."""
     import shutil
     folder = Path(folder)
-    present = [folder / n for n in SEMESTER_FILES if (folder / n).exists()]
+    present = semester_paths(folder)
     if not present:
         return None
     name = re.sub(r'[\\/:*?"<>|]+', "-", str(semester or "Old schedule")).strip() or "Old schedule"
@@ -240,14 +248,14 @@ def open_label(settings):
 def write_swap(path, changes, combos, open_label):
     """Writes swapped sets into the Combo column of Schedule.xlsx (everything else, including hand edits, stays).
     changes = {(date, set number): combo id or None (open)}. A copy of the file as it was goes into a
-    'Schedule backups' folder next to it first. Returns the backup's path."""
+    'App data/Schedule backups' folder in the data folder first. Returns the backup's path."""
     import shutil
     from datetime import datetime
     from openpyxl import load_workbook
-    from util import to_date
+    from util import app_data, to_date
     path = Path(path)
-    backups = path.parent / "Schedule backups"
-    backups.mkdir(exist_ok=True)
+    backups = app_data(path.parent) / "Schedule backups"
+    backups.mkdir(parents=True, exist_ok=True)
     backup = backups / f"{path.stem} {datetime.now():%Y-%m-%d %H%M%S}{path.suffix}"
     shutil.copy2(path, backup)
     wb = load_workbook(path)

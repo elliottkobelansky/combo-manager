@@ -22,7 +22,7 @@ from openpyxl.worksheet.table import Table
 
 from core import generate_nights
 from settings_file import SETTINGS_FILE, load_settings
-from util import DATA_FOLDER
+from util import DATA_FOLDER, app_data
 
 EPOCH = date(1899, 12, 30)
 OUTSIDE = ["jamie.outside@gmail.com", "sam.guest@gmail.com"]   # non-McGill members: must be kept like anyone else
@@ -257,7 +257,7 @@ if __name__ == "__main__":
     ap.add_argument("--replace", action="store_true", help="with --instruments: also replace instruments already set")
     a = ap.parse_args()
     if a.instruments:
-        settings, _ = load_settings(DATA_FOLDER / SETTINGS_FILE)
+        settings, _ = load_settings(app_data(DATA_FOLDER) / SETTINGS_FILE)
         n = fake_instruments(DATA_FOLDER, settings, a.seed, a.replace)
         print(f"Set {n} instrument(s) in {DATA_FOLDER / 'scheduler_data.json'}.")
         sys.exit(0)
@@ -266,7 +266,7 @@ if __name__ == "__main__":
     if existing and not a.force:
         raise SystemExit(f"{', '.join(existing)} already exist in {DATA_FOLDER} (real data?). Move them first, "
                          "or run with --force to overwrite them with fake data.")
-    settings, _ = load_settings(DATA_FOLDER / SETTINGS_FILE)
+    settings, _ = load_settings(app_data(DATA_FOLDER) / SETTINGS_FILE)
     make(approvals, conflicts, generate_nights(settings), a.combos, a.seed, settings.semester_name)
     n = fake_instruments(DATA_FOLDER, settings, a.seed)
     print(f"Wrote Combo Approvals.xlsx and Conflicts.xlsx in {DATA_FOLDER}, and {n} instrument(s).")

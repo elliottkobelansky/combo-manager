@@ -16,7 +16,7 @@ from outputs.excel_schedule import ScheduleFileError, check_semester, open_label
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 from store import Store
 from theme import popup, scrolled_tree
-from util import INSTRUMENTS, by_instrument
+from util import INSTRUMENTS, app_data, by_instrument
 
 
 
@@ -80,7 +80,7 @@ class CombosPanel:
         """quiet: when loading by itself (app start, folder change), a problem is shown in the tab, not a pop-up."""
         folder = self.get_folder()
         try:
-            settings, _ = load_settings(folder / SETTINGS_FILE)
+            settings, _ = load_settings(app_data(folder) / SETTINGS_FILE)
             files = input_files(folder)
             inp = load_input(folder, settings, files["approvals"], files["conflicts"])
             self.store = Store(folder)

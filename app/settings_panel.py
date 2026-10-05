@@ -13,7 +13,7 @@ from core import generate_nights
 from core.model import WEEKDAYS, make_label
 from settings_file import (DEFAULTS, HELP, SETTINGS_FILE, SettingsError, read_data, save_data,
                            validate)
-from util import to_date
+from util import app_data, to_date
 
 try:
     from tkcalendar import Calendar
@@ -351,7 +351,7 @@ class SettingsPanel:
 
     @property
     def path(self):
-        return self.get_folder() / SETTINGS_FILE
+        return app_data(self.get_folder()) / SETTINGS_FILE
 
     def reload(self):
         note = ""
@@ -443,9 +443,9 @@ class SettingsPanel:
             return None
         if old.semester_name == new.semester_name:
             return None
-        from outputs.excel_schedule import SEMESTER_FILES, record_semester, schedule_semester
+        from outputs.excel_schedule import record_semester, schedule_semester, semester_paths
         folder = self.get_folder()
-        if not any((folder / n).exists() for n in SEMESTER_FILES):
+        if not semester_paths(folder):
             return None
         on_file = schedule_semester(folder / "Schedule.xlsx", old) if (folder / "Schedule.xlsx").exists() else None
         if on_file == new.semester_name:              # the schedule is already the new semester's

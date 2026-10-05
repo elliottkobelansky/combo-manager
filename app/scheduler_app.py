@@ -23,7 +23,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from app_config import input_files, is_picked, load_config, pick_input_file, save_config  # noqa: E402
-from util import APPROVALS_FILE, CONFLICTS_FILE, DATA_FOLDER  # noqa: E402  (both standard library only, safe before packages are installed)
+from util import APPROVALS_FILE, CONFLICTS_FILE, DATA_FOLDER, app_data  # noqa: E402  (both standard library only, safe before packages are installed)
 AUTHOR, EMAIL = "Elliott Kobelansky", "elliottkobelansky@gmail.com"
 PACKAGES = {"openpyxl": "openpyxl", "ortools": "ortools", "reportlab": "reportlab"}   # import name -> pip name
 OPTIONAL = {"tkcalendar": "tkcalendar", "sv_ttk": "sv-ttk"}   # pop-up calendars; the modern look
@@ -530,7 +530,7 @@ class App:
         try:
             from outputs.excel_schedule import schedule_semester
             from settings_file import SETTINGS_FILE, SettingsError, load_settings
-            settings, _ = load_settings(self.folder / SETTINGS_FILE)
+            settings, _ = load_settings(app_data(self.folder) / SETTINGS_FILE)
         except (ImportError, SettingsError):
             return None
         sem = schedule_semester(path, settings)

@@ -24,8 +24,10 @@ folder** shown at the top; **Change...** picks another (remembered on that compu
 
 **Where things live:** the **program** is installed on each computer (this folder, unzipped locally; it has no
 data in it). The **data folder** is one shared folder in OneDrive (e.g. `Combo Scheduler data`) with everything that
-matters: `Combo Approvals.xlsx` and `Conflicts.xlsx` (point both flows at it), `settings.json`,
-`scheduler_data.json`, `Schedule.xlsx` + `Schedule backups/`, the PDFs, and `Archive/` with past semesters. On first
+matters. At the top, what people open: `Combo Approvals.xlsx` and `Conflicts.xlsx` (point both flows at it),
+`Schedule.xlsx`, the PDFs, `Contact lists.xlsx`, and `Archive/` with past semesters. In **`App data/`**, what the
+program manages: `settings.json`, `scheduler_data.json` (each with a `.bak` copy) and `Schedule backups/` (a data
+folder from before is moved into this layout the first time it's opened). On first
 run the app asks for that folder; a wiped computer only needs the program reinstalled and the folder picked again.
 Per-computer preferences (the folder, text size, dark mode) are in `~/.combo_scheduler.json`. (For development, a
 `data/` folder next to the program with files in it is used automatically.) Build a zip to hand out with
@@ -55,8 +57,8 @@ dark mode); without them it still works, with typed dates and a plainer look.
 
 ## Running it each semester
 
-**1. Settings.** In the app's **Settings** tab (saved in `settings.json` in the data folder; the previous
-version is kept as `settings.json.bak`):
+**1. Settings.** In the app's **Settings** tab (saved in `App data/settings.json` in the data folder; the
+previous version is kept as `settings.json.bak`):
 
 | Tab | What to fill in |
 |---|---|
@@ -66,7 +68,7 @@ version is kept as `settings.json.bak`):
 | Extra dates | One-off shows on days that aren't a regular show day. Usually empty. Set times are optional: blank uses the venue's usual times. |
 
 **Save settings** checks everything first and says what to fix. Without the app: `python app/settings_file.py --new`
-writes a `data/settings.json` with example values (plain text, YYYY-MM-DD dates).
+writes a `data/App data/settings.json` with example values (plain text, YYYY-MM-DD dates).
 
 **Set times.** For each show day, **first set starts** (e.g. `19:00` or `7:00 PM`), **set length** and
 **break** (minutes) give every set its start and end time: 19:00, 45, 15 gives 7:00–7:45, 8:00–8:45, 9:00–9:45, ...
@@ -176,7 +178,7 @@ an option that fixes an existing problem is marked in green. Combos are shown wi
 ("Combo 07 (Ana Ruiz)"), and a person whose name isn't unique is shown with their email. **Add to pending changes** collects it without touching any file: the tab then shows the
 schedule as if it were done, so you can make several swaps in a row (each checked against the earlier ones), with
 **Undo last** and **Discard all**. **Confirm changes** writes them all into `Schedule.xlsx` at once (a copy of
-the old file goes to the `Schedule backups` folder) and rebuilds the PDF in the background; you stay on the Swaps
+the old file goes to `App data/Schedule backups`) and rebuilds the PDF in the background; you stay on the Swaps
 tab, and it says when the PDF is done. Closing the app or clicking Reload with unsaved changes asks first.
 A swap that would take a combo off its only supervised night isn't offered, and three-way swaps aren't tried:
 for those, edit by hand as below.
@@ -211,7 +213,7 @@ count from then on.
 **Withdrawing a combo** (Combos tab: Actions > **Withdraw**): the combo stops being scheduled and its
 number stays reserved, so the numbering keeps a gap and no other combo's number changes (like setting Status to
 Withdrawn in the approvals, without opening Excel). If the schedule is out, its sets become OPEN in `Schedule.xlsx`
-right away (a backup goes to `Schedule backups`) and `Schedule.pdf` is rebuilt; nothing is given to another combo
+right away (a backup goes to `App data/Schedule backups`) and `Schedule.pdf` is rebuilt; nothing is given to another combo
 automatically. Volunteers can claim the open sets, or give one to a combo from the Schedule tab ("who could take
 it"). A set on a **supervised night** must be filled (supervised nights are full): the confirmation says so and the
 rule check flags it until it is. Withdrawing waits until pending swaps are confirmed or discarded. Withdrawn combos

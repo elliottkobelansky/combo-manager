@@ -24,7 +24,7 @@ from core.checks import analyze
 from core.stats import schedule_stats
 from inputs import APPROVALS_FILE, CONFLICTS_FILE, InputError, load_input, name_from_email
 from store import Store
-from util import DATA_FOLDER
+from util import DATA_FOLDER, app_data
 from outputs.excel_schedule import (ScheduleFileError, archive_semester, check_semester, read_schedule,
                                     schedule_nights, schedule_semester, write_schedule)
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
@@ -112,7 +112,7 @@ def confirm(outputs):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--folder", default=str(DATA_FOLDER))
-    ap.add_argument("--settings", default=SETTINGS_FILE)
+    ap.add_argument("--settings", help="default: App data/settings.json in the folder")
     ap.add_argument("--approvals", default=APPROVALS_FILE)
     ap.add_argument("--conflicts", default=CONFLICTS_FILE)
     ap.add_argument("--conflicts-sheet")
@@ -127,7 +127,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     f = Path(a.folder)
     try:
-        settings, setting_warnings = load_settings(f / a.settings)
+        settings, setting_warnings = load_settings(f / a.settings if a.settings else app_data(f) / SETTINGS_FILE)
         if a.stats:
             check_semester(f / a.out, settings)          # another semester's schedule isn't this one's
         # --stats looks at the schedule as it is: its own nights; anything else plans from the settings

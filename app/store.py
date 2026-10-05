@@ -14,14 +14,15 @@ Written by the app and by solve.py (when a new combo gets its number). Keep it w
 OneDrive folder is ideal).
 """
 import json
-from pathlib import Path
+
+from util import app_data
 
 DATA_FILE = "scheduler_data.json"
 
 
 class Store:
     def __init__(self, folder):
-        self.path = Path(folder) / DATA_FILE
+        self.path = app_data(folder) / DATA_FILE
         try:
             self.data = json.loads(self.path.read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -33,6 +34,7 @@ class Store:
         self.changed = False
 
     def save(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             self.path.with_name(self.path.name + ".bak").write_text(self.path.read_text(encoding="utf-8"),
                                                                     encoding="utf-8")

@@ -41,9 +41,9 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [ ] Solver time: 90 (the new default; the current fake `settings.json` still says 30).
 
 ### 3. Hand-over: program local, data in OneDrive (decided 2026-10-05)
-- **Synced (OneDrive), one shared folder e.g. `Combo Scheduler data`:** `Combo Approvals.xlsx` and `Conflicts.xlsx`
-  (the flows write there), `settings.json`, `scheduler_data.json`, `Schedule.xlsx` + `Schedule backups/`, the PDFs
-  and contact lists, and `Archive/` with past semesters.
+- **Synced (OneDrive), one shared folder e.g. `Combo Scheduler data`:** at the top `Combo Approvals.xlsx` and
+  `Conflicts.xlsx` (the flows write there), `Schedule.xlsx`, the PDFs and contact lists, `Archive/` (past
+  semesters); in `App data/` the program's own files: `settings.json`, `scheduler_data.json`, `Schedule backups/`.
 - **Local (each computer):** the program (unzipped folder now, the packaged app later), `~/.combo-scheduler-python`
   (rebuilt if missing), `~/.combo_scheduler.json` (which data folder, text size, dark mode: per computer on purpose).
 - [x] First run with no data folder chosen (and no `data/` with files next to the program) asks for it; a folder that
@@ -59,7 +59,13 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [ ] Pin package versions (`requirements.txt`, used by the Install button).
 - [ ] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `settings.json`, `Schedule.xlsx`.
 - [ ] A log file in the data folder, for "send this to whoever maintains it".
-- [ ] Warn about OneDrive conflict copies and two computers editing at once (a lock file).
+- [ ] **Several computers on one OneDrive data folder** (works today: everything shared is in the data folder, each
+  computer just picks it). Handle the races: (a) a lock file in `App data` ("in use on OFFICE-PC by Ana since
+  14:05"; the second computer opens read-only or takes over a stale lock); (b) before saving `Schedule.xlsx`,
+  `scheduler_data.json` or `settings.json`, check it hasn't changed on disk since it was read (another computer saved
+  and OneDrive synced it) and reload instead of overwriting (the Combos tab already re-reads `scheduler_data.json`
+  before each edit); (c) spot OneDrive conflict copies (`Schedule-OFFICE-PC.xlsx`, `settings (1).json`) and say so;
+  (d) pending swaps: confirm against the file as it is now.
 
 ---
 
