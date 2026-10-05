@@ -174,7 +174,7 @@ class App:
                                                             on_done=done),
                                       lambda: self.open_file("Schedule.pdf"), lambda: self.palette, open_path)
         self.tabs.insert(1, self.schedule.frame, text="Schedule")
-        self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette)
+        self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette, on_save=self.autoload)
         self.tabs.add(self.settings.frame, text="Settings")
         self.tabs.add(self.about_tab(), text="About")
 

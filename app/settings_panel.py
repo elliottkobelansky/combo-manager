@@ -266,8 +266,9 @@ class ListEditor:
 
 
 class SettingsPanel:
-    def __init__(self, parent, get_folder, get_palette=lambda: {}):
+    def __init__(self, parent, get_folder, get_palette=lambda: {}, on_save=None):
         self.get_folder = get_folder
+        self.on_save = on_save                            # reloads the other tabs (they read the settings too)
         PALETTE.update(get_palette())
         self.get_palette = get_palette
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
@@ -413,3 +414,5 @@ class SettingsPanel:
             return
         save_data(self.path, data)
         self.status.configure(text=f"Saved to {SETTINGS_FILE}." + (f" Note: {' '.join(warnings)}" if warnings else ""))
+        if self.on_save:
+            self.on_save()
