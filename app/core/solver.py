@@ -11,11 +11,11 @@ W_UNFILLED = 1000   # per empty set. In open mode this means: every combo gets i
 W_FIRST_YEAR = 800  # per show a first-year combo plays before first_year_earliest_date (only if there's no other way)
 W_SPREAD = 600      # per unit of (max - min) shows per combo, per venue and overall: equal show counts
 W_SUP_DAY = 400     # per supervised night that isn't on a "Supervision preferred" show day (ShowDays sheet)
-W_SHARED = 200      # per student who plays twice in one night (two of their combos on the same night)
+W_SUPERVISED = 300  # per supervised night: as few nights needing a professor as possible (within the cap)
+W_VENUES = 150      # per combo with no show at a venue it could play at: 1 Upstairs + 1 Clara beats Upstairs twice
 W_SPACING = 80      # max cost of one pair of a combo's shows (same-day). The cost falls off quadratically and
                     # reaches 0 at min_days_between_shows.
-W_VENUES = 150     # per combo with no show at a venue it could play at: 1 Upstairs + 1 Clara beats Upstairs twice
-W_SUPERVISED = 100  # per supervised night: as few nights needing a professor as possible (within the cap)
+W_SHARED = 30       # per student who plays twice in one night (two of their combos on the same night): minor
 W_PRIMARY = 15      # auto mode: extras should go to required venues (e.g. Tuesday) before optional ones
 
 

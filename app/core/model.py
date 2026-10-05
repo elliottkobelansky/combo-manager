@@ -55,7 +55,7 @@ class Settings:
     min_shows_per_combo: Optional[int] = None   # total, at any venues (venue minimums still apply); open mode: exactly.
                                                 # Required in settings.json; None only for a hand-built Settings
     extra_slot_policy: str = "auto"       # "auto": fill every set. "open": leave extras for volunteers
-    solver_time_limit_sec: float = 30
+    solver_time_limit_sec: float = 90
     every_combo_supervised: bool = True   # every combo plays at least one night a professor attends (off = no supervision)
     max_supervised_nights: Optional[int] = None   # cap on those nights (None = no cap); within it, as few as possible
     use_first_year: bool = True           # off: no combo is treated as first-year (the input adapter clears the flag)

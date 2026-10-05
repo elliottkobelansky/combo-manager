@@ -30,7 +30,7 @@ DEFAULTS = {
     "max_shows_per_combo": 4,
     "every_combo_supervised": True,
     "max_supervised_nights": 10,
-    "solver_time_limit_sec": 30,
+    "solver_time_limit_sec": 90,
     "student_email_domain": "mail.mcgill.ca",
     "email_domain_fixes": "mcgill.ca -> mail.mcgill.ca",
     "show_days": [
@@ -65,7 +65,7 @@ HELP = {
     "max_supervised_nights": "The most supervised nights in the whole semester, counting all professors together "
                              "(not per professor). One night covers every combo playing it. Blank = no limit (still "
                              "as few as possible).",
-    "solver_time_limit_sec": "How long the solver searches (roughly seconds). 30 is plenty unless it says FEASIBLE.",
+    "solver_time_limit_sec": "How long the solver searches (roughly seconds). 90 is plenty: it stops early once it has the best schedule.",
     "student_email_domain": "Students' email domain, e.g. mail.mcgill.ca. Other addresses are fine, just listed. "
                             "Blank = don't check.",
     "email_domain_fixes": "Domain slips to correct, e.g. mcgill.ca -> mail.mcgill.ca, gmial.com -> gmail.com. "
@@ -256,7 +256,7 @@ def validate(data):
         max_shows_per_combo=max_total,
         min_shows_per_combo=min_total,
         extra_slot_policy=policy,
-        solver_time_limit_sec=get_int("solver_time_limit_sec", 30, low=1) or 30,
+        solver_time_limit_sec=get_int("solver_time_limit_sec", 90, low=1) or 90,
         every_combo_supervised=bool(data.get("every_combo_supervised", True)),
         max_supervised_nights=get_int("max_supervised_nights", low=1),
         use_first_year=use_first_year,

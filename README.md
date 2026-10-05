@@ -236,12 +236,12 @@ Goals, in order of importance (the solver gives up a lower goal to meet a higher
 3. Keep the number of shows equal between combos.
 4. Supervised nights on a show day marked **Supervised nights preferred here** (Settings > Show days, e.g. Tuesdays), so
    professors come on the night that suits them. Other nights are used only when there's no other way.
-5. Avoid a student playing twice in one night (two of their combos on the same night). If it happens, the Report
-   says who and when, and the two sets are placed back-to-back in the running order.
+5. Use as few supervised nights as possible (within `max_supervised_nights`).
 6. Each combo plays at every venue it can: one Upstairs and one Clara show rather than two Upstairs. The Swaps
    tab warns when a swap would take this away.
-7. Use as few supervised nights as possible (within `max_supervised_nights`).
-8. Spread each combo's shows apart (see [Tuning](#tuning)).
+7. Spread each combo's shows apart (see [Tuning](#tuning)).
+8. Avoid a student playing twice in one night (two of their combos on the same night). A minor goal: if it
+   happens, the Report says who and when, and the two sets are placed back-to-back in the running order.
 9. Within a night, a combo that went late last time tends to go early this time.
 
 If no schedule is possible, `solve.py` says why in plain language (e.g. "Combo 10 has 0 usable Upstairs
@@ -263,7 +263,7 @@ nights but needs 1").
 | `max_shows_per_combo` | Cap on total shows per combo. Blank = no cap. |
 | `every_combo_supervised` | The **Supervised nights** switch. On: every combo plays at least one supervised night (a professor attends). Off: no supervised nights at all; `max_supervised_nights` and the show days' "Supervised nights preferred here" are ignored, and `Schedule.xlsx` has no Supervised column. Missing = On. |
 | `max_supervised_nights` | **Max supervised nights (all profs)**: the total for the whole semester, counting all professors together, not per professor (one supervised night covers every combo playing it). At most this many supervised nights. Blank = no limit (still as few as possible). Each night fits its number of sets, so 33 combos at 4 sets a night need at least 9. |
-| `solver_time_limit_sec` | How long the solver searches (roughly seconds). 30 is plenty unless the Report says FEASIBLE instead of OPTIMAL. |
+| `solver_time_limit_sec` | How long the solver searches (roughly seconds). 90 is plenty (it stops as soon as it has proven the best schedule), unless the Report says FEASIBLE instead of OPTIMAL. |
 | `student_email_domain` | Students' email domain (`mail.mcgill.ca`). Members with other addresses are fine; they're just listed in the check, and a supervisor on this domain gets a "student address?" warning. Blank = don't check. |
 | `email_domain_fixes` | Domain slips corrected when reading both spreadsheets, e.g. `mcgill.ca -> mail.mcgill.ca, gmial.com -> gmail.com`. Blank = none. Note: the McGill fix also rewrites real `@mcgill.ca` staff addresses if a staff member plays in a combo (supervisor addresses are never rewritten). |
 
@@ -302,7 +302,7 @@ This solves once per value, writes nothing, and prints:
 ### `solver_time_limit_sec`
 
 If the Report or the console says `FEASIBLE` rather than `OPTIMAL`, the solver ran out of time before
-proving it found the best schedule. The schedule is still valid. Raise the limit (e.g. 120) if you want it
+proving it found the best schedule. The schedule is still valid (usually as good). Raise the limit (e.g. 180) if you want it
 to keep looking. `open` mode usually solves in a few seconds.
 
 ### Weights (advanced)
