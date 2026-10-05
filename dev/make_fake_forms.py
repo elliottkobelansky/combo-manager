@@ -3,8 +3,11 @@ conflicts table (Conflicts.xlsx, in the layout the conflict flow writes), with d
 make() also returns what the approvals should turn into (worked out from what was put in, not by parsing), so
 test_rules.py can check inputs.py against it.
 
-    python dev/make_fake_forms.py [--combos 33] [--seed 1]
+    python dev/make_fake_forms.py [--combos 33] [--seed 1]    # new fake spreadsheets (+ instruments)
+    python dev/make_fake_forms.py --instruments [--replace]  # only fill in instruments for the combos in data/
 Writes into data/. Needs data/settings.json (the app's Settings tab, or: python app/settings_file.py --new).
+Instruments go into data/scheduler_data.json (as if set in the Combos tab); people who already have one keep it
+unless --replace.
 """
 import argparse
 import random
@@ -181,12 +184,75 @@ def make(approvals_path, conflicts_path, nights, n_combos=33, seed=1, sem="Fall 
     return expected_combos(truth, sem)
 
 
+HORNS = [("Saxophone", 40), ("Trumpet", 28), ("Trombone", 14), ("Voice", 12), ("other", 6)]
+OTHER = ["Vibraphone", "Flute", "Violin", "Clarinet"]
+
+
+def lineup(n, rnd):
+    """A realistic instrumentation for an n-piece combo: a rhythm section, then horns (and the odd singer)."""
+    if n <= 2:
+        return rnd.choice([["Piano", "Bass"], ["Guitar", "Voice"], ["Piano", "Voice"]])[:n]
+    roles = ["Drums", "Bass"]
+    roles += ["Piano"] if rnd.random() < 0.7 else ["Guitar"]
+    if n >= 5 and rnd.random() < 0.3:
+        roles.append("Guitar" if roles[-1] == "Piano" else "Piano")
+    while len(roles) < n:
+        horn = rnd.choices([h for h, _ in HORNS], weights=[w for _, w in HORNS])[0]
+        roles.append(rnd.choice(OTHER) if horn == "other" else horn)
+    return roles
+
+
+def fake_instruments(folder, settings, seed=1, replace=False):
+    """Gives every member of the accepted combos in `folder` a realistic instrument (scheduler_data.json). Someone in
+    several combos plays the same instrument in each when that combo needs it (otherwise they double on another).
+    Returns how many were set."""
+    from inputs import load_input
+    from store import Store
+    rnd = random.Random(seed)
+    combos = sorted(load_input(folder, settings).combos, key=lambda c: c.name)
+    store = Store(folder)
+    sem = settings.semester_name
+    have = {} if replace else store.instruments(sem)
+    plays = {}                                     # email -> instrument, so people stay on one instrument
+    for (_, e), inst in have.items():
+        plays.setdefault(e, inst)
+    n_set = 0
+    for c in combos:
+        roles, members = lineup(len(c.members), rnd), sorted(c.members)
+        rnd.shuffle(members)
+        given = {e: have[(c.name, e)] for e in members if (c.name, e) in have}       # 1. already set: kept
+        for inst in given.values():
+            if inst in roles:
+                roles.remove(inst)
+        for e in members:                    # 2. same instrument as in their other combos, if this one needs it
+            if e not in given and plays.get(e) in roles:
+                given[e] = plays[e]
+                roles.remove(plays[e])
+        for e in members:                                                            # 3. the roles still open
+            if e not in given:
+                given[e] = roles.pop(0) if roles else rnd.choice(["Saxophone", "Trumpet", "Voice"])
+        for e, inst in given.items():
+            plays.setdefault(e, inst)
+            if (c.name, e) not in have:
+                store.set_instrument(sem, c.name, e, inst)
+                n_set += 1
+    store.save()
+    return n_set
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--combos", type=int, default=33)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--force", action="store_true", help="overwrite existing response files")
+    ap.add_argument("--instruments", action="store_true", help="only fill in instruments for the combos in data/")
+    ap.add_argument("--replace", action="store_true", help="with --instruments: also replace instruments already set")
     a = ap.parse_args()
+    if a.instruments:
+        settings, _ = load_settings(DATA_FOLDER / SETTINGS_FILE)
+        n = fake_instruments(DATA_FOLDER, settings, a.seed, a.replace)
+        print(f"Set {n} instrument(s) in {DATA_FOLDER / 'scheduler_data.json'}.")
+        sys.exit(0)
     approvals, conflicts = DATA_FOLDER / "Combo Approvals.xlsx", DATA_FOLDER / "Conflicts.xlsx"
     existing = [f.name for f in (approvals, conflicts) if f.exists()]
     if existing and not a.force:
@@ -194,4 +260,5 @@ if __name__ == "__main__":
                          "or run with --force to overwrite them with fake data.")
     settings, _ = load_settings(DATA_FOLDER / SETTINGS_FILE)
     make(approvals, conflicts, generate_nights(settings), a.combos, a.seed, settings.semester_name)
-    print(f"Wrote Combo Approvals.xlsx and Conflicts.xlsx in {DATA_FOLDER}")
+    n = fake_instruments(DATA_FOLDER, settings, a.seed)
+    print(f"Wrote Combo Approvals.xlsx and Conflicts.xlsx in {DATA_FOLDER}, and {n} instrument(s).")
