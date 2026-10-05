@@ -29,7 +29,16 @@ matters. At the top, what people open: `Combo Approvals.xlsx` and `Conflicts.xls
 program manages: `settings.json`, `scheduler_data.json` (each with a `.bak` copy) and `Schedule backups/` (a data
 folder from before is moved into this layout the first time it's opened). On first
 run the app asks for that folder; a wiped computer only needs the program reinstalled and the folder picked again.
-Per-computer preferences (the folder, text size, dark mode) are in `~/.combo_scheduler.json`. (For development, a
+Per-computer preferences (the folder, text size, dark mode) are in `~/.combo_scheduler.json`.
+
+**Several computers on one data folder** (`app/shared_folder.py`): best one at a time, but it's guarded. The app
+writes `App data/In use.json` (computer, user, since when; updated every 3 minutes, ignored after 15 without an
+update); a second computer is told who has it open and can open it anyway, and the first is then told once. Saves
+never overwrite what another computer saved meanwhile: `scheduler_data.json` and `settings.json` are compared with
+what was read (combo edits: "try again"; settings: keep yours / load theirs / cancel), and pending swaps are only
+saved if `Schedule.xlsx` still holds the schedule they were planned on (otherwise reload and redo them). The JSON
+files and swap saves are written to a temp file and renamed (never half a file). OneDrive conflict copies
+(`Schedule-OFFICE-PC.xlsx`, `settings (1).json`) are pointed out when the app opens the folder. (For development, a
 `data/` folder next to the program with files in it is used automatically.) Build a zip to hand out with
 `python dev/make_zip.py` (`--demo` adds the fake data as a "Demo data" folder; `--mac` leaves out the `.bat`, which
 Gmail blocks).

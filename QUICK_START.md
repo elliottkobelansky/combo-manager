@@ -32,4 +32,4 @@ The Combo Scheduler makes the combo show calendar from the sign-up and conflict 
 - Red text in the Run tab says what's wrong: read it first.
 - *Something went wrong*: copy the text in the window and email it to the person in the **About** tab.
 - **Open folder** (top right) shows all the files. Every saved change keeps a copy of the old schedule in *App data > Schedule backups*; past semesters are in *Archive*.
-- **New computer?** Do the first-time steps again and pick the same data folder in OneDrive: everything is still there.
+- **New computer?** Do the first-time steps again and pick the same data folder in OneDrive: everything is still there. Use one computer at a time (the app says if it is open elsewhere).

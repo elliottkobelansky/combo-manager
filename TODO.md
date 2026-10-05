@@ -57,15 +57,15 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 ### 4. Safety (small, worth doing)
 - [x] Backed up: private GitHub repo `elliottkobelansky/combo-scheduler` (2026-10-05; `data/` is never pushed).
 - [ ] Pin package versions (`requirements.txt`, used by the Install button).
-- [ ] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `settings.json`, `Schedule.xlsx`.
+- [x] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `settings.json` and swap saves of
+  `Schedule.xlsx` (2026-10-05). A brand-new schedule (Make schedule) still saves directly.
 - [ ] A log file in the data folder, for "send this to whoever maintains it".
-- [ ] **Several computers on one OneDrive data folder** (works today: everything shared is in the data folder, each
-  computer just picks it). Handle the races: (a) a lock file in `App data` ("in use on OFFICE-PC by Ana since
-  14:05"; the second computer opens read-only or takes over a stale lock); (b) before saving `Schedule.xlsx`,
-  `scheduler_data.json` or `settings.json`, check it hasn't changed on disk since it was read (another computer saved
-  and OneDrive synced it) and reload instead of overwriting (the Combos tab already re-reads `scheduler_data.json`
-  before each edit); (c) spot OneDrive conflict copies (`Schedule-OFFICE-PC.xlsx`, `settings (1).json`) and say so;
-  (d) pending swaps: confirm against the file as it is now.
+- [x] **Several computers on one OneDrive data folder** (2026-10-05, `app/shared_folder.py`): lock file
+  `App data/In use.json` (told who has it open, open anyway = take over, the other is told once; stale after 15
+  min); saves refused when the file changed on disk since it was read (combo edits, settings: yours / theirs /
+  cancel; pending swaps checked against `Schedule.xlsx` as it is now); OneDrive conflict copies pointed out at
+  start. Not done: a real read-only mode for the second computer (it's warned instead). Try it with two real
+  computers on OneDrive.
 
 ---
 

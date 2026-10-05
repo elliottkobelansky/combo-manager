@@ -428,5 +428,8 @@ def load_input(folder, settings, approvals=APPROVALS_FILE, conflicts=CONFLICTS_F
     combos, withdrawn, waiting = parse_approvals(folder / approvals, approvals_sheet, settings.semester_name, notes, store, rules,
                              settings.use_first_year)
     if store.changed:
-        store.save()
+        try:
+            store.save()
+        except ValueError as e:                       # changed on another computer meanwhile
+            raise InputError(str(e))
     return ScheduleInput(combos=combos, blocked=blocked, notes=notes, withdrawn=withdrawn, pending=waiting)

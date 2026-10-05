@@ -472,6 +472,61 @@ def main():
     for b_ in bad:
         print("      -", b_)
     failures += not ok
+
+    # several computers on one data folder: stale saves refused, the lock file, OneDrive's conflict copies
+    import json
+    import time
+    import shared_folder as sf
+    bad = []
+    a, b = Store(tmp), Store(tmp)                          # two computers read scheduler_data.json
+    a.set_name("x@mail.mcgill.ca", "From A")
+    a.save()
+    b.set_name("y@mail.mcgill.ca", "From B")
+    try:
+        b.save()
+        bad.append("a save over a file changed since it was read went through")
+    except sf.ChangedOnDisk:
+        pass
+    if Store(tmp).names.get("x@mail.mcgill.ca") != "From A":
+        bad.append("the refused save damaged the other computer's change")
+    a.set_name("x@mail.mcgill.ca", "Again A")              # saving twice from one Store is fine
+    a.save()
+    lock_dir = tmp / "lockdir"
+    lock_dir.mkdir()
+    if sf.holder(lock_dir):
+        bad.append("an empty folder is reported in use")
+    sf.claim(lock_dir)
+    if sf.holder(lock_dir) or sf.refresh(lock_dir):
+        bad.append("our own lock is reported as someone else's")
+    other = {"computer": "OFFICE-PC", "user": "ana", "pid": 1, "since": time.time(), "seen": time.time()}
+    (app_data(lock_dir) / sf.LOCK_FILE).write_text(json.dumps(other))
+    if not sf.holder(lock_dir) or "OFFICE-PC (ana)" not in sf.describe(sf.holder(lock_dir)):
+        bad.append("another computer's lock isn't reported")
+    if not sf.refresh(lock_dir) or sf.read_lock(lock_dir)["computer"] != "OFFICE-PC":
+        bad.append("a refresh overwrote the lock of a computer that took the folder over")
+    sf.release(lock_dir)
+    if not (app_data(lock_dir) / sf.LOCK_FILE).exists():
+        bad.append("closing removed another computer's lock")
+    (app_data(lock_dir) / sf.LOCK_FILE).write_text(json.dumps({**other, "seen": time.time() - sf.STALE - 60}))
+    if sf.holder(lock_dir):
+        bad.append("a left-over lock (not updated for a long time) still counts")
+    sf.claim(lock_dir)
+    sf.release(lock_dir)
+    if (app_data(lock_dir) / sf.LOCK_FILE).exists():
+        bad.append("closing didn't remove our lock")
+    for n in ("Schedule-OFFICE-PC.xlsx", "Conflicts (1).xlsx", "Schedule.xlsx", "Schedule notes.txt",
+              "Combos-OFFICE-PC-2.pdf"):
+        (lock_dir / n).write_text("x")
+    (app_data(lock_dir) / "settings-LAPTOP.json").write_text("{}")
+    (app_data(lock_dir) / "settings.json.bak").write_text("{}")
+    copies = sorted(c.name for c, _ in sf.conflict_copies(lock_dir))
+    if copies != ["Combos-OFFICE-PC-2.pdf", "Conflicts (1).xlsx", "Schedule-OFFICE-PC.xlsx", "settings-LAPTOP.json"]:
+        bad.append(f"conflict copies found: {copies}")
+    ok = not bad
+    print(f"{'PASS' if ok else 'FAIL'}  shared folder: stale saves refused, lock file taken over / left over / released, conflict copies found")
+    for b_ in bad:
+        print("      -", b_)
+    failures += not ok
     print("\nAll good." if not failures else f"\n{failures} scenario(s) failed.")
     return failures
 

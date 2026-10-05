@@ -274,8 +274,9 @@ def write_swap(path, changes, combos, open_label):
     if todo:
         raise ScheduleFileError("Couldn't find these sets in Schedule.xlsx: "
                                 + ", ".join(f"{d} set {k}" for d, k in sorted(todo)) + ". Nothing was changed.")
+    from shared_folder import save_workbook
     try:
-        wb.save(path)
+        save_workbook(wb, path)
     except PermissionError:
         raise ScheduleFileError(f"Can't save {path.name}: it's open in Excel. Close it and try again. "
                                 "Nothing was changed.")

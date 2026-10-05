@@ -14,7 +14,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SKIP_DATA = (".bak", "cfg.json")                     # backups and test-only config
+SKIP_DATA = (".bak", "cfg.json", "In use.json", ".tmp")    # backups, test-only config, the lock file, half-written files
 
 
 def add(zf, path, name):

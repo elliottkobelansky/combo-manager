@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from core.model import WEEKDAYS, Settings, ShowDay
+from shared_folder import write_text
 from util import DATA_FOLDER, app_data, blank, to_date, to_time
 
 SETTINGS_FILE = "settings.json"
@@ -303,10 +304,9 @@ def read_data(path):
 def save_data(path, data):
     """Writes settings.json, keeping the previous version as settings.json.bak."""
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
-        path.with_name(path.name + ".bak").write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        write_text(path.with_name(path.name + ".bak"), path.read_text(encoding="utf-8"))
+    write_text(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
 def load_settings(path):

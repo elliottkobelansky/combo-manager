@@ -379,6 +379,8 @@ class SwapPanel:
                                                                        if warns else "")
                                    + "\n\nA copy of the current file goes to 'App data/Schedule backups' first."):
             return
+        if not self.same_as_on_disk():
+            return
         try:
             backup = write_swap(self.get_folder() / "Schedule.xlsx", changes, st["combos"], open_label(st["settings"]))
         except ScheduleFileError as e:
@@ -391,6 +393,26 @@ class SwapPanel:
                                         "Rebuilding Schedule.pdf...")
         self.after_apply(f"Saved {n} change(s). Backup of the old file: {backup}\n",
                          lambda code: (self.pdf_done(code), then and then(code)))
+
+    def same_as_on_disk(self):
+        """True when Schedule.xlsx still holds what the pending changes were planned against. Otherwise (another
+        computer saved it and OneDrive synced it in, or it was edited in Excel) says so, and offers to reload."""
+        st = self.state
+        try:
+            now, _, _, _ = read_schedule(self.get_folder() / "Schedule.xlsx", st["combos"])
+        except ScheduleFileError as e:
+            messagebox.showerror("Couldn't save", str(e))
+            return False
+        if now == self.base_sets:
+            return True
+        if messagebox.askyesno(
+                "Schedule changed elsewhere", "Schedule.xlsx was changed since these changes were planned (on "
+                "another computer, or by hand in Excel), so they might not fit any more. Nothing was saved.\n\n"
+                f"Reload the schedule as it is now? Your {len(self.pending)} pending change(s) are dropped; "
+                "redo the ones still needed.", icon="warning"):
+            self.pending = []
+            self.load()
+        return False
 
     def pdf_done(self, code):
         self.save_status.configure(text="Saved. Schedule.pdf rebuilt; all hard rules hold." if code == 0 else

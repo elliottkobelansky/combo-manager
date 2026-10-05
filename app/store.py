@@ -15,6 +15,7 @@ OneDrive folder is ideal).
 """
 import json
 
+from shared_folder import ChangedOnDisk, fingerprint, write_text
 from util import app_data
 
 DATA_FILE = "scheduler_data.json"
@@ -23,6 +24,7 @@ DATA_FILE = "scheduler_data.json"
 class Store:
     def __init__(self, folder):
         self.path = app_data(folder) / DATA_FILE
+        self.read_as = fingerprint(self.path)        # to tell, when saving, that another computer saved meanwhile
         try:
             self.data = json.loads(self.path.read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -34,12 +36,16 @@ class Store:
         self.changed = False
 
     def save(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        """Raises ChangedOnDisk (nothing saved) when the file changed since it was read: another computer saved it
+        and OneDrive synced it in. Reading it again and redoing the change is then safe."""
+        if fingerprint(self.path) != self.read_as:
+            raise ChangedOnDisk(f"{DATA_FILE} was changed on another computer a moment ago. Nothing was saved: "
+                                "please try again.")
         if self.path.exists():
-            self.path.with_name(self.path.name + ".bak").write_text(self.path.read_text(encoding="utf-8"),
-                                                                    encoding="utf-8")
-        self.path.write_text(json.dumps(self.data, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
-                             encoding="utf-8")
+            write_text(self.path.with_name(self.path.name + ".bak"), self.path.read_text(encoding="utf-8"))
+        text = json.dumps(self.data, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+        write_text(self.path, text)
+        self.read_as = fingerprint(self.path)
         self.changed = False
 
     # combo numbers

@@ -24,6 +24,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from app_config import input_files, is_picked, load_config, pick_input_file, save_config  # noqa: E402
 from util import APPROVALS_FILE, CONFLICTS_FILE, DATA_FOLDER, app_data  # noqa: E402  (both standard library only, safe before packages are installed)
+import shared_folder  # noqa: E402  (standard library only too)
 AUTHOR, EMAIL = "Elliott Kobelansky", "elliottkobelansky@gmail.com"
 PACKAGES = {"openpyxl": "openpyxl", "ortools": "ortools", "reportlab": "reportlab"}   # import name -> pip name
 OPTIONAL = {"tkcalendar": "tkcalendar", "sv_ttk": "sv-ttk"}   # pop-up calendars; the modern look
@@ -175,7 +176,7 @@ class App:
     def build_main(self):
         """The full app: data folder, Run tab, and the other tabs."""
         shell = self.shell
-        if self.folder is None and not self.ask_first_folder():
+        if (self.folder is None and not self.ask_first_folder()) or not self.take_folder(self.folder):
             self.closed = True
             self.root.destroy()
             return
@@ -266,6 +267,43 @@ class App:
         self.write("Ready. Make sure the two spreadsheets above are the latest (OneDrive can keep them synced), "
                    "then start with step 1.\n")
         self.root.after(300, self.autoload)
+        self.root.after(shared_folder.REFRESH * 1000, self.keep_folder)
+        self.root.after(800, self.check_copies)
+
+    # several computers on one data folder (shared_folder.py)
+    def take_folder(self, folder):
+        """Marks folder as open here. When another computer has it open: says so, and asks whether to open it
+        anyway. False = don't."""
+        other = shared_folder.holder(folder)
+        if other and not messagebox.askyesno(
+                "Data folder in use", f"This data folder is open in the Combo Scheduler on "
+                f"{shared_folder.describe(other)}.\n\nTwo computers changing it at the same time can lose changes: "
+                "best close the app there first.\n\nOpen it here anyway?", icon="warning", default="no"):
+            return False
+        shared_folder.claim(folder)
+        self.told_taken = False
+        return True
+
+    def keep_folder(self):
+        """Every few minutes: still here (the lock file). Says once when another computer opened the folder since."""
+        other = shared_folder.refresh(self.folder)
+        if other and not self.told_taken:
+            self.told_taken = True
+            messagebox.showwarning(
+                "Data folder opened elsewhere", f"The data folder was also opened on {shared_folder.describe(other)}."
+                "\n\nChanges saved on both at the same time can be lost: best close the app on one of them. (Saving "
+                "here still checks that nothing changed underneath.)")
+        self.root.after(shared_folder.REFRESH * 1000, self.keep_folder)
+
+    def check_copies(self):
+        """OneDrive's conflict copies in the data folder ('Schedule-OFFICE-PC.xlsx'): says which to sort out."""
+        copies = shared_folder.conflict_copies(self.folder)
+        if copies:
+            lines = "\n".join(f"  {c.relative_to(self.folder)}  (next to {u.name})" for c, u in copies)
+            messagebox.showwarning(
+                "Two versions of a file", "OneDrive kept two versions of these files, probably because two computers "
+                f"saved them at the same time:\n\n{lines}\n\nThe app only reads the file with the usual name. Open "
+                "the data folder, compare the two, keep the right one under the usual name and delete the other.")
 
     def output_panel(self, parent):
         """The box that shows what a step printed (self.out)."""
@@ -327,6 +365,8 @@ class App:
 
     def restart(self):
         """Opens a fresh copy of the app, which can use the new packages, and closes this one."""
+        if self.folder:
+            shared_folder.release(self.folder)
         subprocess.Popen([sys.executable, str(HERE / "scheduler_app.py")])
         self.root.destroy()
 
@@ -352,6 +392,8 @@ class App:
                 "Unsaved swaps", f"{len(self.swaps.pending)} swap change(s) haven't been saved to Schedule.xlsx. "
                 "Close anyway and lose them?", icon="warning"):
             return
+        if self.folder and self.settings:
+            shared_folder.release(self.folder)
         self.root.destroy()
 
     def autoload(self):
@@ -487,7 +529,10 @@ class App:
             return
         picked = filedialog.askdirectory(initialdir=str(self.folder), title="Folder with Combo Approvals.xlsx, "
                                          "Conflicts.xlsx and settings.json")
-        if picked:
+        if picked and Path(picked) != self.folder:
+            if not self.take_folder(Path(picked)):
+                return
+            shared_folder.release(self.folder)
             self.folder = Path(picked)
             self.folder_label.configure(text=self.folder_text())
             save_folder(self.folder)
@@ -495,6 +540,7 @@ class App:
             if self.settings:
                 self.settings.reload()
             self.autoload()
+            self.check_copies()
 
     def open_file(self, name):
         path = self.folder / name

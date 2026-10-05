@@ -13,6 +13,7 @@ from core import generate_nights
 from core.model import WEEKDAYS, make_label
 from settings_file import (DEFAULTS, HELP, SETTINGS_FILE, SettingsError, read_data, save_data,
                            validate)
+from shared_folder import fingerprint
 from util import app_data, to_date
 
 try:
@@ -355,6 +356,7 @@ class SettingsPanel:
 
     def reload(self):
         note = ""
+        self.read_as = fingerprint(self.path)         # to tell, when saving, that another computer saved meanwhile
         if self.path.exists():
             try:
                 data = read_data(self.path)
@@ -515,10 +517,21 @@ class SettingsPanel:
         except SettingsError as e:
             messagebox.showerror("Can't save yet", f"Please fix these first:\n\n{e}")
             return False
+        if fingerprint(self.path) != self.read_as:
+            answer = messagebox.askyesnocancel(
+                "Settings changed elsewhere", f"{SETTINGS_FILE} was changed on another computer since this tab "
+                "loaded it.\n\nYes: save yours anyway (replaces those changes).\nNo: load those settings instead "
+                "(your unsaved changes here are lost).\nCancel: go back.", icon="warning", default="cancel")
+            if answer is None:
+                return False
+            if not answer:
+                self.reload()
+                return False
         archive = self.new_semester(new)              # None: same semester; True / False: move the old files?
         if archive == "cancel" or (archive is None and not self.nights_ok(new)):
             return False
         save_data(self.path, data)
+        self.read_as = fingerprint(self.path)
         if archive:
             from outputs.excel_schedule import archive_semester
             moved = archive_semester(self.get_folder(), self.old_semester)
