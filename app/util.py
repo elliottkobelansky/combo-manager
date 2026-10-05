@@ -5,6 +5,22 @@ from pathlib import Path
 
 # The default data folder (spreadsheets, settings, outputs): data/ next to app/. The app can pick another one.
 DATA_FOLDER = Path(__file__).resolve().parent.parent / "data"
+# Instruments in the order members are listed (Combos tab and Combos.pdf): any other instrument first, then these;
+# people with no instrument set yet last.
+INSTRUMENTS = ["Trumpet", "Saxophone", "Trombone", "Guitar", "Piano", "Bass", "Drums"]
+
+
+def by_instrument(emails, instrument_of, name_of):
+    """emails sorted Other, Trumpet, Saxophone, Trombone, Guitar, Piano, Bass, Drums, then no instrument; by name
+    within one instrument. instrument_of(email) -> instrument or ''."""
+    known = [i.casefold() for i in INSTRUMENTS]
+
+    def rank(e):
+        inst = (instrument_of(e) or "").strip().casefold()
+        return (len(known) + 1 if not inst else known.index(inst) + 1 if inst in known else 0, name_of(e).lower(), e)
+    return sorted(emails, key=rank)
+
+
 # The input spreadsheets' usual names (the app can pick other files: app_config.py).
 APPROVALS_FILE, CONFLICTS_FILE = "Combo Approvals.xlsx", "Conflicts.xlsx"
 EXCEL_EPOCH = date(1899, 12, 30)

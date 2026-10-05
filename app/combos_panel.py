@@ -16,8 +16,8 @@ from outputs.excel_schedule import ScheduleFileError, open_label, read_schedule,
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 from store import Store
 from theme import popup
+from util import INSTRUMENTS, by_instrument
 
-INSTRUMENTS = ["Saxophone", "Trumpet", "Trombone", "Guitar", "Piano", "Bass", "Drums"]
 
 
 class CombosPanel:
@@ -145,7 +145,7 @@ class CombosPanel:
         band = 0
         for cid in sorted(combos, key=lambda c: combos[c].name):
             c = combos[cid]
-            people = [c.liaison] + sorted(c.members - {c.liaison}, key=lambda e: self.name(e).lower())
+            people = self.member_order(c)
             text = " ".join([c.name] + [self.name(e) + " " + e for e in people] + [c.professor]).lower()
             if q and q not in text:
                 continue
@@ -185,8 +185,7 @@ class CombosPanel:
                                                                    "", ""),
                                     open=bool(q) or self.tree_key(label) in open_items, tags=("removed",))
             self.pending_items[item] = c
-            people = [c.liaison] + sorted(c.members - {c.liaison}, key=lambda e: self.name(e).lower())
-            for e in [e for e in people if e] + ([c.professor] if c.professor else []):
+            for e in self.member_order(c) + ([c.professor] if c.professor else []):
                 pid = self.tree.insert(item, "end", text="    " + self.name(e) + ("  (supervisor)" if e == c.professor
                                                                                  else ""),
                                        values=("", "", "", len(self.data["blocked"].get(e, ())) or "", e),
@@ -199,8 +198,8 @@ class CombosPanel:
             item = self.tree.insert("", "end", text=label, values=("Actions: put back", "", "", "", ""),
                                     open=bool(q) or self.tree_key(label) in open_items, tags=("removed",))
             self.withdrawn_items[item] = c
-            people = [c.liaison] + sorted(c.members - {c.liaison}, key=lambda e: self.name(e).lower())
-            for e in [e for e in people if e]:
+            people = self.member_order(c)
+            for e in people:
                 instrument = self.data["instruments"].get((c.name, e), "")
                 pid = self.tree.insert(item, "end", text="    " + self.name(e) + ("  \u00b7 liaison" if e == c.liaison
                                                                                  else ""),
@@ -210,6 +209,10 @@ class CombosPanel:
                 pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (supervisor)",
                                        values=("", "", "", "", c.professor), tags=("removed",))
                 self.withdrawn_items[pid] = c
+
+    def member_order(self, c):
+        """The combo's members, by instrument (see util.INSTRUMENTS)."""
+        return by_instrument(c.members, lambda e: self.data["instruments"].get((c.name, e), ""), self.name)
 
     @staticmethod
     def tree_key(label):

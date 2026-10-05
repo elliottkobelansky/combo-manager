@@ -204,11 +204,16 @@ first-year combo** / **Remove the first-year tag**: kept in `scheduler_data.json
 year column, and Check inputs lists it. If the schedule is out it isn't made again; the message names any show
 before the first-year date (swap it in the Swaps tab). Pop-up menus close with Escape or a click elsewhere.
 
+**Member order** (Combos tab and `Combos.pdf`): by instrument, top to bottom: any other instrument (e.g.
+Vibraphone, Voice), Trumpet, Saxophone, Trombone, Guitar, Piano, Bass, Drums, then people with no instrument set
+yet; alphabetical within one instrument. The liaison is marked, not moved to the top. The order is
+`INSTRUMENTS` in `app/util.py` (also the instrument menu's order).
+
 **Combos tab:** every accepted combo (with its liaison and shows) and its people, in columns: Instrument, Also in
 (other combos), Conflicts (dates submitted), Email; with a search box. **Click an Instrument cell** to pick one
 (Saxophone, Trumpet, Trombone, Guitar, Piano, Bass, Drums, or Other: type anything); it's per person per combo and
 kept in `scheduler_data.json`. **Export PDF** writes `Combos.pdf` (every combo with its supervisor and
-members, liaison first, instruments when set; numbered like the calendar). Double-click a person
+members, instruments when set; numbered like the calendar). Double-click a person
 (or Actions > **Change name**) to correct their name, or double-click their email (or Actions > **Change email**) to fix a typo'd
 address: the spreadsheets aren't changed, the fix is applied whenever they're read, to the combos *and* the
 conflicts, so a member whose conflicts didn't count because of a typo is matched again (corrected emails show ✎;

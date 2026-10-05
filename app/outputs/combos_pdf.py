@@ -1,4 +1,5 @@
-"""Writes Combos.pdf: every combo as a box with its supervisor and members (liaison first, instrument when set).
+"""Writes Combos.pdf: every combo as a box with its supervisor and members (by instrument, see util.INSTRUMENTS;
+the liaison marked).
 Three columns per page. Combo names match the calendar (Combo 05 there = 05 on Schedule.pdf).
 Needs: pip install reportlab
 """
@@ -12,6 +13,7 @@ from reportlab.platypus import (BaseDocTemplate, Frame, KeepTogether, NextPageTe
                                 Spacer, Table, TableStyle)
 
 from core.model import make_label
+from util import by_instrument
 
 HEAD_BG = colors.HexColor("#DDEBF7")
 GRID = colors.HexColor("#B4C6E7")
@@ -29,9 +31,8 @@ def esc(s):
 def combo_block(c, name_of, instruments, width):
     sup = esc(name_of(c.professor)) if c.professor else "<font color='#C00000'>No supervisor</font>"
     title = esc(c.name) + ("  <font size=7 color='#555555'>(first year)</font>" if c.first_year else "")
-    others = sorted(c.members - {c.liaison}, key=lambda e: (name_of(e).lower(), e))
     rows = [[[Paragraph(title, COMBO), Paragraph(sup, SUPER)]]]
-    for e in [c.liaison] * (c.liaison in c.members) + others:
+    for e in by_instrument(c.members, lambda e: instruments.get((c.name, e), ""), name_of):
         inst = instruments.get((c.name, e))
         extra = [f"<font size=7 color='#555555'>{esc(inst)}</font>"] if inst else []
         if e == c.liaison:
