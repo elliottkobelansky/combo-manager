@@ -3,6 +3,7 @@ data/
 # ...and in case a data folder ends up somewhere else in here:
 *.xlsx
 *.pdf
+!Quick Start.pdf
 *.bak
 scheduler_data.json
 settings.json

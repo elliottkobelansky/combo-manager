@@ -1,5 +1,8 @@
 # Combo show scheduler
 
+**New here? Start with `Quick Start.pdf`** (one page, for the director; its text is `QUICK_START.md`, rebuilt
+with `python dev/make_quick_start.py`). This README is the full reference.
+
 Assigns combos to show nights (e.g. Tuesdays Upstairs, Fridays Clara) using the two Microsoft Forms:
 the combo sign-up form and the conflicts form. Microsoft 365 (Forms, Power Automate, Excel) collects and approves; Python on a laptop makes the schedule from two
 downloaded files.
