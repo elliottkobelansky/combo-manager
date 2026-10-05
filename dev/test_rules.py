@@ -1,11 +1,14 @@
 """Runs fake downloads -> inputs -> solve on fake data and checks every hard rule independently of the solver.
 
-    python test_rules.py
+    python dev/test_rules.py
 """
+import sys
 import tempfile
 from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))  # the scheduler's code
 
 from core import ScheduleError, generate_nights, run_schedule
 from make_fake_forms import OUTSIDE, fake_emails, make

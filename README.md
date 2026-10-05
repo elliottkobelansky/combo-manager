@@ -16,9 +16,18 @@ tab, see [swaps](#during-the-semester-swaps)):
 
 plus buttons to open the folder, `Schedule.pdf` and `Schedule.xlsx`, a **Settings** tab (below), and a dark
 mode switch (remembered). It works on the **data
-folder** shown at the top: by default the folder the app is in; **Change...** picks another (remembered). The
-easiest setup: keep this whole folder in OneDrive, synced to the director's computer, next to `Combo Approvals.xlsx`,
-`Conflicts.xlsx` and `settings.json`, so there's nothing to download.
+folder** shown at the top: by default the `data` folder next to the launchers; **Change...** picks another
+(remembered). The easiest setup: keep this whole folder in OneDrive, synced to the director's computer, with
+`Combo Approvals.xlsx`, `Conflicts.xlsx` and `settings.json` in `data`, so there's nothing to download.
+
+**What's in the folder:**
+
+| | |
+|---|---|
+| `Make Schedule.bat` / `.command` / `make-schedule.sh` | Double-click one of these to open the app. |
+| `data/` | The spreadsheets, settings, schedule, PDFs and backups. Everything the director works with. |
+| `app/` | The program. Nothing to open or change in here. |
+| `dev/` | Tests and fake data, for whoever maintains the scheduler. |
 
 **First run on a new computer:** Python 3 must be installed (python.org; on Windows tick "Add python.exe to
 PATH"). The launcher then sets up a private Python environment in the user's home folder (once, outside OneDrive),
@@ -44,8 +53,8 @@ version is kept as `settings.json.bak`):
 | Skip dates | Dates with no show (reading week, holidays), with a reason. The reason appears on the calendar. |
 | Extra dates | One-off shows on days that aren't a regular show day. Usually empty. Set times are optional: blank uses the venue's usual times. |
 
-**Save settings** checks everything first and says what to fix. Without the app: `python settings_file.py --new`
-writes a `settings.json` with example values (plain text, YYYY-MM-DD dates).
+**Save settings** checks everything first and says what to fix. Without the app: `python app/settings_file.py --new`
+writes a `data/settings.json` with example values (plain text, YYYY-MM-DD dates).
 
 **Set times.** For each show day, **first set starts** (e.g. `19:00` or `7:00 PM`), **set length** and
 **break** (minutes) give every set its start and end time: 19:00, 45, 15 gives 7:00–7:45, 8:00–8:45, 9:00–9:45, ...
@@ -55,7 +64,7 @@ show set numbers instead.
 `semester_name` must match exactly what students choose in the form's Semester question (e.g. `Winter 2027`).
 Responses for other semesters are ignored.
 
-**2. Download the inputs.** Save both next to the scripts:
+**2. Download the inputs.** Save both in the `data` folder:
 - **`Combo Approvals.xlsx`**: the approvals table the approval flow fills in, one row per combo submission, with
   the director's decision (Status: Pending / Accepted / Rejected / Withdrawn) and First year. Only **Accepted** combos
   of this semester (`semester_name` in the settings) are scheduled; rows still **Pending** are reported. In
@@ -84,7 +93,7 @@ Combo 01. Student names are guessed from emails; correct one in the app's Combos
 
 **3. Check.**
 
-    python solve.py --check
+    python app/solve.py --check
 
 Reads both downloads and **prints their warnings first**: combos still Pending, a combo accepted twice, combos
 without a supervisor, conflict form problems. Then it validates everything else (e.g. a combo whose members'
@@ -94,7 +103,7 @@ semesters it found.
 
 **4. Solve.**
 
-    python solve.py --pdf
+    python app/solve.py --pdf
 
 It asks you to confirm first, and warns if `Schedule.xlsx` / `Schedule.pdf` already exist and would be
 overwritten (add `-y` to skip the question). It prints the same warnings as `--check`, including a **WARNING** for
@@ -108,7 +117,7 @@ any combo still Pending. Writes `Schedule.xlsx` and `Schedule.pdf` (printable ca
   comes.
 - **Report**: warnings and stats from when the schedule was made. Read the WARN lines.
 
-The old ByCombo and OpenSlots sheets are gone: they went out of date after the first edit. `python solve.py --stats`
+The old ByCombo and OpenSlots sheets are gone: they went out of date after the first edit. `python app/solve.py --stats`
 reads the file as it is now (shows per combo, open sets nobody can take, and the rule check).
 
 The **Schedule** sheet's last column, **Supervised**, says Yes on every set of a supervised night. To move
@@ -118,7 +127,7 @@ The same input always gives the same schedule.
 
 **5. Stats.**
 
-    python solve.py --stats
+    python app/solve.py --stats
 
 Reads the `Schedule.xlsx` on disk (no solving) and prints:
 - **Overview:** sets filled and open, per venue.
@@ -183,7 +192,7 @@ The Swaps tab has three modes, switched at the top:
 
 To record a swap by hand instead, edit the Combo column of the Schedule sheet in `Schedule.xlsx`, then run
 
-    python solve.py --stats --pdf
+    python app/solve.py --stats --pdf
 
 It checks the edited file and **rebuilds `Schedule.pdf` from it** (no re-solving). What you can type in a set:
 - **a combo name** (exactly, e.g. `Combo 05`): that combo plays;
@@ -265,7 +274,7 @@ show: filling sets and equal show counts always win.
 The best value depends on the semester's length and the number of shows per combo. A good starting point is
 about a third of the semester length. To find it for your real data:
 
-    python solve.py --compare-gaps 14 21 28 35
+    python app/solve.py --compare-gaps 14 21 28 35
 
 This solves once per value, writes nothing, and prints:
 
@@ -291,37 +300,39 @@ to keep looking. `open` mode usually solves in a few seconds.
 ### Weights (advanced)
 
 The relative importance of the goals is set by the `W_...` constants at the top of `core/solver.py`.
-You shouldn't need to touch them. If you do, run `python test_rules.py` afterwards.
+You shouldn't need to touch them. If you do, run `python dev/test_rules.py` afterwards.
 
 ## Testing without real data
 
-    python make_fake_forms.py        # fake Combo Approvals.xlsx and Conflicts.xlsx
-    python test_rules.py             # read -> solve on several fake scenarios, checks every hard rule
+Run these from the top folder. `app/solve.py` works on `data/` unless you add `--folder`.
+
+    python dev/make_fake_forms.py    # fake Combo Approvals.xlsx and Conflicts.xlsx, in data/
+    python dev/test_rules.py         # read -> solve on several fake scenarios, checks every hard rule
 
 
-Run `python test_rules.py` after any code change. `make_fake_forms.py` won't overwrite existing input files
+Run `python dev/test_rules.py` after any code change. `make_fake_forms.py` won't overwrite existing input files
 unless you add `--force`; `test_rules.py` works in a temporary folder and never touches your files.
 
 ## Files
 
 | File | Job |
 |---|---|
-| `inputs.py` | The ONLY file that knows what `Combo Approvals.xlsx` and `Conflicts.xlsx` look like (and the approval rules). Reads them into the solver's input; writes nothing. |
-| `solve.py` | Reads `settings.json` + the two downloads, runs the solver, writes `Schedule.xlsx` (+ `Schedule.pdf`). |
-| `scheduler_app.py` + `Make Schedule.bat` / `.command` / `make-schedule.sh` | The one-click window around `solve.py`, and its launchers. |
-| `schedule_panel.py` | The app's Schedule tab (nights and sets, who could take an open set, Export PDF). |
-| `store.py` | `scheduler_data.json`: combo numbers, corrected names and emails, instruments. |
-| `outputs/combos_pdf.py` | Writes `Combos.pdf` (the Combos tab's Export button). |
-| `combos_panel.py` | The app's Combos tab (all combos and people; correct a name). |
-| `swap_panel.py`, `core/swaps.py` | The app's Swaps tab, and the swap finder behind it (pure, tested in `test_rules.py`). |
-| `theme.py` | The app's look (Sun Valley theme, light and dark). The About tab (author and contact) is in `scheduler_app.py`. |
-| `settings_file.py` | Reads, checks and saves `settings.json` (defaults and help texts live here). |
-| `settings_panel.py` | The app's Settings tab. |
-| `core/stats.py` | Stats and the rule check behind `solve.py --stats`. |
-| `core/` | The scheduling logic. Plain Python objects only: no Excel, no Forms. `model.py` is the contract. |
-| `outputs/excel_schedule.py` | Writes `Schedule.xlsx`. |
-| `outputs/schedule_pdf.py` | Writes `Schedule.pdf`, numbered to match `Combos.pdf` (Combo 05 -> 05). |
-| `make_fake_forms.py`, `test_rules.py` | Fake data and an independent rule checker. |
+| `app/inputs.py` | The ONLY file that knows what `Combo Approvals.xlsx` and `Conflicts.xlsx` look like (and the approval rules). Reads them into the solver's input; writes nothing. |
+| `app/solve.py` | Reads `settings.json` + the two downloads, runs the solver, writes `Schedule.xlsx` (+ `Schedule.pdf`). |
+| `app/scheduler_app.py` + `Make Schedule.bat` / `.command` / `make-schedule.sh` | The one-click window around `solve.py`, and its launchers. |
+| `app/schedule_panel.py` | The app's Schedule tab (nights and sets, who could take an open set, Export PDF). |
+| `app/store.py` | `scheduler_data.json`: combo numbers, corrected names and emails, instruments. |
+| `app/outputs/combos_pdf.py` | Writes `Combos.pdf` (the Combos tab's Export button). |
+| `app/combos_panel.py` | The app's Combos tab (all combos and people; correct a name). |
+| `app/swap_panel.py`, `app/core/swaps.py` | The app's Swaps tab, and the swap finder behind it (pure, tested in `test_rules.py`). |
+| `app/theme.py` | The app's look (Sun Valley theme, light and dark). The About tab (author and contact) is in `scheduler_app.py`. |
+| `app/settings_file.py` | Reads, checks and saves `settings.json` (defaults and help texts live here). |
+| `app/settings_panel.py` | The app's Settings tab. |
+| `app/core/stats.py` | Stats and the rule check behind `solve.py --stats`. |
+| `app/core/` | The scheduling logic. Plain Python objects only: no Excel, no Forms. `model.py` is the contract. |
+| `app/outputs/excel_schedule.py` | Writes `Schedule.xlsx`. |
+| `app/outputs/schedule_pdf.py` | Writes `Schedule.pdf`, numbered to match `Combos.pdf` (Combo 05 -> 05). |
+| `dev/make_fake_forms.py`, `dev/test_rules.py` | Fake data and an independent rule checker. |
 
 ## Collecting data a different way later
 

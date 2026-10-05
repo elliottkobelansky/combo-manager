@@ -20,4 +20,4 @@ if errorlevel 1 (
   exit /b 1
 )
 :run
-start "" "%VENV%\Scripts\pythonw.exe" "%~dp0scheduler_app.py"
+start "" "%VENV%\Scripts\pythonw.exe" "%~dp0app\scheduler_app.py"

@@ -2,9 +2,9 @@
 tab), and change the settings (Settings tab, saved in settings.json).
 
     Double-click "Make Schedule.bat" (Windows), "Make Schedule.command" (Mac) or "make-schedule.sh" (Linux),
-    or run:  python scheduler_app.py
+    or run:  python app/scheduler_app.py
 
-It runs solve.py inside this window, on the data folder shown at the top (by default the folder this file is in;
+It runs solve.py inside this window, on the data folder shown at the top (by default data/ next to app/;
 "Change..." picks another one and is remembered). Needs Python 3 with tkinter (standard on Windows and the
 python.org Mac installer) plus openpyxl, ortools and reportlab; the window offers to install those.
 """
@@ -20,6 +20,8 @@ import traceback
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from util import DATA_FOLDER  # noqa: E402  (standard library only, safe before packages are installed)
 AUTHOR, EMAIL = "Elliott Kobelansky", "elliottkobelansky@gmail.com"
 CONFIG = Path.home() / ".combo_scheduler.json"
 PACKAGES = {"openpyxl": "openpyxl", "ortools": "ortools", "reportlab": "reportlab"}   # import name -> pip name
@@ -49,7 +51,6 @@ def missing_packages(include_optional=False):
 def run_solve(args, folder, write):
     """Runs solve.py's main() with these arguments on `folder`; everything it prints goes to write(text).
     Returns its exit code (0 = fine)."""
-    sys.path.insert(0, str(HERE))
     import solve                                      # imported here so a missing package shows up in the window
 
     class Writer(io.TextIOBase):
@@ -103,7 +104,10 @@ def save_config(**changes):
 
 def load_folder():
     folder = load_config().get("folder")
-    return Path(folder) if folder and Path(folder).is_dir() else HERE
+    if folder and Path(folder).is_dir():
+        return Path(folder)
+    DATA_FOLDER.mkdir(exist_ok=True)
+    return DATA_FOLDER
 
 
 def save_folder(folder):
@@ -115,7 +119,6 @@ def save_folder(folder):
 class App:
     def __init__(self, root):
         self.root, self.folder, self.queue, self.busy = root, load_folder(), queue.Queue(), False
-        sys.path.insert(0, str(HERE))
         import theme
         self.theme = theme
         self.mode = load_config().get("theme", "light")

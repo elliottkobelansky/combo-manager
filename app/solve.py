@@ -1,11 +1,11 @@
 """settings.json + Combo Approvals.xlsx + Conflicts.xlsx -> Schedule.xlsx
 
-    python solve.py                # build the schedule (asks to confirm first; add -y to skip the question)
-    python solve.py --check        # validate the data and print warnings, don't solve
-    python solve.py --pdf          # also write Schedule.pdf, a printable calendar (needs: pip install reportlab)
-    python solve.py --compare-gaps 14 21 28 35   # try several min_days_between_shows values, write nothing
-    python solve.py --stats        # stats + rule check for the Schedule.xlsx on disk (also after hand edits), no solving
-    python solve.py --stats --pdf  # ...and rebuild Schedule.pdf from that edited Schedule.xlsx
+    python app/solve.py                # build the schedule (asks to confirm first; add -y to skip the question)
+    python app/solve.py --check        # validate the data and print warnings, don't solve
+    python app/solve.py --pdf          # also write Schedule.pdf, a printable calendar (needs: pip install reportlab)
+    python app/solve.py --compare-gaps 14 21 28 35   # try several min_days_between_shows values, write nothing
+    python app/solve.py --stats        # stats + rule check for the Schedule.xlsx on disk (also after hand edits), no solving
+    python app/solve.py --stats --pdf  # ...and rebuild Schedule.pdf from that edited Schedule.xlsx
 
 Reads the two downloads directly (see inputs.py) and prints their warnings first: combos still Pending, conflict
 form problems. Writes nothing but Schedule.xlsx (and Schedule.pdf).
@@ -24,6 +24,7 @@ from core.checks import analyze
 from core.stats import schedule_stats
 from inputs import APPROVALS_FILE, CONFLICTS_FILE, InputError, load_input, name_from_email
 from store import Store
+from util import DATA_FOLDER
 from outputs.excel_schedule import ScheduleFileError, read_schedule, write_schedule
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 
@@ -97,7 +98,7 @@ def confirm(outputs):
         print(f"  WARNING: {p} already exists (last saved {when}) and will be overwritten.")
     if existing:
         print("  Any swaps recorded in the old schedule will be lost. To keep it, rename or copy it first.\n"
-              "  To just check the existing schedule, use: python solve.py --stats")
+              "  To just check the existing schedule, use: python app/solve.py --stats")
     if not sys.stdin.isatty():
         print("Not running interactively: add -y to confirm.")
         return False
@@ -109,7 +110,7 @@ def confirm(outputs):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--folder", default=".")
+    ap.add_argument("--folder", default=str(DATA_FOLDER))
     ap.add_argument("--settings", default=SETTINGS_FILE)
     ap.add_argument("--approvals", default=APPROVALS_FILE)
     ap.add_argument("--conflicts", default=CONFLICTS_FILE)
@@ -162,7 +163,7 @@ def main(argv=None):
     print(f"\nSolver: {result.stats['status']}. {result.stats['total_sets'] - result.stats['empty_sets']}"
           f"/{result.stats['total_sets']} sets filled.")
     show(result.report)
-    print(f"\nWrote {f / a.out}. For details: python solve.py --stats")
+    print(f"\nWrote {f / a.out}. For details: python app/solve.py --stats")
     if a.pdf:
         try:
             from outputs.schedule_pdf import entries_from_result, write_schedule_pdf

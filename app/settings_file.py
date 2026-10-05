@@ -1,7 +1,7 @@
 """The settings: settings.json, edited in the app's Settings tab (scheduler_app.py), read into a core.Settings object
 with plain-language checks.
 
-    python settings_file.py --new              # write a settings.json with example values (refuses to overwrite)
+    python app/settings_file.py --new              # write a settings.json with example values (refuses to overwrite)
 
 settings.json is plain text; you can read it, but the app is the easy way to change it. Dates are YYYY-MM-DD, set
 times HH:MM (24-hour).
@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from core.model import WEEKDAYS, Settings, ShowDay
-from util import blank, to_date, to_time
+from util import DATA_FOLDER, blank, to_date, to_time
 
 SETTINGS_FILE = "settings.json"
 
@@ -218,7 +218,7 @@ def read_data(path):
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except FileNotFoundError:
-        raise SettingsError(f"Can't find {path}. Open the app's Settings tab (or run: python settings_file.py --new).")
+        raise SettingsError(f"Can't find {path}. Open the app's Settings tab (or run: python app/settings_file.py --new).")
     except ValueError as e:
         raise SettingsError(f"{path} isn't valid settings ({e}). Fix it in the app, or restore a backup.")
 
@@ -239,9 +239,11 @@ def load_settings(path):
 if __name__ == "__main__":
     args = sys.argv[1:]
     if args[:1] == ["--new"]:
-        if Path(SETTINGS_FILE).exists():
-            sys.exit(f"{SETTINGS_FILE} already exists.")
-        save_data(SETTINGS_FILE, DEFAULTS)
-        print(f"Wrote {SETTINGS_FILE} with example values.")
+        path = DATA_FOLDER / SETTINGS_FILE
+        if path.exists():
+            sys.exit(f"{path} already exists.")
+        DATA_FOLDER.mkdir(exist_ok=True)
+        save_data(path, DEFAULTS)
+        print(f"Wrote {path} with example values.")
     else:
         print(__doc__)

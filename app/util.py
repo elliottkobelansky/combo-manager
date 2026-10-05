@@ -1,7 +1,10 @@
 """Tiny helpers shared by the Excel-facing modules (settings loader and adapters)."""
 import re
 from datetime import date, datetime, time, timedelta
+from pathlib import Path
 
+# The default data folder (spreadsheets, settings, outputs): data/ next to app/. The app can pick another one.
+DATA_FOLDER = Path(__file__).resolve().parent.parent / "data"
 EXCEL_EPOCH = date(1899, 12, 30)
 
 

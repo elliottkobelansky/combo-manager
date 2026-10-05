@@ -3,19 +3,23 @@ conflicts table (Conflicts.xlsx, in the layout the conflict flow writes), with d
 make() also returns what the approvals should turn into (worked out from what was put in, not by parsing), so
 test_rules.py can check inputs.py against it.
 
-    python make_fake_forms.py [--combos 33] [--seed 1]
-Needs settings.json (the app's Settings tab, or: python settings_file.py --new).
+    python dev/make_fake_forms.py [--combos 33] [--seed 1]
+Writes into data/. Needs data/settings.json (the app's Settings tab, or: python app/settings_file.py --new).
 """
 import argparse
 import random
+import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))  # the scheduler's code
 
 from openpyxl import Workbook
 from openpyxl.worksheet.table import Table
 
 from core import generate_nights
 from settings_file import SETTINGS_FILE, load_settings
+from util import DATA_FOLDER
 
 EPOCH = date(1899, 12, 30)
 OUTSIDE = ["jamie.outside@gmail.com", "sam.guest@gmail.com"]   # non-McGill members: must be kept like anyone else
@@ -183,10 +187,11 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--force", action="store_true", help="overwrite existing response files")
     a = ap.parse_args()
-    existing = [f for f in ("Combo Approvals.xlsx", "Conflicts.xlsx") if Path(f).exists()]
+    approvals, conflicts = DATA_FOLDER / "Combo Approvals.xlsx", DATA_FOLDER / "Conflicts.xlsx"
+    existing = [f.name for f in (approvals, conflicts) if f.exists()]
     if existing and not a.force:
-        raise SystemExit(f"{', '.join(existing)} already exist (real data?). Move them first, "
+        raise SystemExit(f"{', '.join(existing)} already exist in {DATA_FOLDER} (real data?). Move them first, "
                          "or run with --force to overwrite them with fake data.")
-    settings, _ = load_settings(SETTINGS_FILE)
-    make("Combo Approvals.xlsx", "Conflicts.xlsx", generate_nights(settings), a.combos, a.seed, settings.semester_name)
-    print("Wrote Combo Approvals.xlsx and Conflicts.xlsx")
+    settings, _ = load_settings(DATA_FOLDER / SETTINGS_FILE)
+    make(approvals, conflicts, generate_nights(settings), a.combos, a.seed, settings.semester_name)
+    print(f"Wrote Combo Approvals.xlsx and Conflicts.xlsx in {DATA_FOLDER}")

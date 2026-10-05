@@ -13,4 +13,4 @@ if [ ! -x "$VENV/bin/python" ]; then
     read -r -p "Press Enter to close."; exit 1
   fi
 fi
-"$VENV/bin/python" scheduler_app.py
+"$VENV/bin/python" app/scheduler_app.py
