@@ -274,7 +274,14 @@ def main():
     fy_on = sum(c.first_year for c in load_input(tmp, on, "a.xlsx", "f.xlsx").combos)
     fy_off = sum(c.first_year for c in load_input(tmp, off, "a.xlsx", "f.xlsx").combos)
     result = run_schedule(load_input(tmp, off, "a.xlsx", "f.xlsx"), replace(off, solver_time_limit_sec=10))
-    ok = fy_on > 0 and fy_off == 0 and off.first_year_earliest_date is None and not result.stats["early_first_year"]
+    try:                                                # on without a date: refused, with a plain message
+        validate({**DEFAULTS, "use_first_year": True, "first_year_earliest_date": None})
+        needs_date = False
+    except Exception as e:
+        needs_date = "turn first-year combos off" in str(e)
+    legacy_off, _ = validate({k: v for k, v in DEFAULTS.items() if k != "use_first_year"} | {"first_year_earliest_date": None})
+    ok = (fy_on > 0 and fy_off == 0 and off.first_year_earliest_date is None and not result.stats["early_first_year"]
+          and needs_date and not legacy_off.use_first_year)
     print(f"{'PASS' if ok else 'FAIL'}  first-year off: {fy_on} first-year combos with it on, {fy_off} with it off")
     failures += not ok
 

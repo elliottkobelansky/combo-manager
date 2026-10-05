@@ -251,16 +251,16 @@ nights but needs 1").
 | `semester_name` | Must match the form's Semester answer exactly. |
 | `start_date`, `end_date` | Show nights are generated between these dates. |
 | `min_days_between_shows` | Ideal gap between one combo's shows. **Tune this**, see below. |
-| `use_first_year` | On (default): combos marked First year = Yes in the approvals are treated as first-year. Off: no combo is, whatever the approvals say (the date below is kept but ignored). |
-| `first_year_earliest_date` | First-year combos avoid playing before this date (strong preference, see goals). |
+| `use_first_year` | The **First-year combos** switch. On: combos marked First year = Yes in the approvals avoid playing before `first_year_earliest_date` (strong preference, see goals), and in fill-every-set mode get no extra shows. Off: every combo is treated the same, whatever the approvals say. Settings saved before this switch existed: on when there's a date. |
+| `first_year_earliest_date` | The first day first-year combos can play. Required while the switch is on; kept but ignored while it's off. |
 | `max_blocked_dates_per_person` | Warning only: flags students who blocked many show nights. |
 | `min_usable_slots_per_combo` | Warning only: flags combos whose members' conflicts leave fewer usable nights than this. |
-| `extra_slot_policy` | `open` (recommended): each combo gets its core shows, leftover sets stay open for volunteers. `auto`: the solver fills every set, so some combos get extra shows. |
+| `extra_slot_policy` | **Leftover sets** in the app. `open` = Leave open (recommended): each combo gets its shows; the sets left over stay open for volunteers, or you fill them by hand (Schedule or Swaps tab). `auto` = Fill every set: the solver fills every set, so some combos get extra shows. |
 | `min_shows_per_combo` | Every combo gets at least this many shows in total, at any venues, as long as each venue's "Min per combo" is met. In `open` mode: exactly this many. Blank = no total minimum (then `core_shows_per_venue` applies). |
-| `core_shows_per_venue` | Only when `min_shows_per_combo` is blank: in `open` mode, shows per combo per venue. Also: first-year combos never get more than this per venue in `auto` mode. |
+| `core_shows_per_venue` | **Shows per venue (if no total)** in the app, greyed out when it has no effect. Only used when `min_shows_per_combo` is blank: each combo then gets this many shows at every venue (`open`). In `auto` mode with first-year combos on, it's also the most a first-year combo plays at each venue. |
 | `max_shows_per_combo` | Cap on total shows per combo. Blank = no cap. |
 | `every_combo_supervised` | The **Supervised nights** switch. On: every combo plays at least one supervised night (a professor attends). Off: no supervised nights at all; `max_supervised_nights` and the show days' "Supervised nights preferred here" are ignored, and `Schedule.xlsx` has no Supervised column. Missing = On. |
-| `max_supervised_nights` | At most this many supervised nights. Blank = no limit (still as few as possible). Each night fits its number of sets, so 33 combos at 4 sets a night need at least 9. |
+| `max_supervised_nights` | **Most nights with a professor**: the total for the whole semester, all combos together (one supervised night covers every combo playing it). At most this many supervised nights. Blank = no limit (still as few as possible). Each night fits its number of sets, so 33 combos at 4 sets a night need at least 9. |
 | `solver_time_limit_sec` | How long the solver searches (roughly seconds). 30 is plenty unless the Report says FEASIBLE instead of OPTIMAL. |
 | `student_email_domain` | Students' email domain (`mail.mcgill.ca`). Members with other addresses are fine; they're just listed in the check, and a supervisor on this domain gets a "student address?" warning. Blank = don't check. |
 | `email_domain_fixes` | Domain slips corrected when reading both spreadsheets, e.g. `mcgill.ca -> mail.mcgill.ca, gmial.com -> gmail.com`. Blank = none. Note: the McGill fix also rewrites real `@mcgill.ca` staff addresses if a staff member plays in a combo (supervisor addresses are never rewritten). |

@@ -3,6 +3,7 @@
 Dates use a pop-up calendar when the tkcalendar package is installed (the app's Install button adds it); without
 it, dates are typed as YYYY-MM-DD.
 """
+import sys
 import tkinter as tk
 from datetime import date
 from tkinter import messagebox, ttk
@@ -17,27 +18,68 @@ try:
 except ImportError:
     Calendar = None
 
-GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, int, int?, policy, bool
+GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, int, int?, policy, bool; section = a heading
+    (None, "Semester", "section"),
     ("semester_name", "Semester name", "text"),
     ("start_date", "First possible show day", "date"),
     ("end_date", "Last possible show day", "date"),
-    ("use_first_year", "First-year combos", "bool"),
-    ("first_year_earliest_date", "First-year combos from", "date?"),
+    (None, "Shows per combo", "section"),
     ("extra_slot_policy", "Leftover sets", "policy"),
     ("min_shows_per_combo", "Shows per combo (total)", "int?"),
     ("max_shows_per_combo", "Most shows per combo", "int?"),
-    ("core_shows_per_venue", "Shows per venue (old rule)", "int"),
-    ("every_combo_supervised", "Supervised nights", "bool"),
-    ("max_supervised_nights", "Most supervised nights", "int?"),
+    ("core_shows_per_venue", "Shows per venue (if no total)", "int"),
     ("min_days_between_shows", "Ideal days between shows", "int"),
+    (None, "First-year combos", "section"),
+    ("use_first_year", "First-year combos", "bool"),
+    ("first_year_earliest_date", "First-year combos play from", "date"),
+    (None, "Supervision", "section"),
+    ("every_combo_supervised", "Supervised nights", "bool"),
+    ("max_supervised_nights", "Most nights with a professor", "int?"),
+    (None, "Emails", "section"),
+    ("student_email_domain", "Student email domain", "text"),
+    ("email_domain_fixes", "Email domain fixes", "wide"),
+    (None, "Warnings and solver", "section"),
     ("max_blocked_dates_per_person", "Warn: conflicts per person", "int?"),
     ("min_usable_nights_per_combo", "Warn: usable nights per combo", "int?"),
     ("solver_time_limit_sec", "Solver time (seconds)", "int"),
-    ("student_email_domain", "Student email domain", "text"),
-    ("email_domain_fixes", "Email domain fixes", "wide"),
 ]
-DEPENDS = {"first_year_earliest_date": "use_first_year",        # greyed out while the switch on the right is off
-           "max_supervised_nights": "every_combo_supervised"}
+POLICIES = {"open": "Leave open", "auto": "Fill every set"}      # settings.json value -> what the menu shows
+
+
+class ScrollFrame(ttk.Frame):
+    """A frame whose contents (self.inner) scroll vertically, with the mouse wheel too."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0)
+        bar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=bar.set)
+        bar.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.inner = ttk.Frame(self.canvas, padding=(8, 4, 16, 12))
+        window = self.canvas.create_window(0, 0, window=self.inner, anchor="nw")
+        self.inner.bind("<Configure>", lambda _: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(window, width=e.width))
+        self.bind("<Enter>", lambda _: self.wheel(True))
+        self.bind("<Leave>", lambda _: self.wheel(False))
+
+    def wheel(self, on):
+        events = ("<MouseWheel>", "<Button-4>", "<Button-5>")
+        for ev in events:
+            if on:
+                self.bind_all(ev, self.scroll)
+            else:
+                self.unbind_all(ev)
+
+    def scroll(self, e):
+        if self.canvas.yview() == (0.0, 1.0):
+            return                                    # everything fits: nothing to scroll
+        step = -1 if getattr(e, "num", 0) == 4 else 1 if getattr(e, "num", 0) == 5 else \
+            (-1 if e.delta > 0 else 1) * max(1, abs(e.delta) // (1 if sys.platform == "darwin" else 120))
+        self.canvas.yview_scroll(step, "units")
+
+    def recolor(self, palette):
+        self.canvas.configure(background=palette.get("bg", "white"))
 
 
 def set_enabled(widget, on):
@@ -232,25 +274,36 @@ class SettingsPanel:
         inner = ttk.Notebook(self.frame)
         inner.pack(fill="both", expand=True)
 
-        # general
-        gen = ttk.Frame(inner, padding=(8, 12))
-        inner.add(gen, text="General")
+        # general: sections of settings, each with its help text on the right
+        self.scroller = ScrollFrame(inner)
+        self.scroller.recolor(PALETTE)
+        inner.add(self.scroller, text="General")
+        gen = self.scroller.inner
+        gen.columnconfigure(2, weight=1)
         self.widgets = {}
         for r, (key, label, kind) in enumerate(GENERAL):
-            ttk.Label(gen, text=label, anchor="w").grid(row=r, column=0, sticky="w", padx=(0, 12), pady=3)
+            if kind == "section":
+                ttk.Label(gen, text=label, style="CardTitle.TLabel").grid(row=r, column=0, columnspan=3, sticky="w",
+                                                                         pady=(18 if r else 4, 2))
+                ttk.Separator(gen).grid(row=r, column=0, columnspan=3, sticky="sew")
+                continue
+            ttk.Label(gen, text=label, anchor="w").grid(row=r, column=0, sticky="nw", padx=(0, 16), pady=(9, 0))
             if kind in ("date", "date?"):
                 w = DateField(gen, optional=kind == "date?")
             elif kind == "policy":
-                w = ttk.Combobox(gen, values=["open", "auto"], state="readonly", width=8)
+                w = ttk.Combobox(gen, values=list(POLICIES.values()), state="readonly", width=14)
+                w.bind("<<ComboboxSelected>>", lambda _: self.update_dependents())
             elif kind == "bool":
                 var = tk.BooleanVar()
                 w = ttk.Checkbutton(gen, variable=var, command=self.update_dependents)
                 w.var = var
             else:
                 w = ttk.Entry(gen, width={"text": 22, "wide": 34}.get(kind, 8))
-            w.grid(row=r, column=1, sticky="w", pady=3)
-            ttk.Label(gen, text=HELP[key], anchor="w", justify="left", style="Hint.TLabel", wraplength=430).grid(
-                row=r, column=2, sticky="w", padx=(12, 0))
+                w.bind("<KeyRelease>", lambda _: self.update_dependents())
+            w.grid(row=r, column=1, sticky="nw", pady=(6, 6))
+            hint = ttk.Label(gen, text=HELP[key], anchor="w", justify="left", style="Hint.TLabel")
+            hint.grid(row=r, column=2, sticky="new", padx=(20, 0), pady=(9, 6))
+            hint.bind("<Configure>", lambda e, h=hint: h.configure(wraplength=max(e.width, 200)))
             self.widgets[key] = (w, kind)
 
         # lists
@@ -307,7 +360,7 @@ class SettingsPanel:
             if kind in ("date", "date?"):
                 w.var.set(v or "")
             elif kind == "policy":
-                w.set(v or "open")
+                w.set(POLICIES.get(v or "open", POLICIES["open"]))
             elif kind == "bool":
                 w.var.set(bool(v))
             else:
@@ -320,8 +373,17 @@ class SettingsPanel:
         self.status.configure(text=note)
 
     def update_dependents(self):
-        for key, switch in DEPENDS.items():
-            set_enabled(self.widgets[key][0], self.widgets[switch][0].var.get())
+        """Greys out the settings that have no effect with the others as they are."""
+        w = {key: widget for key, (widget, _) in self.widgets.items()}
+        first_year, total = w["use_first_year"].var.get(), w["min_shows_per_combo"].get().strip()
+        fill_all = w["extra_slot_policy"].get() == POLICIES["auto"]
+        set_enabled(w["first_year_earliest_date"], first_year)
+        set_enabled(w["max_supervised_nights"], w["every_combo_supervised"].var.get())
+        set_enabled(w["core_shows_per_venue"], not total or (fill_all and first_year))
+
+    def recolor(self):
+        PALETTE.update(self.get_palette())
+        self.scroller.recolor(PALETTE)
 
     def collect(self):
         data = {}
@@ -332,6 +394,8 @@ class SettingsPanel:
                 data[key] = bool(w.var.get())
             elif kind in ("int", "int?"):
                 data[key] = as_int(w.get())
+            elif kind == "policy":
+                data[key] = next(k for k, shown in POLICIES.items() if shown == w.get())
             else:
                 data[key] = w.get().strip() or None
         data["show_days"] = self.show_days.rows

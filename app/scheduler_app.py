@@ -9,6 +9,7 @@ It runs solve.py inside this window, on the data folder shown at the top (by def
 python.org Mac installer) plus openpyxl, ortools and reportlab; the window offers to install those.
 """
 import contextlib
+import importlib
 import io
 import os
 import queue
@@ -38,6 +39,7 @@ except ImportError:                                   # e.g. Homebrew Python on 
 # ---------------------------------------------------------------- work that doesn't need the window (testable)
 
 def missing_packages(include_optional=False):
+    importlib.invalidate_caches()                     # so packages installed a moment ago are seen
     missing = []
     for mod, pip_name in list(PACKAGES.items()) + (list(OPTIONAL.items()) if include_optional else []):
         try:
@@ -72,7 +74,8 @@ def run_solve(args, folder, write):
 def install_packages(names, write):
     cmd = [sys.executable, "-m", "pip", "install"] + ([] if sys.prefix != sys.base_prefix else ["--user"]) + names
     write("$ " + " ".join(cmd) + "\n")
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))   # no console flashing on Windows
     for line in p.stdout:
         write(line)
     return p.wait()
@@ -127,6 +130,20 @@ class App:
         ttk.Checkbutton(head, text="Dark mode", variable=self.dark, command=self.toggle_theme,
                         style="Switch.TCheckbutton" if theme.sv_ttk else "TCheckbutton").pack(side="right")
         ttk.Label(head, text="Combo Scheduler", style="Title.TLabel").pack(side="left")
+        self.shell = shell
+        self.settings = self.swaps = self.combos = self.schedule = None
+        self.buttons = []
+        self.root.after(100, self.drain)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        missing = missing_packages(include_optional=True)
+        if missing:
+            self.build_setup(missing)
+        else:
+            self.build_main()
+
+    def build_main(self):
+        """The full app: data folder, Run tab, and the other tabs."""
+        shell, theme = self.shell, self.theme
         where = ttk.Frame(shell)                      # row 2: data folder and its buttons
         where.pack(fill="x", pady=(4, 0))
         ttk.Button(where, text="Open folder", command=lambda: open_path(self.folder)).pack(side="right", padx=(6, 0))
@@ -138,24 +155,22 @@ class App:
         self.tabs.pack(fill="both", expand=True, pady=(14, 0))
         run_tab = ttk.Frame(self.tabs, padding=(4, 12, 4, 4))
         self.tabs.add(run_tab, text="Run")
-        self.settings = self.swaps = self.combos = self.schedule = None
-        if not missing_packages():
-            from settings_panel import SettingsPanel
-            from swap_panel import SwapPanel
-            from combos_panel import CombosPanel
-            self.combos = CombosPanel(self.tabs, lambda: self.folder, lambda: self.palette, open_path,
-                                      on_change=lambda: self.swaps and self.swaps.load(quiet=True))
-            self.tabs.add(self.combos.frame, text="Combos")
-            self.swaps = SwapPanel(self.tabs, lambda: self.folder, self.after_swap, lambda: self.palette)
-            self.tabs.add(self.swaps.frame, text="Swaps")
-            from schedule_panel import SchedulePanel
-            self.schedule = SchedulePanel(self.tabs, self.swaps, self.goto_swaps,
-                                          lambda done: self.run(["--stats", "--pdf"], "Exporting Schedule.pdf...",
-                                                                on_done=done),
-                                          lambda: self.open_file("Schedule.pdf"), lambda: self.palette, open_path)
-            self.tabs.insert(1, self.schedule.frame, text="Schedule")
-            self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette)
-            self.tabs.add(self.settings.frame, text="Settings")
+        from settings_panel import SettingsPanel
+        from swap_panel import SwapPanel
+        from combos_panel import CombosPanel
+        self.combos = CombosPanel(self.tabs, lambda: self.folder, lambda: self.palette, open_path,
+                                  on_change=lambda: self.swaps and self.swaps.load(quiet=True))
+        self.tabs.add(self.combos.frame, text="Combos")
+        self.swaps = SwapPanel(self.tabs, lambda: self.folder, self.after_swap, lambda: self.palette)
+        self.tabs.add(self.swaps.frame, text="Swaps")
+        from schedule_panel import SchedulePanel
+        self.schedule = SchedulePanel(self.tabs, self.swaps, self.goto_swaps,
+                                      lambda done: self.run(["--stats", "--pdf"], "Exporting Schedule.pdf...",
+                                                            on_done=done),
+                                      lambda: self.open_file("Schedule.pdf"), lambda: self.palette, open_path)
+        self.tabs.insert(1, self.schedule.frame, text="Schedule")
+        self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette)
+        self.tabs.add(self.settings.frame, text="Settings")
         self.tabs.add(self.about_tab(), text="About")
 
         # which input spreadsheets are read (usually the data folder's; Choose... picks another file)
@@ -176,7 +191,6 @@ class App:
         # the three steps, as cards
         cards = ttk.Frame(run_tab)
         cards.pack(fill="x")
-        self.buttons = []
         for col, (num, title, hint, label, cmd) in enumerate([
             ("1", "Check inputs", "Reads Combo Approvals.xlsx and Conflicts.xlsx and lists anything to look at. "
              "Changes nothing.", "Check", lambda: self.run(["--check"], "Checking the inputs...")),
@@ -202,34 +216,82 @@ class App:
         files.pack(fill="x", pady=(14, 8))
         for name in ("Schedule.pdf", "Schedule.xlsx"):
             ttk.Button(files, text=f"Open {name}", command=lambda n=name: self.open_file(n)).pack(side="left", padx=(0, 8))
-        self.install_button = ttk.Button(files, text="Install missing packages", style="Accent.TButton",
-                                         command=self.install)
 
-        # output panel
-        box = ttk.Frame(run_tab, style="Card.TFrame", padding=1)
+        self.output_panel(run_tab)
+        self.status = ttk.Label(shell, text="Ready.", style="Hint.TLabel")
+        self.status.pack(fill="x", pady=(8, 0))
+        self.write("Ready. Make sure the two spreadsheets above are the latest (OneDrive can keep them synced), "
+                   "then start with step 1.\n")
+        self.root.after(300, self.autoload)
+
+    def output_panel(self, parent):
+        """The box that shows what a step printed (self.out)."""
+        box = ttk.Frame(parent, style="Card.TFrame", padding=1)
         box.pack(fill="both", expand=True)
         bar = ttk.Scrollbar(box, orient="vertical")
         bar.pack(side="right", fill="y")
         self.out = tk.Text(box, wrap="word", state="disabled", relief="flat", borderwidth=0, highlightthickness=0,
-                           padx=14, pady=10, font=(theme.mono_font(), 10), yscrollcommand=bar.set)
+                           padx=14, pady=10, font=(self.theme.mono_font(), 10), yscrollcommand=bar.set)
         self.out.pack(side="left", fill="both", expand=True)
         bar.configure(command=self.out.yview)
         self.color_output()
-        self.status = ttk.Label(shell, text="Ready.", style="Hint.TLabel")
+
+    # ------------------------------------------------------------ first run: install the packages, nothing else
+    def build_setup(self, missing):
+        """Only what's needed to install the packages (and the About tab). The full app opens by itself after."""
+        self.tabs = ttk.Notebook(self.shell)
+        self.tabs.pack(fill="both", expand=True, pady=(14, 0))
+        tab = ttk.Frame(self.tabs, padding=(24, 20))
+        self.tabs.add(tab, text="Setup")
+        self.tabs.add(self.about_tab(), text="About")
+        ttk.Label(tab, text="One-time setup", style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(tab, text="The scheduler needs a few free add-ons for Python (" + ", ".join(missing) + "). "
+                            "Installing them takes about a minute and needs an internet connection. This happens "
+                            "only once on this computer, and the scheduler opens by itself when it's done.",
+                  wraplength=760, justify="left").pack(anchor="w", pady=(8, 16))
+        row = ttk.Frame(tab)
+        row.pack(anchor="w", pady=(0, 16))
+        self.setup_button = ttk.Button(row, text="Install", style="Accent.TButton", command=self.install)
+        self.setup_button.pack(side="left")
+        self.skip_button = ttk.Button(row, text="Continue without them", command=self.skip_setup)
+        if not missing_packages():                    # only the look (sv-ttk) and the pop-up calendar are missing
+            self.skip_button.pack(side="left", padx=8)
+        self.output_panel(tab)
+        self.status = ttk.Label(self.shell, text="", style="Hint.TLabel")
         self.status.pack(fill="x", pady=(8, 0))
 
-        missing = missing_packages(include_optional=True)
-        if missing:
-            self.write(f"Some Python packages are missing: {', '.join(missing)}.\n"
-                       "Click 'Install missing packages' (needs internet, takes a minute), then close this window "
-                       "and open it again.\n")
-            self.install_button.pack(side="right")
-        else:
-            self.write("Ready. Make sure the two spreadsheets above are the latest (OneDrive can keep them synced), "
-                       "then start with step 1.\n")
-        self.root.after(100, self.drain)
-        self.root.after(300, self.autoload)
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+    def install(self):
+        self.setup_button.configure(state="disabled")
+        self.skip_button.pack_forget()
+        self.status.configure(text="Installing... (about a minute)")
+
+        def job():
+            code = install_packages(missing_packages(include_optional=True), self.write)
+            self.queue.put(lambda: self.after_install(code))
+        threading.Thread(target=job, daemon=True).start()
+
+    def after_install(self, code):
+        if code == 0 and not missing_packages(include_optional=True):
+            self.write("\nInstalled. Opening the scheduler...\n")
+            self.root.after(800, self.restart)
+            return
+        self.write("\nInstalling didn't work (see above). Check the internet connection and try again, or get in "
+                   "touch (About tab).\n")
+        self.status.configure(text="")
+        self.setup_button.configure(state="normal", text="Try again")
+        if not missing_packages():
+            self.skip_button.pack(side="left", padx=8)
+
+    def restart(self):
+        """Opens a fresh copy of the app, which can use the new packages, and closes this one."""
+        subprocess.Popen([sys.executable, str(HERE / "scheduler_app.py")])
+        self.root.destroy()
+
+    def skip_setup(self):
+        """Without the optional packages: the full app, with typed dates and the plainer look."""
+        self.tabs.destroy()
+        self.status.destroy()
+        self.build_main()
 
     def on_close(self):
         if self.swaps and self.swaps.pending and not messagebox.askyesno(
@@ -315,8 +377,7 @@ class App:
         self.palette = self.theme.apply(self.root, self.mode)
         self.color_output()
         if self.settings:
-            import settings_panel
-            settings_panel.PALETTE.update(self.palette)
+            self.settings.recolor()
         if self.swaps:
             self.swaps.recolor()
         if self.combos:
@@ -380,15 +441,6 @@ class App:
             return
         self.run(["-y", "--pdf"], "Making the schedule (this can take up to a minute)...")
 
-    def install(self):
-        def job():
-            code = install_packages(missing_packages(include_optional=True), self.write)
-            self.write("\nInstalled. Close this window and open it again to use everything.\n" if code == 0 else
-                       "\nInstalling failed (see above). Check the internet connection, or ask for help.\n")
-            if code == 0:
-                self.queue.put(self.install_button.pack_forget)
-        self.start(job, "Installing packages...")
-
     def goto_swaps(self, cid, d, k, mode="swap"):
         self.tabs.select(self.swaps.frame)
         self.swaps.preselect(cid, d, k, mode)
@@ -421,7 +473,7 @@ class App:
             return
         self.busy = True
         self.status.configure(text=message)
-        for b in self.buttons + [self.install_button]:
+        for b in self.buttons:
             b.configure(state="disabled")
 
         def wrapped():
@@ -436,7 +488,7 @@ class App:
         self.show_sources()
         self.autoload()                               # the schedule may have changed
         self.status.configure(text="Ready.")
-        for b in self.buttons + [self.install_button]:
+        for b in self.buttons:
             b.configure(state="normal")
 
 

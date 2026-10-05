@@ -21,7 +21,7 @@ DEFAULTS = {
     "start_date": "2027-01-12",
     "end_date": "2027-04-09",
     "use_first_year": True,
-    "first_year_earliest_date": None,
+    "first_year_earliest_date": "2027-01-26",
     "min_days_between_shows": 28,
     "max_blocked_dates_per_person": 3,
     "min_usable_nights_per_combo": 3,
@@ -50,18 +50,24 @@ HELP = {
     "semester_name": "Must match the form's Semester answer exactly (e.g. Winter 2027).",
     "start_date": "First day shows could happen.",
     "end_date": "Last day shows could happen.",
-    "use_first_year": "Off: no combo is treated as first-year, whatever the approvals say.",
-    "first_year_earliest_date": "First-year combos avoid playing before this date. Blank = no such date.",
+    "use_first_year": "On: combos marked First year in the approvals don't play before the date below (unless "
+                      "there's no other way). Off: every combo is treated the same.",
+    "first_year_earliest_date": "The first day first-year combos can play. Needed while the switch above is on.",
     "min_days_between_shows": "Ideal gap between one combo's shows; closer pairs are avoided, the closer the more.",
     "max_blocked_dates_per_person": "Warning only: flags students who blocked more show nights than this.",
     "min_usable_nights_per_combo": "Warning only: flags combos whose members' conflicts leave fewer usable nights.",
-    "extra_slot_policy": "open: each combo gets its shows, leftover sets stay open for volunteers. auto: fill every set.",
-    "min_shows_per_combo": "Shows per combo in total, at any venues (venue minimums still apply). Open mode: exactly this.",
-    "core_shows_per_venue": "Only if the line above is blank: open mode shows per venue. Also caps first-years in auto mode.",
+    "extra_slot_policy": "Leave open: each combo gets its shows; the sets left over stay open for volunteers, or you "
+                         "fill them by hand (Schedule or Swaps tab). Fill every set: some combos get extra shows.",
+    "min_shows_per_combo": "Every combo gets at least this many shows, at any venues (each venue's minimum still "
+                           "applies). With leftover sets left open: exactly this many.",
+    "core_shows_per_venue": "Only used when the total above is blank: each combo then gets this many shows at every "
+                            "venue. When every set is filled, also the most a first-year combo plays at each venue.",
     "max_shows_per_combo": "Cap on total shows per combo. Blank = no cap.",
-    "every_combo_supervised": "Every combo plays at least one night a professor attends (a full night, no open sets). "
-                              "Off: no supervised nights.",
-    "max_supervised_nights": "At most this many supervised nights; within it, as few as possible. Blank = no limit.",
+    "every_combo_supervised": "On: every combo plays at least one night a professor attends from start to end (that "
+                              "night has no open sets). Off: no supervised nights.",
+    "max_supervised_nights": "For the whole semester, all combos together: the most nights you can get a professor to "
+                             "come. One night covers every combo playing it. Blank = no limit (still as few as "
+                             "possible).",
     "solver_time_limit_sec": "How long the solver searches (roughly seconds). 30 is plenty unless it says FEASIBLE.",
     "student_email_domain": "Students' email domain, e.g. mail.mcgill.ca. Other addresses are fine, just listed. "
                             "Blank = don't check.",
@@ -232,7 +238,12 @@ def validate(data):
     except ValueError as e:
         errors.append(f"Settings email_domain_fixes: {e}.")
         fixes = {}
-    use_first_year = bool(data.get("use_first_year", True))
+    fy_date = get_date("first_year_earliest_date", required=False)
+    # settings saved before the switch existed: on exactly when there's a date
+    use_first_year = bool(data["use_first_year"]) if "use_first_year" in data else bool(fy_date)
+    if use_first_year and fy_date is None and blank(data.get("first_year_earliest_date")):
+        errors.append("First-year combos is on, but the date they can start playing is blank. Pick that date, or "
+                      "turn first-year combos off.")
     min_total, max_total = get_int("min_shows_per_combo", low=0), get_int("max_shows_per_combo", low=1)
     if min_total and max_total and min_total > max_total:
         errors.append(f"Settings: min_shows_per_combo ({min_total}) is more than max_shows_per_combo ({max_total}).")
@@ -240,7 +251,7 @@ def validate(data):
         semester_name=name, start_date=start, end_date=end, show_days=show_days,
         skip_dates=skips, extra_dates=extras, extra_times=extra_times,
         min_days_between_shows=get_int("min_days_between_shows", 14, low=0) or 0,
-        first_year_earliest_date=get_date("first_year_earliest_date", required=False) if use_first_year else None,
+        first_year_earliest_date=fy_date if use_first_year else None,
         max_blocked_dates_per_person=get_int("max_blocked_dates_per_person", low=0),
         min_usable_nights_per_combo=get_int("min_usable_nights_per_combo", low=0),
         max_shows_per_combo=max_total,
