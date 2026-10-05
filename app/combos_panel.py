@@ -15,7 +15,7 @@ from inputs import EMAIL_RE, EmailRules, InputError, load_input, name_from_email
 from outputs.excel_schedule import ScheduleFileError, open_label, read_schedule, write_swap
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 from store import Store
-from theme import popup
+from theme import popup, scrolled_tree
 from util import INSTRUMENTS, by_instrument
 
 
@@ -52,19 +52,10 @@ class CombosPanel:
                          style="Hint.TLabel", justify="left")
         hint.pack(anchor="w", fill="x", pady=(8, 0))
         self.frame.bind("<Configure>", lambda e: hint.configure(wraplength=max(e.width - 20, 200)), add="+")
-        table = ttk.Frame(self.frame)
+        table, self.tree = scrolled_tree(self.frame, [
+            ("#0", "Combo / person", 330, True), ("shows", "Shows", 210, True), ("instrument", "Instrument", 120, False),
+            ("also", "Also in", 70, False), ("conflicts", "Conflicts", 75, False), ("email", "Email", 200, True)])
         table.pack(fill="both", expand=True, pady=(6, 0))
-        bar = ttk.Scrollbar(table, orient="vertical")
-        bar.pack(side="right", fill="y")
-        self.tree = ttk.Treeview(table, columns=("shows", "instrument", "also", "conflicts", "email"),
-                                 yscrollcommand=bar.set)
-        bar.configure(command=self.tree.yview)
-        for col, text, width, stretch in (("#0", "Combo / person", 330, True), ("shows", "Shows", 210, True),
-                                          ("instrument", "Instrument", 120, False), ("also", "Also in", 70, False),
-                                          ("conflicts", "Conflicts", 75, False), ("email", "Email", 200, True)):
-            self.tree.heading(col, text=text, anchor="w")
-            self.tree.column(col, width=width, stretch=stretch, anchor="w")
-        self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<Double-1>", self.double_click)
         self.tree.bind("<Button-1>", self.click, add="+")
         for ev in ("<Button-3>", "<Button-2>", "<Control-Button-1>"):        # right-click (Mac: also Ctrl-click)
@@ -232,11 +223,12 @@ class CombosPanel:
         p = self.get_palette()
         if not p:
             return
-        from theme import ui_font
+        from theme import size, size_columns, ui_font
         self.tree.tag_configure("band0", background=p["panel"])
         self.tree.tag_configure("band1", background=p["band"])
-        self.tree.tag_configure("combo", font=(ui_font(), 10, "bold"))
-        self.tree.tag_configure("removed", foreground=p["muted"], font=(ui_font(), 10, "italic"))
+        size_columns(self.tree)
+        self.tree.tag_configure("combo", font=(ui_font(), size(10), "bold"))
+        self.tree.tag_configure("removed", foreground=p["muted"], font=(ui_font(), size(10), "italic"))
 
     def expand(self, yes):
         for i in self.tree.get_children():

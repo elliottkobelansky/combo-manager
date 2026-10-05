@@ -10,7 +10,7 @@ from tkinter import messagebox, ttk
 
 from core.model import make_label
 from core.swaps import claimers
-from theme import popup
+from theme import popup, scrolled_tree
 
 
 class SchedulePanel:
@@ -50,17 +50,9 @@ class SchedulePanel:
         hint.pack(anchor="w", fill="x", pady=(8, 0))
         self.frame.bind("<Configure>", lambda e: hint.configure(wraplength=max(e.width - 20, 200)), add="+")
 
-        table = ttk.Frame(self.frame)
+        table, self.tree = scrolled_tree(self.frame, [("#0", "Night / set", 230, False), ("time", "Time", 120, False),
+                                                      ("who", "Playing", 320, True), ("note", "", 200, True)])
         table.pack(fill="both", expand=True, pady=(6, 0))
-        bar = ttk.Scrollbar(table, orient="vertical")
-        bar.pack(side="right", fill="y")
-        self.tree = ttk.Treeview(table, columns=("time", "who", "note"), yscrollcommand=bar.set)
-        bar.configure(command=self.tree.yview)
-        for col, text, width, stretch in (("#0", "Night / set", 230, False), ("time", "Time", 120, False),
-                                          ("who", "Playing", 320, True), ("note", "", 200, True)):
-            self.tree.heading(col, text=text, anchor="w")
-            self.tree.column(col, width=width, stretch=stretch, anchor="w")
-        self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<Double-1>", self.double_click)
         self.tree.bind("<Button-3>", self.right_click)
 
@@ -79,12 +71,13 @@ class SchedulePanel:
         p = self.get_palette()
         if not p:
             return
-        from theme import ui_font
+        from theme import size, size_columns, ui_font
         self.tree.tag_configure("band0", background=p["panel"])
         self.tree.tag_configure("band1", background=p["band"])
-        self.tree.tag_configure("night", font=(ui_font(), 10, "bold"))
+        size_columns(self.tree)
+        self.tree.tag_configure("night", font=(ui_font(), size(10), "bold"))
         self.tree.tag_configure("open", foreground=p["muted"])
-        self.tree.tag_configure("pending", foreground=p["accent"], font=(ui_font(), 10, "bold"))
+        self.tree.tag_configure("pending", foreground=p["accent"], font=(ui_font(), size(10), "bold"))
 
     # the table
     def refresh(self):

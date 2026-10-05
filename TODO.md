@@ -161,7 +161,13 @@ handled without problems. This happens sometimes, and it shouldn't be an issue.
 - Already there: a warning when someone submits conflicts but isn't in any combo (catches one person using a
   Gmail address on one form and a McGill address on the other).
 
-**Still to test for real:**
+**Tested end to end on the Python side (2026-10-05):** a combo with a Gmail liaison (typed in capitals), a
+Gmail member and two McGill members, and the Gmail member's conflicts sent from a differently-capitalised
+address: read and numbered, liaison kept, conflicts matched and respected by the solver, rule check clean, listed
+as INFO in Check inputs, names "Jordan Smith" / "Riley Walker" (trailing digits dropped), shown in the Combos tab,
+the contact lists and Combos.pdf. No issues found.
+
+**Still to test for real (Microsoft side):**
 - [ ] Submit the combo form with a Gmail member and liaison, through the flow, and check the approvals row and
   the `solve.py --check` warnings.
 - [ ] Decide on the conflict form: if it's restricted to "Only people in my organization", non-McGill people

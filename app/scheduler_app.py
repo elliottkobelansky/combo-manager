@@ -117,7 +117,8 @@ class App:
         import theme
         self.theme = theme
         self.mode = load_config().get("theme", "light")
-        self.palette = theme.apply(root, self.mode)
+        scale = load_config().get("text_size", 1.0)
+        self.palette = theme.apply(root, self.mode, scale if scale in theme.SCALES else 1.0)
         root.title("Combo Scheduler")
         root.minsize(940, 640)
 
@@ -130,6 +131,14 @@ class App:
         self.dark = tk.BooleanVar(value=self.mode == "dark")
         ttk.Checkbutton(head, text="Dark mode", variable=self.dark, command=self.toggle_theme,
                         style="Switch.TCheckbutton" if theme.sv_ttk else "TCheckbutton").pack(side="right")
+        sizes = ttk.Frame(head)                       # text size: A- 100% A+
+        sizes.pack(side="right", padx=(0, 18))
+        ttk.Button(sizes, text="A\u2212", width=3, command=lambda: self.text_size(-1)).pack(side="left")
+        self.size_label = ttk.Label(sizes, text="", width=5, anchor="center")
+        self.size_label.pack(side="left", padx=4)
+        ttk.Button(sizes, text="A+", width=3, command=lambda: self.text_size(+1)).pack(side="left")
+        ttk.Label(sizes, text="Text size", style="Hint.TLabel").pack(side="left", padx=(8, 0))
+        self.size_label.configure(text=f"{round(theme.SCALE * 100)}%")
         ttk.Label(head, text="Combo Scheduler", style="Title.TLabel").pack(side="left")
         self.shell = shell
         self.settings = self.swaps = self.combos = self.schedule = None
@@ -386,16 +395,32 @@ class App:
         return f"Data folder:  {shorten(str(self.folder), room)}"
 
     def color_output(self):
-        p, mono = self.palette, self.theme.mono_font()
-        self.out.configure(background=p["panel"], foreground=p["text"], insertbackground=p["text"],
+        p, mono, size = self.palette, self.theme.mono_font(), self.theme.size(10)
+        self.out.configure(font=(mono, size), background=p["panel"], foreground=p["text"], insertbackground=p["text"],
                            selectbackground=p["accent"], selectforeground=p["accent_text"])
         self.out.tag_configure("warn", foreground=p["warn"])
-        self.out.tag_configure("bad", foreground=p["bad"], font=(mono, 10, "bold"))
-        self.out.tag_configure("good", foreground=p["good"], font=(mono, 10, "bold"))
+        self.out.tag_configure("bad", foreground=p["bad"], font=(mono, size, "bold"))
+        self.out.tag_configure("good", foreground=p["good"], font=(mono, size, "bold"))
+
+    def text_size(self, step):
+        """A- / A+: the next smaller or bigger text size; remembered on this computer."""
+        steps = self.theme.SCALES
+        now = min(range(len(steps)), key=lambda i: abs(steps[i] - self.theme.SCALE))
+        new = steps[max(0, min(len(steps) - 1, now + step))]
+        if new == self.theme.SCALE:
+            return
+        self.size_label.configure(text=f"{round(new * 100)}%")
+        save_config(text_size=new)
+        self.restyle(scale=new)
 
     def toggle_theme(self):
         self.mode = "dark" if self.dark.get() else "light"
-        self.palette = self.theme.apply(self.root, self.mode)
+        save_config(theme=self.mode)
+        self.restyle()
+
+    def restyle(self, scale=None):
+        """After a dark mode or text size change: the theme, then the parts ttk doesn't draw."""
+        self.palette = self.theme.apply(self.root, self.mode, scale)
         self.color_output()
         if self.settings:
             self.settings.recolor()
@@ -405,7 +430,6 @@ class App:
             self.combos.recolor()
         if self.schedule:
             self.schedule.recolor()
-        save_config(theme=self.mode)
 
     # output
     def write(self, text):

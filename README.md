@@ -14,8 +14,9 @@ tab, see [swaps](#during-the-semester-swaps)):
 2. **Make schedule** = `solve.py --pdf` (asks before replacing an existing schedule)
 3. **Check the schedule** = `solve.py --stats` (rule check and stats; the PDF is exported from the Schedule tab)
 
-plus buttons to open the folder, `Schedule.pdf` and `Schedule.xlsx`, a **Settings** tab (below), and a dark
-mode switch (remembered). It works on the **data
+plus buttons to open the folder, `Schedule.pdf` and `Schedule.xlsx`, a **Settings** tab (below), a dark
+mode switch and a **Text size** control (A− / A+, 85% to 175%), both remembered on that computer. Lists that are
+wider than the window get a horizontal scrollbar. It works on the **data
 folder** shown at the top: by default the `data` folder next to the launchers; **Change...** picks another
 (remembered). The easiest setup: keep this whole folder in OneDrive, synced to the director's computer, with
 `Combo Approvals.xlsx`, `Conflicts.xlsx` and `settings.json` in `data`, so there's nothing to download.
