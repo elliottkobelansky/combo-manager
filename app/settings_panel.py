@@ -432,8 +432,8 @@ class SettingsPanel:
         self.frame.after(500, self.watch)
 
     def nights_ok(self, new):
-        """When a schedule already exists and these settings change its nights, says so and asks before saving:
-        Schedule.xlsx isn't updated by the settings (see TODO #14)."""
+        """When a schedule already exists and these settings change the nights, says that they only apply to the
+        next schedule made: the current one keeps its own nights (the app reads them from Schedule.xlsx)."""
         if not (self.get_folder() / "Schedule.xlsx").exists() or not self.path.exists():
             return True
         try:
@@ -452,13 +452,13 @@ class SettingsPanel:
         def dates(ds):
             return ", ".join(make_label(d) for d in ds[:8]) + (f" and {len(ds) - 8} more" if len(ds) > 8 else "")
         lines = ([f"\u2022 New nights: {dates(added)}."] if added else []) + (
-            [f"\u2022 Nights removed: {dates(removed)}. Shows already scheduled on them will drop out of the "
-             "Schedule tab, the check and the PDF."] if removed else []) + (
+            [f"\u2022 Nights removed: {dates(removed)}."] if removed else []) + (
             [f"\u2022 Sets or set times change on {len(changed)} night(s)."] if changed else [])
         return messagebox.askyesno(
-            "The schedule won't follow", "A schedule already exists, and these changes affect its nights:\n\n"
-            + "\n".join(lines) + "\n\nSaving settings doesn't change Schedule.xlsx. If the schedule isn't out yet, "
-            "make a new one afterwards (Run tab, step 2).\n\nSave anyway?", icon="warning", default="no")
+            "For the next schedule", "These changes affect the show nights:\n\n" + "\n".join(lines)
+            + "\n\nThey apply to the next schedule you make (Run tab, step 2). The current schedule keeps its own "
+            "nights, shows and times: the app, the check and the PDF all follow Schedule.xlsx.\n\nSave?",
+            icon="info", default="yes")
 
     def ask_to_save(self):
         """For leaving the tab, changing folder or closing with unsaved changes. True = go ahead, False = stay."""

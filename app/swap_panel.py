@@ -7,12 +7,11 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from app_config import input_files
-from core import generate_nights
 from core.model import make_label
 from core.swaps import apply_option, swap_options
 from inputs import InputError, load_input, name_from_email
 from store import Store
-from outputs.excel_schedule import ScheduleFileError, open_label, read_schedule, write_swap
+from outputs.excel_schedule import ScheduleFileError, open_label, read_schedule, schedule_nights, write_swap
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 from theme import in_background
 
@@ -157,7 +156,8 @@ class SwapPanel:
         if not keep:
             self.base_sets = {d: dict(row) for d, row in sets.items()}
         self.state = dict(settings=settings, inp=inp, combos=combos, sets=sets, supervised=supervised, typed=typed,
-                          nights=generate_nights(settings), name_of=name_of)
+                          nights=schedule_nights(folder / "Schedule.xlsx", settings) if not keep else
+                          self.state["nights"], name_of=name_of)
         # "Combo 07 (Ana Ruiz)": the liaison, so the director recognises the combo
         def who(e):                           # the liaison's name, or their email if the name isn't unique
             n = plain.get(e) or name_from_email(e)

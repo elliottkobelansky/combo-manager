@@ -114,6 +114,47 @@ class ScheduleFileError(Exception):
     pass
 
 
+def schedule_nights(path, settings):
+    """The show nights as Schedule.xlsx has them (date, venue, number of sets, set times), sorted. Once a schedule
+    exists it decides which nights there are: changing dates or show days in the settings only affects the next
+    schedule made. ("Supervised nights preferred here" still comes from the settings' show days.)"""
+    from datetime import datetime as dt
+    from openpyxl import load_workbook
+    from core.model import Night
+    from util import to_date, to_time
+    try:
+        ws = load_workbook(path, data_only=True)["Schedule"]
+    except (FileNotFoundError, KeyError):
+        raise ScheduleFileError(f"Can't read the nights from {path}.")
+    head = [str(v or "").strip().lower() for v in next(ws.iter_rows(max_row=1, values_only=True), ())]
+    col = {h: head.index(h) for h in ("date", "venue", "set", "start", "end") if h in head}
+    rows = defaultdict(dict)                          # date -> {set: (venue, start, end)}
+    for r in ws.iter_rows(min_row=2, values_only=True):
+        r = tuple(r) + (None,) * (len(head) + 1 - len(r))
+        try:
+            d, k = to_date(r[col.get("date", 0)]), int(r[col.get("set", 3)])
+            start = to_time(r[col["start"]]) if "start" in col else None
+            end = to_time(r[col["end"]]) if "end" in col else None
+        except (ValueError, TypeError):
+            continue                                  # read_schedule reports unreadable rows
+        if d:
+            rows[d][k] = (str(r[col.get("venue", 2)] or "").strip(), start, end)
+    # as in core.slots: a regular show day's own flag; any other night is preferred when its venue is
+    by_day = {(sd.weekday, sd.venue.casefold()): sd.supervision_preferred for sd in settings.show_days}
+    preferred_venues = {sd.venue.casefold() for sd in settings.show_days if sd.supervision_preferred}
+
+    def minutes(a, b):
+        return int((dt.combine(dt.min, b) - dt.combine(dt.min, a)).total_seconds() // 60)
+    nights = []
+    for d, sets in sorted(rows.items()):
+        venue, first, end1 = sets[min(sets)]
+        length = minutes(first, end1) if first and end1 else 0
+        gap = minutes(end1, sets[2][1]) if first and end1 and 2 in sets and sets[2][1] else 0
+        nights.append(Night(d, venue, max(sets), first if length > 0 else None, max(length, 0), max(gap, 0),
+                            by_day.get((d.weekday(), venue.casefold()), venue.casefold() in preferred_venues)))
+    return nights
+
+
 def open_label(settings):
     """What an open set says in Schedule.xlsx."""
     return "OPEN - volunteer" if settings.extra_slot_policy == "open" else "(empty)"

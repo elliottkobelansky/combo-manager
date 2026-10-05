@@ -25,7 +25,7 @@ from core.stats import schedule_stats
 from inputs import APPROVALS_FILE, CONFLICTS_FILE, InputError, load_input, name_from_email
 from store import Store
 from util import DATA_FOLDER
-from outputs.excel_schedule import ScheduleFileError, read_schedule, write_schedule
+from outputs.excel_schedule import ScheduleFileError, read_schedule, schedule_nights, write_schedule
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 
 
@@ -58,7 +58,7 @@ def compare_gaps(inp, settings, values):
 def print_stats(path, inp, settings, names, pdf=None):
     combos = {c.id: c for c in inp.combos}
     sets, file_problems, supervised, typed = read_schedule(path, combos)
-    nights = generate_nights(settings)
+    nights = schedule_nights(path, settings)          # the schedule's own nights, whatever the settings say now
     sections, problems = schedule_stats(sets, nights, combos, inp, settings, supervised,
                                         lambda e: names.get(e) or name_from_email(e), typed)
     print(f"\nStats for {path}")
@@ -127,7 +127,8 @@ def main(argv=None):
     f = Path(a.folder)
     try:
         settings, setting_warnings = load_settings(f / a.settings)
-        nights = generate_nights(settings)
+        # --stats looks at the schedule as it is: its own nights; anything else plans from the settings
+        nights = schedule_nights(f / a.out, settings) if a.stats and (f / a.out).exists() else generate_nights(settings)
         days, sets = Counter(n.weekday for n in nights), Counter()
         for n in nights:
             sets[n.weekday] += n.n_slots

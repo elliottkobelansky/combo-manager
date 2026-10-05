@@ -124,6 +124,10 @@ any combo still Pending. Writes `Schedule.xlsx` and `Schedule.pdf` (printable ca
 The old ByCombo and OpenSlots sheets are gone: they went out of date after the first edit. `python app/solve.py --stats`
 reads the file as it is now (shows per combo, open sets nobody can take, and the rule check).
 
+Once `Schedule.xlsx` exists, **it decides which nights there are** (dates, venues, sets, times): the app, the check
+and the rebuilt PDF read them from the file. Changing dates, show days, skip or extra dates in Settings only
+affects the next schedule made (Save settings says so).
+
 The **Schedule** sheet's last column, **Supervised**, says Yes on every set of a supervised night. To move
 supervision to another night, change those Yes cells; `--stats` re-checks that every combo is still covered.
 
