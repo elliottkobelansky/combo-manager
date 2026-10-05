@@ -37,8 +37,6 @@ class CombosPanel:
         top = ttk.Frame(self.frame)
         top.pack(fill="x")
         ttk.Button(top, text="Reload", command=self.load).pack(side="left")
-        ttk.Button(top, text="Collapse all", command=lambda: self.expand(False)).pack(side="right")
-        ttk.Button(top, text="Expand all", command=lambda: self.expand(True)).pack(side="right", padx=(0, 6))
         ttk.Label(top, text="Search").pack(side="left", padx=(16, 6))
         self.search = tk.StringVar()
         self.search.trace_add("write", lambda *_: self.fill())
@@ -74,8 +72,10 @@ class CombosPanel:
 
         bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
+        ttk.Button(bottom, text="Expand all", command=lambda: self.expand(True)).pack(side="left")
+        ttk.Button(bottom, text="Collapse all", command=lambda: self.expand(False)).pack(side="left", padx=6)
         self.actions = ttk.Button(bottom, text="Actions \u25be", command=self.actions_menu)   # = the right-click menu
-        self.actions.pack(side="left")
+        self.actions.pack(side="left", padx=(6, 0))
         self.actions_hint = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.actions_hint.pack(side="left", padx=10)
         self.tree.bind("<<TreeviewSelect>>", lambda _: self.show_actions_hint(), add="+")
