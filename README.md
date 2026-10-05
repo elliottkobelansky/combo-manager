@@ -175,25 +175,25 @@ changes. **Export PDF** rebuilds `Schedule.pdf` from `Schedule.xlsx` (the same
 as Run's step 3); with unsaved changes it asks: save them first, export the saved schedule only, or cancel.
 Nothing in this tab writes a file by itself.
 
-**Changing a combo's members** (Combos tab; also on right-click): **Add member...** finds someone the scheduler
+**Changing a combo's members** (Combos tab: pick a combo or a person, then **Actions ▾** below the list, or right-click; the menu shows what fits the row picked): **Add a member** finds someone the scheduler
 already knows (type part of a name or email) or takes a new email, guesses the name from it (change it if needed) and
 optionally sets the instrument; it warns if they're in another combo or, once a schedule exists, have a conflict or a
-second show on one of this combo's nights. **Remove...** takes someone out; removing the liaison first asks who takes
-over. Removed people stay listed in grey: right-click > **Put back**. **Make liaison** changes the liaison. None of
+second show on one of this combo's nights. **Remove** takes someone out; removing the liaison first asks who takes
+over. Removed people stay listed in grey: Actions > **Put back**. **Make liaison** (on a person) or **Change the liaison** (on a combo) changes the liaison. None of
 this touches `Combo Approvals.xlsx`: the changes are kept in `scheduler_data.json` (by Response Id, so they stay
 attached to the right combo as new responses come in), applied whenever the approvals are read, and listed by
 **Check inputs**. A combo with fewer members than the "Warn: members per combo" setting (default 4) shows ⚠ and is
 flagged by the check. After the schedule is out, run **Check the schedule** after a change: a new member's conflicts
 count from then on.
 
-**Withdrawing a combo** (Combos tab: **Withdraw...**, or right-click): the combo stops being scheduled and its
+**Withdrawing a combo** (Combos tab: Actions > **Withdraw**): the combo stops being scheduled and its
 number stays reserved, so the numbering keeps a gap and no other combo's number changes (like setting Status to
 Withdrawn in the approvals, without opening Excel). If the schedule is out, its sets become OPEN in `Schedule.xlsx`
 right away (a backup goes to `Schedule backups`) and `Schedule.pdf` is rebuilt; nothing is given to another combo
 automatically. Volunteers can claim the open sets, or give one to a combo from the Schedule tab ("who could take
 it"). A set on a **supervised night** must be filled (supervised nights are full): the confirmation says so and the
 rule check flags it until it is. Withdrawing waits until pending swaps are confirmed or discarded. Withdrawn combos
-stay listed in grey; right-click > **Put back** returns the combo with its old number but no shows (its sets may be
+stay listed in grey; Actions > **Put back** returns the combo with its old number but no shows (its sets may be
 taken by then): it can claim open sets in the Swaps tab.
 
 **Combos tab:** every accepted combo (with its liaison and shows) and its people, in columns: Instrument, Also in
@@ -201,7 +201,7 @@ taken by then): it can claim open sets in the Swaps tab.
 (Saxophone, Trumpet, Trombone, Guitar, Piano, Bass, Drums, or Other: type anything); it's per person per combo and
 kept in `scheduler_data.json`. **Export combo list** writes `Combos.pdf` (every combo with its supervisor and
 members, liaison first, instruments when set; numbered like the calendar). Double-click a person
-(or **Rename...**) to correct their name, or double-click their email (or **Fix email...**) to fix a typo'd
+(or Actions > **Change name**) to correct their name, or double-click their email (or Actions > **Change email**) to fix a typo'd
 address: the spreadsheets aren't changed, the fix is applied whenever they're read, to the combos *and* the
 conflicts, so a member whose conflicts didn't count because of a typo is matched again (corrected emails show ✎;
 typing the original back removes the fix); it's kept in `scheduler_data.json` and used everywhere (PDFs, checks,

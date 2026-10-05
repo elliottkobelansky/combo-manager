@@ -45,9 +45,10 @@ class CombosPanel:
         self.info.pack(side="left", padx=12)
 
         hint = ttk.Label(self.frame, text="Click an Instrument cell (\u25be) to pick one; double-click a name to correct "
-                                          "it, or an email to fix it (\u270e = corrected). Right-click for more: add or "
-                                          "remove members, change the liaison. All kept in scheduler_data.json in the "
-                                          "data folder; the approvals spreadsheet isn't changed.",
+                                          "it, or an email to fix it (\u270e = corrected). Pick a combo or a person, then "
+                                          "Actions (or right-click): add or remove members, change the liaison, "
+                                          "withdraw a combo. All kept in scheduler_data.json in the data folder; the "
+                                          "approvals spreadsheet isn't changed.",
                          style="Hint.TLabel", justify="left")
         hint.pack(anchor="w", fill="x", pady=(8, 0))
         self.frame.bind("<Configure>", lambda e: hint.configure(wraplength=max(e.width - 20, 200)), add="+")
@@ -71,14 +72,11 @@ class CombosPanel:
 
         bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
-        ttk.Button(bottom, text="Add member...", command=self.add_member).pack(side="left")
-        ttk.Button(bottom, text="Remove...", command=self.remove_member).pack(side="left", padx=(6, 0))
-        ttk.Button(bottom, text="Make liaison", command=self.make_liaison).pack(side="left", padx=(6, 0))
-        ttk.Button(bottom, text="Withdraw...", command=self.withdraw).pack(side="left", padx=(6, 0))
-        ttk.Separator(bottom, orient="vertical").pack(side="left", fill="y", padx=10)
-        ttk.Button(bottom, text="Rename...", command=self.rename).pack(side="left")
-        ttk.Button(bottom, text="Fix email...", command=self.edit_email).pack(side="left", padx=(6, 0))
-        ttk.Button(bottom, text="Instrument...", command=self.edit_instrument).pack(side="left", padx=(6, 0))
+        self.actions = ttk.Button(bottom, text="Actions \u25be", command=self.actions_menu)   # = the right-click menu
+        self.actions.pack(side="left")
+        self.actions_hint = ttk.Label(bottom, text="", style="Hint.TLabel")
+        self.actions_hint.pack(side="left", padx=10)
+        self.tree.bind("<<TreeviewSelect>>", lambda _: self.show_actions_hint(), add="+")
         ttk.Button(bottom, text="Export combo list", style="Accent.TButton",
                    command=self.export_pdf).pack(side="right")
 
@@ -166,7 +164,7 @@ class CombosPanel:
                                                ", ".join(others), n_conf or "", self.mail(e)), tags=(shade,))
                 self.people[pid] = (c.name, e)
             for e in changes["remove"]:
-                pid = self.tree.insert(item, "end", text=f"    {self.name(e)}  \u00b7 removed (right-click to put back)",
+                pid = self.tree.insert(item, "end", text=f"    {self.name(e)}  \u00b7 removed (Actions: put back)",
                                        values=("", "", "", "", e), tags=(shade, "removed"))
                 self.removed[pid] = (c.name, e)
             if c.professor:
@@ -177,7 +175,7 @@ class CombosPanel:
             label = (f"{c.name} ({self.name(c.liaison)})" if c.liaison else c.name) + "  \u00b7 withdrawn"
             if q and q not in (label + " " + " ".join(c.members)).lower():
                 continue
-            item = self.tree.insert("", "end", text=label, values=("right-click to put back", "", "", "", ""),
+            item = self.tree.insert("", "end", text=label, values=("Actions: put back", "", "", "", ""),
                                     open=bool(q) or self.tree_key(label) in open_items, tags=("removed",))
             self.withdrawn_items[item] = c
             people = [c.liaison] + sorted(c.members - {c.liaison}, key=lambda e: self.name(e).lower())
@@ -353,7 +351,32 @@ class CombosPanel:
         if not item:
             return
         self.tree.selection_set(item)
+        self.popup(self.build_menu(), event.x_root, event.y_root)
+
+    def actions_menu(self):
+        """The Actions button: the same menu as a right-click, for the selected row, opened under the button."""
+        b = self.actions
+        self.popup(self.build_menu(), b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+
+    def show_actions_hint(self):
         kind, combo, email = self.selected()
+        what = {"combo": combo and combo.name, "person": email and self.name(email),
+                "supervisor": email and self.name(email), "removed": email and self.name(email) + " (removed)",
+                "withdrawn": combo and combo.name + " (withdrawn)"}.get(kind)
+        self.actions_hint.configure(text=f"for {what}" if what else "")
+
+    @staticmethod
+    def popup(menu, x, y):
+        try:
+            menu.tk_popup(x, y)
+        finally:
+            menu.grab_release()
+
+    def build_menu(self):
+        """What can be done with the selected row (a combo, a person, a removed person, a withdrawn combo)."""
+        kind, combo, email = self.selected()
+        sel = self.tree.selection()
+        item = sel[0] if sel else None
         p = self.get_palette() or {}
         menu = tk.Menu(self.tree, tearoff=0, background=p.get("panel"), foreground=p.get("text"),
                        activebackground=p.get("accent"), activeforeground=p.get("accent_text"))
@@ -370,19 +393,20 @@ class CombosPanel:
         elif kind == "supervisor":
             menu.add_command(label="Change name...", command=self.rename)
             menu.add_command(label="Change email...", command=self.edit_email)
-        if kind == "withdrawn":
-            menu.add_command(label=f"Put back {combo.name}", command=self.put_back)
+        if kind is None:
+            menu.add_command(label="Pick a combo or a person in the list first", state="disabled")
+        elif kind == "withdrawn":
+            menu.add_command(label=f"Put back {combo.name}...", command=self.put_back)
         else:
-            if kind != "combo":
+            if kind == "combo":
+                menu.add_command(label=f"Change the liaison of {combo.name}...", command=self.make_liaison)
+            else:
                 menu.add_separator()
             menu.add_command(label=f"Add a member to {combo.name}...", command=self.add_member)
             menu.add_separator()
             menu.add_command(label=f"Withdraw {combo.name}...", command=self.withdraw)
         self.menu = menu                              # (kept for tests)
-        try:
-            menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            menu.grab_release()
+        return menu
 
     def change_store(self, change):
         """Re-reads scheduler_data.json, applies change(store) and saves it. Reading it again first means an edit
