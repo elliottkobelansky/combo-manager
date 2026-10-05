@@ -61,9 +61,9 @@ class CombosPanel:
         self.tree = ttk.Treeview(table, columns=("shows", "instrument", "also", "conflicts", "email"),
                                  yscrollcommand=bar.set)
         bar.configure(command=self.tree.yview)
-        for col, text, width, stretch in (("#0", "Combo / person", 230, True), ("shows", "Shows", 210, True),
+        for col, text, width, stretch in (("#0", "Combo / person", 330, True), ("shows", "Shows", 210, True),
                                           ("instrument", "Instrument", 120, False), ("also", "Also in", 70, False),
-                                          ("conflicts", "Conflicts", 75, False), ("email", "Email", 240, True)):
+                                          ("conflicts", "Conflicts", 75, False), ("email", "Email", 200, True)):
             self.tree.heading(col, text=text, anchor="w")
             self.tree.column(col, width=width, stretch=stretch, anchor="w")
         self.tree.pack(side="left", fill="both", expand=True)
@@ -149,8 +149,9 @@ class CombosPanel:
             text = " ".join([c.name] + [self.name(e) + " " + e for e in people] + [c.professor]).lower()
             if q and q not in text:
                 continue
-            shows = ", ".join(self.data["shows"].get(cid, [])) + ("  · first year" if c.first_year else "")
-            label = f"{c.name} ({self.name(c.liaison)})" if c.liaison else c.name
+            shows = ", ".join(self.data["shows"].get(cid, []))
+            label = (f"{c.name} ({self.name(c.liaison)})" if c.liaison else c.name) + ("  \u00b7 first year" if c.first_year
+                                                                                     else "")
             if few and len(c.members) < few:
                 label += f"   \u26a0 {len(c.members)} member{'s' if len(c.members) != 1 else ''}"
             band ^= 1                                 # alternate the background per combo
@@ -212,8 +213,8 @@ class CombosPanel:
 
     @staticmethod
     def tree_key(label):
-        """'Combo 05 (Ana Ruiz)   ⚠ 3 members' -> 'Combo 05': stays the same when the label changes."""
-        return label.split(" (")[0].split("   ")[0]
+        """'Combo 05 (Ana Ruiz)  · first year   ⚠ 3 members' -> 'Combo 05': stays the same when the label changes."""
+        return label.split(" (")[0].split("  ")[0]
 
     def mail(self, email):
         """The email as shown: marked when it was corrected in the app."""
