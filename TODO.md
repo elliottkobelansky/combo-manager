@@ -306,7 +306,9 @@ rebuild PDF) and launchers for Windows, Mac and Linux, which set up a private Py
 folder on first run. Tested on Linux with fake data (actions and window).
 
 **Still to do:**
-- [ ] Try it on a real Windows computer and a real Mac (ideally the director's), from the synced OneDrive folder.
+- [x] Mac (2026-10-05, the author's laptop, zip by email): launches after the launcher fix (it had picked a Python
+  without tkinter). Still to go through there: menus, text size, scrolling, PDFs, contact lists, calendar pop-up.
+- [ ] Try it on a real Windows computer and the director's Mac, from the synced OneDrive folder.
   Things to watch: the Mac "unidentified developer" block (right-click > Open), the Windows Store "python" stub
   (the launcher prefers `py`), and OneDrive syncing the `.command` file without its run permission (if so:
   `chmod +x "Make Schedule.command"` once).
