@@ -60,7 +60,7 @@ HELP = {
                          "fill them by hand (Schedule or Swaps tab). Fill every set: some combos get extra shows.",
     "min_shows_per_combo": "Every combo gets at least this many shows, at any venues (each venue's minimum still "
                            "applies). With leftover sets left open: exactly this many.",
-    "core_shows_per_venue": "Only used when the total above is blank: each combo then gets this many shows at every "
+    "core_shows_per_venue": "Only used when the minimum above is blank: each combo then gets this many shows at every "
                             "venue. When every set is filled, also the most a first-year combo plays at each venue.",
     "max_shows_per_combo": "Cap on total shows per combo. Blank = no cap.",
     "every_combo_supervised": "On: every combo plays at least one night a professor attends from start to end (that "
