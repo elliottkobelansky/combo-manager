@@ -675,7 +675,7 @@ class AddMemberDialog:
             ttk.Label(box, text=label).grid(row=2 * r - 1, column=0, sticky="w", padx=(0, 12), pady=(6, 0))
             widget.grid(row=2 * r - 1, column=1, sticky="w", pady=(6, 0))
             ttk.Label(box, text=hint, style="Hint.TLabel").grid(row=2 * r, column=1, sticky="w")
-        self.warn = ttk.Label(box, text="", wraplength=420, justify="left", foreground=panel.get_palette().get("warn"))
+        self.warn = ttk.Label(box, text="", wraplength=420, justify="left", style="Warn.TLabel")
         self.warn.grid(row=9, column=0, columnspan=2, sticky="w", pady=(10, 0))
         bar = ttk.Frame(box)
         bar.grid(row=10, column=0, columnspan=2, sticky="e", pady=(14, 0))

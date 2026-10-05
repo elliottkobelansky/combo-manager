@@ -174,8 +174,12 @@ class App:
                                                             on_done=done),
                                       lambda: self.open_file("Schedule.pdf"), lambda: self.palette, open_path)
         self.tabs.insert(1, self.schedule.frame, text="Schedule")
-        self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette, on_save=self.autoload)
+        self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette, on_save=self.autoload,
+                                      on_dirty=lambda dirty: self.tabs.tab(self.settings.frame,
+                                                                           text="Settings \u25cf" if dirty else "Settings"))
         self.tabs.add(self.settings.frame, text="Settings")
+        self.current_tab = None
+        self.tabs.bind("<<NotebookTabChanged>>", self.tab_changed)
         self.tabs.add(self.about_tab(), text="About")
 
         # which input spreadsheets are read (usually the data folder's; Choose... picks another file)
@@ -298,7 +302,18 @@ class App:
         self.status.destroy()
         self.build_main()
 
+    def tab_changed(self, _=None):
+        """Leaving the Settings tab with unsaved changes: save, undo, or stay."""
+        now = self.tabs.select()
+        left_settings = self.settings and self.current_tab == str(self.settings.frame) and now != self.current_tab
+        self.current_tab = now
+        if left_settings and not self.settings.ask_to_save():
+            self.tabs.select(self.settings.frame)
+
     def on_close(self):
+        if self.settings and not self.settings.ask_to_save():
+            self.tabs.select(self.settings.frame)
+            return
         if self.swaps and self.swaps.pending and not messagebox.askyesno(
                 "Unsaved swaps", f"{len(self.swaps.pending)} swap change(s) haven't been saved to Schedule.xlsx. "
                 "Close anyway and lose them?", icon="warning"):
@@ -418,6 +433,9 @@ class App:
 
     # actions
     def change_folder(self):
+        if self.settings and not self.settings.ask_to_save():
+            self.tabs.select(self.settings.frame)
+            return
         picked = filedialog.askdirectory(initialdir=str(self.folder), title="Folder with Combo Approvals.xlsx, "
                                          "Conflicts.xlsx and settings.json")
         if picked:

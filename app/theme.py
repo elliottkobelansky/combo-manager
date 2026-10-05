@@ -76,6 +76,7 @@ def apply(root, mode="light"):
     style.configure("Hint.TLabel", font=(family, 9), foreground=p["muted"])
     style.configure("CardTitle.TLabel", font=(family, 12, "bold"))
     style.configure("Link.TLabel", font=(family, 11), foreground=p["accent"])
+    style.configure("Warn.TLabel", foreground=p["warn"])
     style.configure("Step.TLabel", font=(family, 12, "bold"), foreground=p["accent"])
     style.configure("Big.Accent.TButton", font=(family, 11, "bold"), padding=(18, 8))
     root.option_add("*Toplevel.background", p["bg"])

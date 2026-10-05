@@ -3,6 +3,7 @@
 Dates use a pop-up calendar when the tkcalendar package is installed (the app's Install button adds it); without
 it, dates are typed as YYYY-MM-DD.
 """
+import json
 import sys
 import tkinter as tk
 from datetime import date
@@ -266,9 +267,11 @@ class ListEditor:
 
 
 class SettingsPanel:
-    def __init__(self, parent, get_folder, get_palette=lambda: {}, on_save=None):
+    def __init__(self, parent, get_folder, get_palette=lambda: {}, on_save=None, on_dirty=None):
         self.get_folder = get_folder
         self.on_save = on_save                            # reloads the other tabs (they read the settings too)
+        self.on_dirty = on_dirty                          # on_dirty(True/False): marks the tab "Settings •"
+        self.saved, self.dirty = None, False              # what was last loaded or saved; differs from it now?
         PALETTE.update(get_palette())
         self.get_palette = get_palette
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
@@ -336,11 +339,14 @@ class SettingsPanel:
         bar.pack(fill="x", pady=(12, 0))
         ttk.Button(bar, text="Save settings", style="Accent.TButton", command=self.save).pack(side="left")
         ttk.Button(bar, text="Undo changes", command=self.reload).pack(side="left", padx=6)
+        self.unsaved = ttk.Label(bar, text="", style="Warn.TLabel")
+        self.unsaved.pack(side="left", padx=(10, 0))
         self.status = ttk.Label(bar, text="", style="Hint.TLabel")
         self.status.pack(side="left", padx=10)
         if Calendar is None:
             self.status.configure(text="Tip: install the missing packages (Run tab) to pick dates from a calendar.")
         self.reload()
+        self.watch()
 
     @property
     def path(self):
@@ -372,6 +378,8 @@ class SettingsPanel:
         self.extra_dates.set(data.get("extra_dates") or [])
         self.update_dependents()
         self.status.configure(text=note)
+        self.saved = self.snapshot() if self.path.exists() else None    # no settings.json yet: unsaved
+        self.check_unsaved()
 
     def update_dependents(self):
         """Greys out the settings that have no effect with the others as they are."""
@@ -401,18 +409,56 @@ class SettingsPanel:
         data["extra_dates"] = self.extra_dates.rows
         return data
 
+    def snapshot(self):
+        """The settings as shown, comparable with an earlier snapshot (None while a number field can't be read)."""
+        try:
+            return json.dumps(self.collect(), sort_keys=True, default=str)
+        except ValueError:
+            return None
+
+    def check_unsaved(self):
+        """Are there unsaved changes? Shows it next to the buttons and on the tab."""
+        dirty = self.saved is None or self.snapshot() != self.saved
+        if dirty != self.dirty:
+            self.dirty = dirty
+            self.unsaved.configure(text="\u25cf Unsaved changes: click Save settings" if dirty else "")
+            if self.on_dirty:
+                self.on_dirty(dirty)
+
+    def watch(self):
+        """Checks for unsaved changes every half second (started once)."""
+        self.check_unsaved()
+        self.frame.after(500, self.watch)
+
+    def ask_to_save(self):
+        """For leaving the tab, changing folder or closing with unsaved changes. True = go ahead, False = stay."""
+        if not self.dirty:
+            return True
+        answer = messagebox.askyesnocancel(
+            "Unsaved settings", "The settings have changes that aren't saved.\n\nYes: save them now.\nNo: undo them."
+            "\nCancel: go back to the Settings tab.", icon="warning")
+        if answer is None:
+            return False
+        if answer:
+            return self.save()
+        self.reload()
+        return True
+
     def save(self):
         try:
             data = self.collect()
         except ValueError:
             messagebox.showerror("Not a number", "The number fields must hold whole numbers (or be blank).")
-            return
+            return False
         try:
             _, warnings = validate(data)
         except SettingsError as e:
             messagebox.showerror("Can't save yet", f"Please fix these first:\n\n{e}")
-            return
+            return False
         save_data(self.path, data)
+        self.saved = self.snapshot()
+        self.check_unsaved()
         self.status.configure(text=f"Saved to {SETTINGS_FILE}." + (f" Note: {' '.join(warnings)}" if warnings else ""))
         if self.on_save:
             self.on_save()
+        return True
