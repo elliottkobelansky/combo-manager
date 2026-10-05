@@ -25,9 +25,8 @@ GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, 
     ("end_date", "Last possible show day", "date"),
     (None, "Shows per combo", "section"),
     ("extra_slot_policy", "Leftover sets", "policy"),
-    ("min_shows_per_combo", "Minimum shows per combo", "int?"),
+    ("min_shows_per_combo", "Minimum shows per combo", "int"),
     ("max_shows_per_combo", "Maximum shows per combo", "int?"),
-    ("core_shows_per_venue", "Shows per venue (if no minimum)", "int"),
     ("min_days_between_shows", "Ideal days between shows", "int"),
     (None, "First-year combos", "section"),
     ("use_first_year", "First-year combos", "bool"),
@@ -375,11 +374,8 @@ class SettingsPanel:
     def update_dependents(self):
         """Greys out the settings that have no effect with the others as they are."""
         w = {key: widget for key, (widget, _) in self.widgets.items()}
-        first_year, total = w["use_first_year"].var.get(), w["min_shows_per_combo"].get().strip()
-        fill_all = w["extra_slot_policy"].get() == POLICIES["auto"]
-        set_enabled(w["first_year_earliest_date"], first_year)
+        set_enabled(w["first_year_earliest_date"], w["use_first_year"].var.get())
         set_enabled(w["max_supervised_nights"], w["every_combo_supervised"].var.get())
-        set_enabled(w["core_shows_per_venue"], not total or (fill_all and first_year))
 
     def recolor(self):
         PALETTE.update(self.get_palette())

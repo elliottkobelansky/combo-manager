@@ -52,9 +52,9 @@ class Settings:
     max_blocked_dates_per_person: Optional[int] = 3
     min_usable_nights_per_combo: Optional[int] = 3
     max_shows_per_combo: Optional[int] = 4
-    min_shows_per_combo: Optional[int] = None   # total, at any venues (venue minimums still apply); open mode: exactly
+    min_shows_per_combo: Optional[int] = None   # total, at any venues (venue minimums still apply); open mode: exactly.
+                                                # Required in settings.json; None only for a hand-built Settings
     extra_slot_policy: str = "auto"       # "auto": fill every set. "open": leave extras for volunteers
-    core_shows_per_venue: int = 1         # used by "open" and for first-years: shows per venue before extras
     solver_time_limit_sec: float = 30
     every_combo_supervised: bool = True   # every combo plays at least one night a professor attends (off = no supervision)
     max_supervised_nights: Optional[int] = None   # cap on those nights (None = no cap); within it, as few as possible

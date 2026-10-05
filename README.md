@@ -218,18 +218,18 @@ Hard rules, never broken:
 - Every combo gets at least the minimum shows per combo at each venue (Settings > Show days).
 - Every combo gets at least `min_shows_per_combo` shows in total, at any venues. Together with the venue minimums:
   with Upstairs 1 / Clara 0 and a total of 2, "Upstairs + Clara" and "Upstairs twice" are fine, "Clara twice" never
-  happens. The solver still prefers an even split (goal 3), so "Upstairs twice" only happens when a combo can't
-  make any Clara night; the Report lists those combos.
+  happens. The solver prefers one show at each venue (goal 6), so "Upstairs twice" only happens when a combo
+  can't make any Clara night (or there's no other way); the Report lists those combos.
 - No combo goes over `max_shows_per_combo`.
-- In `open` mode, each combo gets exactly `min_shows_per_combo` shows (more is volunteering). Without that
-  setting: at most `core_shows_per_venue` shows per venue.
+- In `open` mode, each combo gets exactly `min_shows_per_combo` shows (more is volunteering). In `auto` mode,
+  first-year combos get exactly that many too (no extras).
 - Every combo plays at least one **supervised night** (a night a professor attends), when
   `every_combo_supervised` is Yes. A supervised night is always **full**: no open sets. The solver picks those nights: at most `max_supervised_nights`, and within
   that as few as possible (it weighs this against spacing, so it may use one or two more than the minimum).
   It doesn't assign professors: the Supervision sheet lists the nights, with a column to fill in who's coming.
 
 Goals, in order of importance (the solver gives up a lower goal to meet a higher one):
-1. Give every combo its shows (in `open` mode: its core shows at each venue). Usually possible; it fails when a
+1. Give every combo its shows. Usually possible; it fails when a
    combo's members' conflicts cover every night at a venue, or a venue has fewer sets than there are combos.
 2. First-year combos don't play before `first_year_earliest_date`. Only broken when it's the only way to give
    a first-year combo its show; the Report flags it.
@@ -238,8 +238,11 @@ Goals, in order of importance (the solver gives up a lower goal to meet a higher
    professors come on the night that suits them. Other nights are used only when there's no other way.
 5. Avoid a student playing twice in one night (two of their combos on the same night). If it happens, the Report
    says who and when, and the two sets are placed back-to-back in the running order.
-6. Spread each combo's shows apart (see [Tuning](#tuning)).
-7. Within a night, a combo that went late last time tends to go early this time.
+6. Each combo plays at every venue it can: one Upstairs and one Clara show rather than two Upstairs. The Swaps
+   tab warns when a swap would take this away.
+7. Use as few supervised nights as possible (within `max_supervised_nights`).
+8. Spread each combo's shows apart (see [Tuning](#tuning)).
+9. Within a night, a combo that went late last time tends to go early this time.
 
 If no schedule is possible, `solve.py` says why in plain language (e.g. "Combo 10 has 0 usable Upstairs
 nights but needs 1").
@@ -256,8 +259,7 @@ nights but needs 1").
 | `max_blocked_dates_per_person` | Warning only: flags students who blocked many show nights. |
 | `min_usable_slots_per_combo` | Warning only: flags combos whose members' conflicts leave fewer usable nights than this. |
 | `extra_slot_policy` | **Leftover sets** in the app. `open` = Leave open (recommended): each combo gets its shows; the sets left over stay open for volunteers, or you fill them by hand (Schedule or Swaps tab). `auto` = Fill every set: the solver fills every set, so some combos get extra shows. |
-| `min_shows_per_combo` | Every combo gets at least this many shows in total, at any venues, as long as each venue's "Min per combo" is met. In `open` mode: exactly this many. Blank = no total minimum (then `core_shows_per_venue` applies). |
-| `core_shows_per_venue` | **Shows per venue (if no minimum)** in the app, greyed out when it has no effect. Only used when `min_shows_per_combo` is blank: each combo then gets this many shows at every venue (`open`). In `auto` mode with first-year combos on, it's also the most a first-year combo plays at each venue. |
+| `min_shows_per_combo` | Every combo gets at least this many shows in total, at any venues, as long as each venue's "Min per combo" is met. In `open` mode: exactly this many. Required. |
 | `max_shows_per_combo` | Cap on total shows per combo. Blank = no cap. |
 | `every_combo_supervised` | The **Supervised nights** switch. On: every combo plays at least one supervised night (a professor attends). Off: no supervised nights at all; `max_supervised_nights` and the show days' "Supervised nights preferred here" are ignored, and `Schedule.xlsx` has no Supervised column. Missing = On. |
 | `max_supervised_nights` | **Max supervised nights (all profs)**: the total for the whole semester, counting all professors together, not per professor (one supervised night covers every combo playing it). At most this many supervised nights. Blank = no limit (still as few as possible). Each night fits its number of sets, so 33 combos at 4 sets a night need at least 9. |

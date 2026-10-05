@@ -27,7 +27,6 @@ DEFAULTS = {
     "min_usable_nights_per_combo": 3,
     "extra_slot_policy": "open",
     "min_shows_per_combo": 2,
-    "core_shows_per_venue": 1,
     "max_shows_per_combo": 4,
     "every_combo_supervised": True,
     "max_supervised_nights": 10,
@@ -60,8 +59,6 @@ HELP = {
                          "fill them by hand (Schedule or Swaps tab). Fill every set: some combos get extra shows.",
     "min_shows_per_combo": "Every combo gets at least this many shows, at any venues (each venue's minimum still "
                            "applies). With leftover sets left open: exactly this many.",
-    "core_shows_per_venue": "Only used when the minimum above is blank: each combo then gets this many shows at every "
-                            "venue. When every set is filled, also the most a first-year combo plays at each venue.",
     "max_shows_per_combo": "Cap on total shows per combo. Blank = no cap.",
     "every_combo_supervised": "On: every combo plays at least one night a professor attends from start to end (that "
                               "night has no open sets). Off: no supervised nights.",
@@ -244,7 +241,9 @@ def validate(data):
     if use_first_year and fy_date is None and blank(data.get("first_year_earliest_date")):
         errors.append("First-year combos is on, but the date they can start playing is blank. Pick that date, or "
                       "turn first-year combos off.")
-    min_total, max_total = get_int("min_shows_per_combo", low=0), get_int("max_shows_per_combo", low=1)
+    min_total, max_total = get_int("min_shows_per_combo", low=1), get_int("max_shows_per_combo", low=1)
+    if min_total is None and blank(data.get("min_shows_per_combo")):
+        errors.append("Settings: the minimum shows per combo is missing (e.g. 2).")
     if min_total and max_total and min_total > max_total:
         errors.append(f"Settings: min_shows_per_combo ({min_total}) is more than max_shows_per_combo ({max_total}).")
     settings = Settings(
@@ -255,9 +254,8 @@ def validate(data):
         max_blocked_dates_per_person=get_int("max_blocked_dates_per_person", low=0),
         min_usable_nights_per_combo=get_int("min_usable_nights_per_combo", low=0),
         max_shows_per_combo=max_total,
-        min_shows_per_combo=min_total or None,
+        min_shows_per_combo=min_total,
         extra_slot_policy=policy,
-        core_shows_per_venue=get_int("core_shows_per_venue", 1, low=1) or 1,
         solver_time_limit_sec=get_int("solver_time_limit_sec", 30, low=1) or 30,
         every_combo_supervised=bool(data.get("every_combo_supervised", True)),
         max_supervised_nights=get_int("max_supervised_nights", low=1),

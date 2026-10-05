@@ -67,17 +67,10 @@ def run_schedule(inp: ScheduleInput, settings: Settings) -> Result:
     for v in sorted({n.venue for n in nights}):
         vals = [counts[c][v] for c in combos]
         report.append(("info", f"{v}: shows per combo range from {min(vals)} to {max(vals)}."))
-        if settings.min_shows_per_combo:
-            none_here = sorted(combos[c].name for c in combos if counts[c][v] == 0)
-            if none_here and not show_min.get(v, 0):
-                report.append(("info", f"{v}: {len(none_here)} combo(s) have no show here (their shows are at other "
-                                       f"venues, usually because of conflicts): {', '.join(none_here)}."))
-        elif settings.extra_slot_policy == "open":
-            target = max(settings.core_shows_per_venue, show_min.get(v, 0))
-            short = sorted(combos[c].name for c in combos if counts[c][v] < target)
-            if short:
-                report.append(("warn", f"{v}: {len(short)} combo(s) got fewer than {target} show(s) "
-                                       f"(conflicts or not enough sets): {', '.join(short)}."))
+        none_here = sorted(combos[c].name for c in combos if counts[c][v] == 0)
+        if none_here and not show_min.get(v, 0):
+            report.append(("info", f"{v}: {len(none_here)} combo(s) have no show here (their shows are at other "
+                                   f"venues, usually because of conflicts): {', '.join(none_here)}."))
 
     stats.update(total_sets=total, empty_sets=empty)
     return Result(nights=nights, lineup=lineup, combos=combos, open_sets=open_sets, report=report, stats=stats,

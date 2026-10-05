@@ -149,12 +149,17 @@ def swap_options(sets: Sets, nights: List[Night], combos: Dict[str, Combo], inp:
                 opt.notes.append(f"{name}: {a['n']} \u2192 {b['n']} shows")
             if b["early"] > a["early"]:
                 opt.warnings.append(f"{name} is a first-year combo and would play before {make_label(cutoff)}")
-            cap = settings.core_shows_per_venue
+            cap = max(settings.min_shows_per_combo or 0, sum(show_min.values()))
             if (combos[c].first_year and settings.extra_slot_policy != "open"
-                    and any(b["venues"][v] > max(cap, show_min.get(v, 0)) and b["venues"][v] > a["venues"][v]
-                            for v in b["venues"])):
+                    and b["n"] > cap and b["n"] > a["n"]):
                 opt.warnings.append(f"{name} is a first-year combo and would get an extra show (they normally "
                                     "don't)")
+            if b["n"] == a["n"]:
+                for v in sorted(a["venues"]):
+                    if a["venues"][v] and not b["venues"][v]:
+                        opt.warnings.append(f"{name} would no longer play at {v}")
+                    elif b["venues"][v] and not a["venues"][v]:
+                        opt.notes.append(f"{name} would play at {v} too")
             if b["days"] == a["days"]:
                 continue
             if b["gap"] is not None and (a["gap"] is None or b["gap"] < a["gap"]):

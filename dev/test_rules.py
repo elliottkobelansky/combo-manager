@@ -44,12 +44,10 @@ def check(result, inp, settings):
         total, need = sum(cnt[c].values()), settings.min_shows_per_combo
         if need and total < need:
             bad.append(f"{combos[c].name} has {total} shows, needs {need}")
-        if need and settings.extra_slot_policy == "open":
+        if need and (settings.extra_slot_policy == "open" or combos[c].first_year):
             if total > max(need, sum(show_min.values())):
-                bad.append(f"{combos[c].name} got extra shows it shouldn't (open mode: exactly {need})")
-        elif combos[c].first_year or settings.extra_slot_policy == "open":
-            if any(x > max(settings.core_shows_per_venue, 1) for x in cnt[c].values()):
-                bad.append(f"{combos[c].name} got extra shows it shouldn't")
+                bad.append(f"{combos[c].name} got extra shows it shouldn't (exactly {need} in open mode and for "
+                           "first-year combos)")
     if settings.every_combo_supervised:
         for c in combos:
             if not any(c in cs for d, cs in result.lineup.items() if d in result.supervised):
@@ -61,6 +59,21 @@ def check(result, inp, settings):
         if cap and len(result.supervised) > cap:
             bad.append(f"{len(result.supervised)} supervised nights, cap is {cap}")
     return bad
+
+
+def missed_venues(result, inp):
+    """(combo name, venue) for each combo with 2+ shows and none at a venue where it had a usable night."""
+    out = []
+    for c, combo in sorted(result.combos.items()):
+        blocked = set().union(*[inp.blocked.get(m, set()) for m in combo.members])
+        mine = [n for n in result.nights if c in result.lineup.get(n.date, [])]
+        if len(mine) < 2:
+            continue
+        for v in sorted({n.venue for n in result.nights}):
+            usable = any(n.venue == v and n.date not in blocked for n in result.nights)
+            if usable and not any(n.venue == v for n in mine):
+                out.append((combo.name, v))
+    return out
 
 
 def check_approvals(combos, approvals_path):
@@ -103,20 +116,23 @@ def main():
     base = replace(base, solver_time_limit_sec=10)
     nights = generate_nights(base)
     failures = 0
-    for n_combos, policy in [(8, "auto"), (22, "auto"), (33, "auto"), (33, "open")]:
+    for n_combos, policy in [(8, "auto"), (22, "auto"), (22, "open"), (33, "auto"), (33, "open")]:
         s = replace(base, extra_slot_policy=policy)
         (tmp / "scheduler_data.json").unlink(missing_ok=True)          # combo numbers start fresh per scenario
         expected = make(tmp / "a.xlsx", tmp / "f.xlsx", nights, n_combos, seed=1, sem=s.semester_name)
         inp = load_input(tmp, s, "a.xlsx", "f.xlsx")
         result = run_schedule(inp, s)
         bad = check(result, inp, s) + check_parse(inp, expected) + check_approvals(inp.combos, tmp / "a.xlsx") + check_outside(inp) + check_status(inp)
+        one_venue = missed_venues(result, inp)
+        if policy == "open":                    # one show per venue is always possible on this fake data
+            bad += [f"{name} plays no {v} show but could have" for name, v in one_venue]
         counts = sorted(sum(1 for cs in result.lineup.values() if c in cs) for c in result.combos)
         print(f"{'PASS' if not bad else 'FAIL'}  {len(result.combos):>2} combos, {policy:<4} | "
               f"{result.stats['total_sets'] - result.stats['empty_sets']}/{result.stats['total_sets']} sets filled | "
               f"shows per combo {counts[0]}-{counts[-1]} | "
               f"soft rules broken: {len(result.stats['shared_nights'])} student double-night(s), "
               f"{len(result.stats['early_first_year'])} early first-year show(s) | "
-              f"{len(result.supervised)} supervised nights")
+              f"{len(result.supervised)} supervised nights | {len(one_venue)} combo(s) missing a venue they could play")
         for b in bad[:5]:
             print("      -", b)
         failures += bool(bad)

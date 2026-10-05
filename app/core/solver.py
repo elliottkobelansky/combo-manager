@@ -7,13 +7,14 @@ from ortools.sat.python import cp_model
 from .model import Night, Settings
 
 # Soft-goal weights (bigger = more important), in priority order. Hard-coded on purpose; tune here if needed.
-W_UNFILLED = 1000   # per empty set. In open mode this means: every combo gets its core shows
+W_UNFILLED = 1000   # per empty set. In open mode this means: every combo gets its shows
 W_FIRST_YEAR = 800  # per show a first-year combo plays before first_year_earliest_date (only if there's no other way)
 W_SPREAD = 600      # per unit of (max - min) shows per combo, per venue and overall: equal show counts
 W_SUP_DAY = 400     # per supervised night that isn't on a "Supervision preferred" show day (ShowDays sheet)
 W_SHARED = 200      # per student who plays twice in one night (two of their combos on the same night)
 W_SPACING = 80      # max cost of one pair of a combo's shows (same-day). The cost falls off quadratically and
                     # reaches 0 at min_days_between_shows.
+W_VENUES = 150     # per combo with no show at a venue it could play at: 1 Upstairs + 1 Clara beats Upstairs twice
 W_SUPERVISED = 100  # per supervised night: as few nights needing a professor as possible (within the cap)
 W_PRIMARY = 15      # auto mode: extras should go to required venues (e.g. Tuesday) before optional ones
 
@@ -104,11 +105,11 @@ def solve_combos(combos, allowed, nights, show_min, settings: Settings):
             model.Add(sum(by_combo[c]) <= cap)
         if min_total:
             model.Add(sum(by_combo[c]) >= min_total)
-        if min_total and policy_open(settings):
-            # open mode: exactly the core shows (at least the venue minimums); extras stay open for volunteers
+        if min_total and (policy_open(settings) or combos[c].first_year):
+            # open mode: exactly the minimum (at least the venue minimums); extras stay open for volunteers.
+            # Fill-every-set mode: first-year combos still get no extras.
             model.Add(sum(by_combo[c]) <= max(min_total, sum(show_min.values())))
 
-    policy, core = settings.extra_slot_policy, settings.core_shows_per_venue
     venues = sorted({n.venue for n in nights})
     spread = []
     for v in venues:
@@ -118,10 +119,6 @@ def solve_combos(combos, allowed, nights, show_min, settings: Settings):
             cnt = sum(vs)
             if show_min.get(v, 0) and vs:
                 model.Add(cnt >= show_min[v])
-            if vs and ((policy == "open" and not min_total) or (policy != "open" and combos[c].first_year)):
-                # open without min_shows_per_combo: core shows per venue, extras left for volunteers.
-                # auto: first-years never get extras.
-                model.Add(cnt <= max(core, show_min.get(v, 0)))
             model.Add(hi >= cnt)
             model.Add(lo <= cnt)
         spread.append(hi - lo)
@@ -131,6 +128,16 @@ def solve_combos(combos, allowed, nights, show_min, settings: Settings):
         model.Add(t_hi >= sum(by_combo[c]))
         model.Add(t_lo <= sum(by_combo[c]))
     spread.append(t_hi - t_lo)
+
+    # every combo plays at each venue it can (soft, so a combo that can't make any Clara night plays Upstairs twice)
+    no_show_at = []
+    if len(venues) > 1:
+        for c in cids:
+            for v in venues:
+                if by_cv[c, v]:
+                    m = model.NewBoolVar(f"nov_{c}_{v}")
+                    model.Add(sum(by_cv[c, v]) + m >= 1)
+                    no_show_at.append(m)
 
     primary_v = [v for v in venues if show_min.get(v, 0) > 0]
     secondary_v = [v for v in venues if show_min.get(v, 0) == 0]
@@ -203,7 +210,8 @@ def solve_combos(combos, allowed, nights, show_min, settings: Settings):
                         spacing_cost.append(pair_cost((n2.date - n1.date).days, md))
 
     model.Minimize(W_UNFILLED * sum(unfilled) + W_SPREAD * sum(spread)
-                   + W_PRIMARY * sum(primary_terms) + sum(w * q for w, q in zip(spacing_cost, spacing))
+                   + W_PRIMARY * sum(primary_terms) + W_VENUES * sum(no_show_at)
+                   + sum(w * q for w, q in zip(spacing_cost, spacing))
                    + sum(w * y for w, (y, *_) in zip(shared_cost, shared))
                    + W_FIRST_YEAR * sum(var for var, *_ in early)
                    + W_SUPERVISED * sum(sup.values())
