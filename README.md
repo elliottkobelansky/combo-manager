@@ -205,7 +205,7 @@ year column, and Check inputs lists it. If the schedule is out it isn't made aga
 before the first-year date (swap it in the Swaps tab). Pop-up menus close with Escape or a click elsewhere.
 
 **Member order** (Combos tab and `Combos.pdf`): by instrument, top to bottom: any other instrument (e.g.
-Vibraphone, Voice), Trumpet, Saxophone, Trombone, Guitar, Piano, Bass, Drums, then people with no instrument set
+Vibraphone), Voice, Trumpet, Saxophone, Trombone, Guitar, Piano, Bass, Drums, then people with no instrument set
 yet; alphabetical within one instrument. The liaison is marked, not moved to the top. The order is
 `INSTRUMENTS` in `app/util.py` (also the instrument menu's order).
 

@@ -7,11 +7,11 @@ from pathlib import Path
 DATA_FOLDER = Path(__file__).resolve().parent.parent / "data"
 # Instruments in the order members are listed (Combos tab and Combos.pdf): any other instrument first, then these;
 # people with no instrument set yet last.
-INSTRUMENTS = ["Trumpet", "Saxophone", "Trombone", "Guitar", "Piano", "Bass", "Drums"]
+INSTRUMENTS = ["Voice", "Trumpet", "Saxophone", "Trombone", "Guitar", "Piano", "Bass", "Drums"]
 
 
 def by_instrument(emails, instrument_of, name_of):
-    """emails sorted Other, Trumpet, Saxophone, Trombone, Guitar, Piano, Bass, Drums, then no instrument; by name
+    """emails sorted Other, Voice, Trumpet, Saxophone, Trombone, Guitar, Piano, Bass, Drums, then no instrument; by name
     within one instrument. instrument_of(email) -> instrument or ''."""
     known = [i.casefold() for i in INSTRUMENTS]
 

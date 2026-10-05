@@ -298,15 +298,17 @@ class CombosPanel:
         menu = tk.Menu(self.tree, tearoff=0, background=p.get("panel"), foreground=p.get("text"),
                        activebackground=p.get("accent"), activeforeground=p.get("accent_text"),
                        selectcolor=p.get("accent"))
-        choice = tk.StringVar(value=current if current in INSTRUMENTS else ("other" if current else ""))
+        choice = tk.StringVar(value=current if current in INSTRUMENTS else ("other" if current else "none"))
+        # the same order members are listed in: Other, the instruments, no instrument
+        menu.add_radiobutton(label=f"Other: {current}" if current and current not in INSTRUMENTS else "Other (type)...",
+                             value="other", variable=choice, command=lambda: self.type_instrument(item))
+        menu.add_separator()
         for name in INSTRUMENTS:
             menu.add_radiobutton(label=name, value=name, variable=choice,
                                  command=lambda n=name: self.set_instrument(item, n))
         menu.add_separator()
-        menu.add_radiobutton(label=f"Other: {current}" if current and current not in INSTRUMENTS else "Other (type)...",
-                             value="other", variable=choice, command=lambda: self.type_instrument(item))
-        if current:
-            menu.add_command(label="Clear", command=lambda: self.set_instrument(item, ""))
+        menu.add_radiobutton(label="No instrument", value="none", variable=choice,
+                             command=lambda: self.set_instrument(item, ""))
         self.menu = menu                              # (kept for tests)
         popup(menu, self.tree.winfo_rootx() + x, self.tree.winfo_rooty() + y + h)
 
