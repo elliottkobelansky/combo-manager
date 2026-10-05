@@ -16,6 +16,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 import traceback
 from pathlib import Path
 
@@ -132,7 +133,7 @@ class App:
         ttk.Label(head, text="Combo Scheduler", style="Title.TLabel").pack(side="left")
         self.shell = shell
         self.settings = self.swaps = self.combos = self.schedule = None
-        self.buttons = []
+        self.buttons, self.runs = [], 0
         self.root.after(100, self.drain)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         missing = missing_packages(include_optional=True)
@@ -444,7 +445,7 @@ class App:
                 "or copy it first.\n\nAfter the schedule is published, use button 3 instead.\n\nMake a new schedule?",
                 icon="warning", default="no"):
             return
-        self.run(["-y", "--pdf"], "Making the schedule (this can take up to a minute)...")
+        self.run(["-y", "--pdf"], "Making the schedule (this can take up to a minute)...", ticker=True)
 
     def goto_swaps(self, cid, d, k, mode="swap"):
         self.tabs.select(self.swaps.frame)
@@ -455,7 +456,9 @@ class App:
         self.run(["--stats", "--pdf"], "Checking the rules and rebuilding Schedule.pdf...", intro=message,
                  on_done=on_done)
 
-    def run(self, args, message, intro="", on_done=None):
+    def run(self, args, message, intro="", on_done=None, ticker=False):
+        """Runs solve.py with these arguments in the background, its output in the box. ticker: a 'still working'
+        line every 10 seconds, so a long solve doesn't look frozen."""
         missing = missing_packages()
         if missing:
             messagebox.showwarning("Missing packages", f"Install these first: {', '.join(missing)}.")
@@ -472,6 +475,15 @@ class App:
             if on_done:
                 self.queue.put(lambda: on_done(code))
         self.start(job, message)
+        if ticker and self.busy:
+            self.runs += 1
+            self.root.after(10000, self.tick, self.runs, time.monotonic())
+
+    def tick(self, run, started):
+        if not self.busy or run != self.runs:         # finished, or another run started since
+            return
+        self.write(f"  ...still working ({int(time.monotonic() - started)} s)\n")
+        self.root.after(10000, self.tick, run, started)
 
     def start(self, job, message):
         if self.busy:

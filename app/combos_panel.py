@@ -355,8 +355,11 @@ class CombosPanel:
 
     def actions_menu(self):
         """The Actions button: the same menu as a right-click, for the selected row, opened under the button."""
-        b = self.actions
-        self.popup(self.build_menu(), b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+        b, menu = self.actions, self.build_menu()
+        menu.update_idletasks()
+        below = b.winfo_rooty() + b.winfo_height()
+        fits = below + menu.winfo_reqheight() <= b.winfo_screenheight()
+        self.popup(menu, b.winfo_rootx(), below if fits else max(0, b.winfo_rooty() - menu.winfo_reqheight()))
 
     def show_actions_hint(self):
         kind, combo, email = self.selected()

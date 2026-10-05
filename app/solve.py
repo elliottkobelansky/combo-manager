@@ -155,6 +155,8 @@ def main(argv=None):
         if not a.yes and not confirm(outputs):
             print("Cancelled. Nothing was changed.")
             return 1
+        print(f"\nMaking the schedule: the solver is working (up to about {settings.solver_time_limit_sec:g} seconds; "
+              "it stops early when it has the best schedule)...", flush=True)
         result = run_schedule(inp, settings)
     except (SettingsError, InputError, ScheduleError, ScheduleFileError) as e:
         print(f"\nCan't continue:\n{e}")
