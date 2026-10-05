@@ -171,7 +171,7 @@ take it** and add one as a pending change. **Right-click a night** to copy, read
 students' emails (separated by `;`), the supervisors' emails (for Cc), or a short summary of the night (sets, times,
 combos, members' names, then the emails). **Export contact lists** writes `Contact lists.xlsx`: one row per night
 with its sets and everyone's emails, for printing or sharing. Both use the schedule as shown, including unsaved
-changes. **Export PDF** rebuilds `Schedule.pdf` from `Schedule.xlsx` (the same
+changes. **Export PDF** rebuilds `Schedule.pdf` from `Schedule.xlsx` and opens it (the same
 as Run's step 3); with unsaved changes it asks: save them first, export the saved schedule only, or cancel.
 Nothing in this tab writes a file by itself.
 

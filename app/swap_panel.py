@@ -336,9 +336,9 @@ class SwapPanel:
             self.rebuild_sets()
             self.after_change("All pending changes discarded.")
 
-    def save_all(self):
+    def save_all(self, then=None):
         """Writes every pending change into Schedule.xlsx at once, then rebuilds the PDF in the background.
-        (The "Confirm changes" button of both the Swaps and the Schedule tab.)"""
+        (The "Confirm changes" button of both the Swaps and the Schedule tab.) then(code): called after the PDF."""
         st = self.state
         if not self.pending:
             return
@@ -365,7 +365,8 @@ class SwapPanel:
         self.load(quiet=True)
         self.save_status.configure(text=f"Saved {n} change(s) to Schedule.xlsx (backup in 'Schedule backups'). "
                                         "Rebuilding Schedule.pdf...")
-        self.after_apply(f"Saved {n} change(s). Backup of the old file: {backup}\n", self.pdf_done)
+        self.after_apply(f"Saved {n} change(s). Backup of the old file: {backup}\n",
+                         lambda code: (self.pdf_done(code), then and then(code)))
 
     def pdf_done(self, code):
         self.save_status.configure(text="Saved. Schedule.pdf rebuilt; all hard rules hold." if code == 0 else

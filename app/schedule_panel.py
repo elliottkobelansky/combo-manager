@@ -1,5 +1,5 @@
 """The Schedule tab of scheduler_app.py: every show night and its sets, including changes still pending in the
-Swaps tab (highlighted), with shortcuts into the Swaps tab and an Export PDF button.
+Swaps tab (highlighted), with shortcuts into the Swaps tab and an Export PDF button (exports, then opens it).
 
 It shows the Swaps tab's schedule (Schedule.xlsx plus pending changes), so the two tabs always agree, and it never
 writes anything by itself: adding a claim only adds a pending change, and Export PDF asks what to do with unsaved
@@ -66,7 +66,6 @@ class SchedulePanel:
         bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
         ttk.Button(bottom, text="Export PDF", style="Accent.TButton", command=self.export_pdf).pack(side="left")
-        ttk.Button(bottom, text="Open PDF", command=self.open_pdf).pack(side="left", padx=6)
         ttk.Button(bottom, text="Expand all", command=lambda: self.expand(True)).pack(side="left", padx=(12, 0))
         ttk.Button(bottom, text="Collapse all", command=lambda: self.expand(False)).pack(side="left", padx=6)
         ttk.Button(bottom, text="Export contact lists", command=self.export_contacts).pack(side="left", padx=(12, 0))
@@ -333,9 +332,12 @@ class SchedulePanel:
             if answer is None:
                 return
             if answer:
-                self.swaps.save_all()                  # saving also exports the PDF
+                self.swaps.save_all(then=lambda code: self.open_pdf())   # saving also exports the PDF
                 return
         self.status.configure(text="Exporting Schedule.pdf...")
-        self.export(lambda code: self.status.configure(
-            text="Schedule.pdf exported; all hard rules hold." if code == 0 else
-            "Schedule.pdf exported, but the rule check found problems: see the Run tab."))
+
+        def done(code):
+            self.status.configure(text="Schedule.pdf exported; all hard rules hold." if code == 0 else
+                                  "Schedule.pdf exported, but the rule check found problems: see the Run tab.")
+            self.open_pdf()
+        self.export(done)
