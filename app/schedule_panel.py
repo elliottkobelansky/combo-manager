@@ -10,6 +10,7 @@ from tkinter import messagebox, ttk
 
 from core.model import make_label
 from core.swaps import claimers
+from theme import popup
 
 
 class SchedulePanel:
@@ -177,8 +178,7 @@ class SchedulePanel:
         menu.add_command(label=f"Copy supervisor emails ({label})", command=lambda: self.copy(night, "supervisors"))
         menu.add_command(label=f"Copy night summary ({label})", command=lambda: self.copy(night, "summary"))
         if not slot:
-            menu.tk_popup(event.x_root, event.y_root)
-            menu.grab_release()
+            popup(menu, event.x_root, event.y_root)
             return
         menu.add_separator()
         d, k = slot
@@ -191,8 +191,7 @@ class SchedulePanel:
             menu.add_command(label="Who could take this set?", command=lambda: self.show_claimers(item, d, k))
         else:
             menu.add_command(label="(Typed in by hand: change it in Schedule.xlsx)", state="disabled")
-        menu.tk_popup(event.x_root, event.y_root)
-        menu.grab_release()
+        popup(menu, event.x_root, event.y_root)
 
     # contact lists
     def night_info(self, d):
@@ -320,8 +319,7 @@ class SchedulePanel:
             menu.add_command(label=label, command=lambda o=o: self.swaps.add_pending(o))
         self.claim_menu = menu                         # (kept for tests)
         x, y, w, h = self.tree.bbox(item, "who") or (0, 0, 0, 0)
-        menu.tk_popup(self.tree.winfo_rootx() + x, self.tree.winfo_rooty() + y + h)
-        menu.grab_release()
+        popup(menu, self.tree.winfo_rootx() + x, self.tree.winfo_rooty() + y + h)
 
     def export_pdf(self):
         if self.swaps.pending:

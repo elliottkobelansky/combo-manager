@@ -4,7 +4,8 @@
     names        {email: name}                              corrected names (the Combos tab); others are guessed
     instruments  {semester: {"Combo 05|email": instrument}} per person per combo (the Combos tab)
     emails       {email as typed: corrected email}          fixes applied when reading both spreadsheets
-    members      {semester: {response id: {"add": [email], "remove": [email], "liaison": email, "withdrawn": true}}}
+    members      {semester: {response id: {"add": [email], "remove": [email], "liaison": email, "withdrawn": true,
+                                           "first_year": "yes" or "no"}}}
                                                             members added or removed, the liaison changed and combos
                                                             withdrawn in the app (the Combos tab); the approvals are
                                                             never changed
@@ -76,16 +77,25 @@ class Store:
         unchanged)."""
         ch = self.data["members"].get(semester, {}).get(str(ref), {})
         return {"add": list(ch.get("add", [])), "remove": list(ch.get("remove", [])), "liaison": ch.get("liaison", ""),
-                "withdrawn": bool(ch.get("withdrawn"))}
+                "withdrawn": bool(ch.get("withdrawn")),
+                "first_year": {"yes": True, "no": False}.get(ch.get("first_year"))}   # None: as the approvals say
 
     def _save_changes(self, semester, ref, ch):
         table = self.data["members"].setdefault(semester, {})
+        if isinstance(ch.get("first_year"), bool):
+            ch = {**ch, "first_year": "yes" if ch["first_year"] else "no"}
         kept = {k: v for k, v in ch.items() if v}
         if kept:
             table[str(ref)] = kept
         else:
             table.pop(str(ref), None)
         self.changed = True
+
+    def set_first_year(self, semester, ref, value):
+        """The first-year tag from now on: True, False, or None (back to what the approvals say)."""
+        ch = self.member_changes(semester, ref)
+        ch["first_year"] = value
+        self._save_changes(semester, ref, ch)
 
     def set_withdrawn(self, semester, ref, withdrawn):
         """Withdraws the combo (True) or puts it back (False). Its number stays reserved either way."""

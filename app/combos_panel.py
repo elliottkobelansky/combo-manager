@@ -15,6 +15,7 @@ from inputs import EMAIL_RE, EmailRules, InputError, load_input, name_from_email
 from outputs.excel_schedule import ScheduleFileError, open_label, read_schedule, write_swap
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 from store import Store
+from theme import popup
 
 INSTRUMENTS = ["Saxophone", "Trumpet", "Trombone", "Guitar", "Piano", "Bass", "Drums"]
 
@@ -30,6 +31,7 @@ class CombosPanel:
         self.removed = {}                                 # tree item id -> (combo name, email) of a removed member
         self.combo_items = {}                             # tree item id -> combo name
         self.withdrawn_items = {}                         # tree item id -> Combo withdrawn in the app
+        self.pending_items = {}                           # tree item id -> Combo waiting for a decision
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
 
         top = ttk.Frame(self.frame)
@@ -110,7 +112,8 @@ class CombosPanel:
             except ScheduleFileError:
                 pass
         self.data = dict(combos=combos, shows=shows, sets=sets, supervised=supervised or set(),
-                         withdrawn={c.name: c for c in inp.withdrawn}, names=self.store.names, blocked=inp.blocked,
+                         withdrawn={c.name: c for c in inp.withdrawn}, pending=inp.pending, names=self.store.names,
+                         blocked=inp.blocked,
                          instruments=self.store.instruments(settings.semester_name), settings=settings,
                          rules=EmailRules.from_settings(settings))
         n_people = len({e for c in combos.values() for e in c.members})
@@ -131,6 +134,7 @@ class CombosPanel:
         self.removed.clear()
         self.combo_items.clear()
         self.withdrawn_items.clear()
+        self.pending_items.clear()
         sem, few = self.data["settings"].semester_name, self.data["settings"].min_members_per_combo
         q = self.search.get().strip().lower()
         combos = self.data["combos"]
@@ -171,6 +175,22 @@ class CombosPanel:
                 pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (supervisor)",
                                        values=("", "", "", "", self.mail(c.professor)), tags=(shade,))
                 self.people[pid] = (None, c.professor)
+        for c in self.data["pending"]:                    # submitted, no decision yet: shown, not editable
+            who = self.name(c.liaison) if c.liaison else "no liaison"
+            label = f"Waiting for a decision \u00b7 {who}"
+            if q and q not in (label + " " + " ".join(c.members)).lower():
+                continue
+            item = self.tree.insert("", "end", text=label, values=("approve or reject it in Outlook / Teams", "", "",
+                                                                   "", ""),
+                                    open=bool(q) or self.tree_key(label) in open_items, tags=("removed",))
+            self.pending_items[item] = c
+            people = [c.liaison] + sorted(c.members - {c.liaison}, key=lambda e: self.name(e).lower())
+            for e in [e for e in people if e] + ([c.professor] if c.professor else []):
+                pid = self.tree.insert(item, "end", text="    " + self.name(e) + ("  (supervisor)" if e == c.professor
+                                                                                 else ""),
+                                       values=("", "", "", len(self.data["blocked"].get(e, ())) or "", e),
+                                       tags=("removed",))
+                self.pending_items[pid] = c
         for c in sorted(self.data["withdrawn"].values(), key=lambda c: c.name):
             label = (f"{c.name} ({self.name(c.liaison)})" if c.liaison else c.name) + "  \u00b7 withdrawn"
             if q and q not in (label + " " + " ".join(c.members)).lower():
@@ -284,10 +304,7 @@ class CombosPanel:
         if current:
             menu.add_command(label="Clear", command=lambda: self.set_instrument(item, ""))
         self.menu = menu                              # (kept for tests)
-        try:
-            menu.tk_popup(self.tree.winfo_rootx() + x, self.tree.winfo_rooty() + y + h)
-        finally:
-            menu.grab_release()
+        popup(menu, self.tree.winfo_rootx() + x, self.tree.winfo_rooty() + y + h)
 
     def type_instrument(self, item):
         combo, email = self.people[item]
@@ -332,6 +349,8 @@ class CombosPanel:
         if not sel or not self.data:
             return None, None, None
         item = sel[0]
+        if item in self.pending_items:
+            return "pending", self.pending_items[item], None
         if item in self.withdrawn_items:
             return "withdrawn", self.withdrawn_items[item], None
         if item in self.combo_items:
@@ -356,27 +375,20 @@ class CombosPanel:
         win = self.frame.winfo_toplevel()                 # the window's edges, not the screen's: with two monitors
         bottom = win.winfo_rooty() + win.winfo_height()   # the "screen" can be taller than the one the app is on
         up = event.y_root + menu.winfo_reqheight() > bottom
-        self.popup(menu, event.x_root, event.y_root - menu.winfo_reqheight() if up else event.y_root)
+        popup(menu, event.x_root, event.y_root - menu.winfo_reqheight() if up else event.y_root)
 
     def actions_menu(self):
         """The Actions button: the same menu as a right-click, for the selected row, opened under the button."""
         b, menu = self.actions, self.build_menu()
         menu.update_idletasks()                           # the button is at the bottom of the window: open upward
-        self.popup(menu, b.winfo_rootx(), max(0, b.winfo_rooty() - menu.winfo_reqheight()))
+        popup(menu, b.winfo_rootx(), max(0, b.winfo_rooty() - menu.winfo_reqheight()))
 
     def show_actions_hint(self):
         kind, combo, email = self.selected()
-        what = {"combo": combo and combo.name, "person": email and self.name(email),
+        what = {"pending": "a combo waiting for a decision","combo": combo and combo.name, "person": email and self.name(email),
                 "supervisor": email and self.name(email), "removed": email and self.name(email) + " (removed)",
                 "withdrawn": combo and combo.name + " (withdrawn)"}.get(kind)
         self.actions_hint.configure(text=f"for {what}" if what else "")
-
-    @staticmethod
-    def popup(menu, x, y):
-        try:
-            menu.tk_popup(x, y)
-        finally:
-            menu.grab_release()
 
     def build_menu(self):
         """What can be done with the selected row (a combo, a person, a removed person, a withdrawn combo)."""
@@ -401,6 +413,8 @@ class CombosPanel:
             menu.add_command(label="Change email...", command=self.edit_email)
         if kind is None:
             menu.add_command(label="Pick a combo or a person in the list first", state="disabled")
+        elif kind == "pending":
+            menu.add_command(label="Waiting for a decision: approve or reject it in Outlook or Teams", state="disabled")
         elif kind == "withdrawn":
             menu.add_command(label=f"Put back {combo.name}...", command=self.put_back)
         else:
@@ -408,6 +422,14 @@ class CombosPanel:
                 menu.add_command(label=f"Change the liaison of {combo.name}...", command=self.make_liaison)
             else:
                 menu.add_separator()
+            if not self.data["settings"].use_first_year:
+                menu.add_command(label="First-year tag: first-year combos are off (Settings tab)", state="disabled")
+            elif combo.first_year:
+                menu.add_command(label=f"Remove the first-year tag from {combo.name}",
+                                 command=lambda: self.set_first_year(combo, False))
+            else:
+                menu.add_command(label=f"Mark {combo.name} as a first-year combo",
+                                 command=lambda: self.set_first_year(combo, True))
             menu.add_command(label=f"Add a member to {combo.name}...", command=self.add_member)
             menu.add_separator()
             menu.add_command(label=f"Withdraw {combo.name}...", command=self.withdraw)
@@ -492,6 +514,17 @@ class CombosPanel:
             return
         self.save_changes(lambda s: s.set_liaison(self.data["settings"].semester_name, combo.ref, email),
                           f"{self.name(email)} is now the liaison of {combo.name}.")
+
+    def set_first_year(self, combo, value):
+        """Tags or untags a first-year combo (kept in scheduler_data.json; wins over the approvals' First year)."""
+        settings = self.data["settings"]
+        msg = f"{combo.name} is {'now' if value else 'no longer'} a first-year combo."
+        if self.data["sets"]:
+            early = [d for d, row in self.data["sets"].items() if combo.id in row.values()
+                     and value and settings.first_year_earliest_date and d < settings.first_year_earliest_date]
+            msg += (" The schedule isn't made again" + (": it plays " + ", ".join(make_label(d) for d in sorted(early))
+                    + ", before the first-year date (swap it in the Swaps tab)." if early else "."))
+        self.save_changes(lambda s: s.set_first_year(settings.semester_name, combo.ref, value), msg)
 
     def withdraw(self):
         """Withdraws the selected combo (kept in scheduler_data.json; its number stays reserved). If the schedule is

@@ -436,6 +436,29 @@ def main():
     st.save()
     if {c.ref: c.name for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos} != first:
         bad.append("putting a combo back doesn't give it its old number")
+    (tmp / "scheduler_data.json").unlink(missing_ok=True)   # first-year tag set in the app wins; off = never
+    plain = {c.ref: c for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos}
+    fy, not_fy = next(c for c in plain.values() if c.first_year), next(c for c in plain.values() if not c.first_year)
+    st = Store(tmp)
+    st.set_first_year(sem, fy.ref, False)
+    st.set_first_year(sem, not_fy.ref, True)
+    st.save()
+    tagged = {c.ref: c for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos}
+    off_fy, _ = validate({**DEFAULTS, "use_first_year": False})
+    if tagged[fy.ref].first_year or not tagged[not_fy.ref].first_year:
+        bad.append("the first-year tag set in the app doesn't win over the approvals")
+    if any(c.first_year for c in load_input(tmp, off_fy, "a.xlsx", "f.xlsx").combos):
+        bad.append("a first-year tag set in the app applies while first-year combos are off")
+    st = Store(tmp)
+    st.set_first_year(sem, fy.ref, None)
+    st.set_first_year(sem, not_fy.ref, None)
+    st.save()
+    cleared = {c.ref: c.first_year for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos}
+    if cleared != {r: c.first_year for r, c in plain.items()}:
+        bad.append("clearing the app's first-year tag doesn't go back to the approvals")
+    pend = load_input(tmp, base, "a.xlsx", "f.xlsx").pending      # waiting for a decision: listed, not scheduled
+    if not pend or any(not c.members for c in pend) or {c.ref for c in pend} & set(plain):
+        bad.append("pending combos aren't listed with their members, or are scheduled")
     (tmp / "half.xlsx").write_bytes((tmp / "a.xlsx").read_bytes()[:3000])      # caught mid-sync
     try:
         load_input(tmp, base, "half.xlsx", "f.xlsx")

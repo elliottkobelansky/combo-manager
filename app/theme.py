@@ -82,6 +82,13 @@ def apply(root, mode="light"):
     return p
 
 
+def popup(menu, x, y):
+    """Shows a pop-up menu at (x, y). It keeps Tk's mouse grab, so on Linux a click anywhere else closes it (the
+    usual 'try: tk_popup / finally: grab_release' recipe left it stuck open there); Escape closes it too."""
+    menu.bind("<Escape>", lambda _: menu.unpost())
+    menu.tk_popup(x, y)
+
+
 def calendar_colors(p):
     """Keyword arguments for tkcalendar.Calendar so the pop-up matches the theme."""
     return dict(background=p["accent"], foreground=p["accent_text"], headersbackground=p["panel"],

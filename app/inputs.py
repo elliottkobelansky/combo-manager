@@ -244,7 +244,7 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
                               f"{', '.join(seen_sems) or 'none'}. Is semester_name in the settings right?"))
 
     found, pending, rejected, withdrawn, seen_refs, outside, edited = [], [], [], [], set(), set(), {}
-    app_withdrawn = []                             # accepted, but withdrawn in the app (Combos tab)
+    app_withdrawn, waiting = [], []                # accepted but withdrawn in the app; waiting for a decision
     for xl, key, r in rows:
         status = str(cell(r, status_i) or "").strip().lower()
         ref = ref_of(cell(r, id_i)) if id_i is not None and not blank(cell(r, id_i)) else f"row{xl}"
@@ -259,6 +259,15 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
             continue
         if status in ("", "pending"):
             pending.append(who)
+            emails = []                            # shown in the Combos tab (greyed); never scheduled
+            for m in EMAIL_RE.findall(" ".join(str(cell(r, i) or "") for i in (liaison_i, members_i))):
+                e = store.fix_email(rules.norm(m))
+                if e not in emails and not rules.is_example(e):
+                    emails.append(e)
+            prof_m = EMAIL_RE.search(str(cell(r, prof_i) or "")) if prof_i is not None else None
+            waiting.append(Combo(id=f"Pending {ref}", name=f"Pending {ref}", members=frozenset(emails),
+                                 liaison=liaison if liaison in emails else (emails[0] if emails else ""),
+                                 professor=store.fix_email(prof_m.group(0).lower()) if prof_m else "", ref=ref))
             continue
         if status not in ACCEPTED:
             notes.append(("warn", f"{what} {who}: Status '{cell(r, status_i)}' isn't Pending, Accepted, Rejected or "
@@ -291,7 +300,7 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
                 seen.add(e)
                 if not rules.is_student(e):
                     outside.add(e)
-        if changes["add"] or changes["remove"] or changes["liaison"]:
+        if changes["add"] or changes["remove"] or changes["liaison"] or changes["first_year"] is not None:
             edited[ref] = changes
         if not members and not had_members:
             notes.append(("warn", f"{what} {who}: accepted but has no valid member emails; skipped."))
@@ -309,8 +318,9 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
         (app_withdrawn if changes["withdrawn"] else found).append(
                      dict(xl=xl, key=key, ref=ref, members=frozenset(members), liaison=liaison, prof=prof,
                           name=str(cell(r, name_i)).strip() if name_i is not None and not blank(cell(r, name_i)) else "",
-                          fy=use_first_year and fy_i is not None
-                          and str(cell(r, fy_i) or "").strip().lower() in ("yes", "y", "true", "1")))
+                          fy=use_first_year and (changes["first_year"] if changes["first_year"] is not None else
+                                                 fy_i is not None and str(cell(r, fy_i) or "").strip().lower()
+                                                 in ("yes", "y", "true", "1"))))
 
     if pending:
         notes.append(("pending", f"{len(pending)} combo(s) are still Pending (no decision yet), so they are NOT "
@@ -365,7 +375,9 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
         if c.ref in edited:
             ch = edited[c.ref]
             what_changed = ([f"added {e}" for e in ch["add"]] + [f"removed {e}" for e in ch["remove"]]
-                            + ([f"liaison {ch['liaison']}"] if ch["liaison"] else []))
+                            + ([f"liaison {ch['liaison']}"] if ch["liaison"] else [])
+                            + ([f"first-year: {'yes' if ch['first_year'] else 'no'}"] if ch["first_year"] is not None
+                               else []))
             notes.append(("info", f"{c.name}: changed in the app (not in the approvals): {', '.join(what_changed)}."))
     names = [c.name for c in combos]
     for n in sorted({n for n in names if names.count(n) > 1}):
@@ -377,7 +389,7 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
                 notes.append(("warn", f"{a.name} and {b.name} share {shared} members: the same combo accepted twice? "
                                       "If so, set the older one to Rejected."))
     notes.append(("info", f"Combos: {len(combos)} accepted for {semester}."))
-    return combos, gone_in_app
+    return combos, gone_in_app, waiting
 
 
 def name_from_email(email):
@@ -413,8 +425,8 @@ def load_input(folder, settings, approvals=APPROVALS_FILE, conflicts=CONFLICTS_F
     notes = []
     rules = EmailRules.from_settings(settings)
     blocked = parse_conflicts(folder / conflicts, conflicts_sheet, settings.semester_name, notes, store.fix_email, rules)
-    combos, withdrawn = parse_approvals(folder / approvals, approvals_sheet, settings.semester_name, notes, store, rules,
+    combos, withdrawn, waiting = parse_approvals(folder / approvals, approvals_sheet, settings.semester_name, notes, store, rules,
                              settings.use_first_year)
     if store.changed:
         store.save()
-    return ScheduleInput(combos=combos, blocked=blocked, notes=notes, withdrawn=withdrawn)
+    return ScheduleInput(combos=combos, blocked=blocked, notes=notes, withdrawn=withdrawn, pending=waiting)

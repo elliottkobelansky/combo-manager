@@ -196,6 +196,14 @@ rule check flags it until it is. Withdrawing waits until pending swaps are confi
 stay listed in grey; Actions > **Put back** returns the combo with its old number but no shows (its sets may be
 taken by then): it can claim open sets in the Swaps tab.
 
+**Pending combos and the first-year tag** (Combos tab): combos still waiting for a decision are listed in grey
+("Waiting for a decision · liaison", with their members); approve or reject them with the approval email's buttons
+in Outlook or Teams, which also records the decision and (once built) emails the liaison. Keep using **Accept -
+first-year combo** there: it's the moment the director knows. To fix a tag afterwards, Actions > **Mark as a
+first-year combo** / **Remove the first-year tag**: kept in `scheduler_data.json`, it wins over the approvals' First
+year column, and Check inputs lists it. If the schedule is out it isn't made again; the message names any show
+before the first-year date (swap it in the Swaps tab). Pop-up menus close with Escape or a click elsewhere.
+
 **Combos tab:** every accepted combo (with its liaison and shows) and its people, in columns: Instrument, Also in
 (other combos), Conflicts (dates submitted), Email; with a search box. **Click an Instrument cell** to pick one
 (Saxophone, Trumpet, Trombone, Guitar, Piano, Bass, Drums, or Other: type anything); it's per person per combo and

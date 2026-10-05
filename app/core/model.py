@@ -125,6 +125,7 @@ class ScheduleInput:
     blocked: Dict[str, Set[date]]                  # student -> dates they cannot play
     notes: List[Tuple[str, str]] = field(default_factory=list)  # (level, text) from the adapter
     withdrawn: List[Combo] = field(default_factory=list)        # withdrawn in the app (shown, never scheduled)
+    pending: List[Combo] = field(default_factory=list)          # waiting for a decision (shown, never scheduled)
 
 
 @dataclass
