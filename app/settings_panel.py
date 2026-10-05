@@ -9,7 +9,8 @@ import tkinter as tk
 from datetime import date
 from tkinter import messagebox, ttk
 
-from core.model import WEEKDAYS
+from core import generate_nights
+from core.model import WEEKDAYS, make_label
 from settings_file import (DEFAULTS, HELP, SETTINGS_FILE, SettingsError, read_data, save_data,
                            validate)
 from util import to_date
@@ -430,6 +431,35 @@ class SettingsPanel:
         self.check_unsaved()
         self.frame.after(500, self.watch)
 
+    def nights_ok(self, new):
+        """When a schedule already exists and these settings change its nights, says so and asks before saving:
+        Schedule.xlsx isn't updated by the settings (see TODO #14)."""
+        if not (self.get_folder() / "Schedule.xlsx").exists() or not self.path.exists():
+            return True
+        try:
+            old, _ = validate(read_data(self.path))
+        except SettingsError:
+            return True
+
+        def nights(s):
+            return {n.date: (n.venue, n.n_slots, n.first_set, n.set_length, n.break_minutes) for n in generate_nights(s)}
+        before, after = nights(old), nights(new)
+        added, removed = sorted(set(after) - set(before)), sorted(set(before) - set(after))
+        changed = [d for d in before.keys() & after.keys() if before[d] != after[d]]
+        if not (added or removed or changed):
+            return True
+
+        def dates(ds):
+            return ", ".join(make_label(d) for d in ds[:8]) + (f" and {len(ds) - 8} more" if len(ds) > 8 else "")
+        lines = ([f"\u2022 New nights: {dates(added)}."] if added else []) + (
+            [f"\u2022 Nights removed: {dates(removed)}. Shows already scheduled on them will drop out of the "
+             "Schedule tab, the check and the PDF."] if removed else []) + (
+            [f"\u2022 Sets or set times change on {len(changed)} night(s)."] if changed else [])
+        return messagebox.askyesno(
+            "The schedule won't follow", "A schedule already exists, and these changes affect its nights:\n\n"
+            + "\n".join(lines) + "\n\nSaving settings doesn't change Schedule.xlsx. If the schedule isn't out yet, "
+            "make a new one afterwards (Run tab, step 2).\n\nSave anyway?", icon="warning", default="no")
+
     def ask_to_save(self):
         """For leaving the tab, changing folder or closing with unsaved changes. True = go ahead, False = stay."""
         if not self.dirty:
@@ -451,9 +481,11 @@ class SettingsPanel:
             messagebox.showerror("Not a number", "The number fields must hold whole numbers (or be blank).")
             return False
         try:
-            _, warnings = validate(data)
+            new, warnings = validate(data)
         except SettingsError as e:
             messagebox.showerror("Can't save yet", f"Please fix these first:\n\n{e}")
+            return False
+        if not self.nights_ok(new):
             return False
         save_data(self.path, data)
         self.saved = self.snapshot()

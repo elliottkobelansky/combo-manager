@@ -375,7 +375,8 @@ Also done: **give it away** (to another combo, or leave it open; only when not n
   schedule; once one exists, `Schedule.xlsx` decides which nights exist. On Save settings with night changes, show
   the effect (nights added / cancelled with the combos that lose a show / times changed) and offer: update
   `Schedule.xlsx` in place (backup; new nights open; cancelled nights removed, their combos named), make a new
-  schedule (before publishing), or cancel. Mismatches found any other way get a clear warning.
+  schedule (before publishing), or cancel. Mismatches found any other way get a clear warning. Done so far: Save settings warns and asks first when
+  a schedule exists and the nights would change (2026-10-05).
 
 ---
 
