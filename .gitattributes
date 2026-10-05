@@ -1,0 +1,5 @@
+* text=auto
+# Launchers break with the wrong line endings: Windows needs CRLF, Mac/Linux shells need LF.
+*.bat eol=crlf
+*.command eol=lf
+*.sh eol=lf

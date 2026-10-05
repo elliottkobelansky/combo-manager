@@ -1,0 +1,15 @@
+# Data and outputs live in the (OneDrive) data folder, not in git: from Winter 2027 they hold real student emails.
+*.xlsx
+*.pdf
+*.bak
+scheduler_data.json
+settings.json
+Schedule backups/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/
+*.spec
