@@ -422,6 +422,7 @@ class CombosPanel:
                 menu.add_command(label=f"Change the liaison of {combo.name}...", command=self.make_liaison)
             else:
                 menu.add_separator()
+            menu.add_command(label=f"Add a member to {combo.name}...", command=self.add_member)
             if not self.data["settings"].use_first_year:
                 menu.add_command(label="First-year tag: first-year combos are off (Settings tab)", state="disabled")
             elif combo.first_year:
@@ -430,7 +431,6 @@ class CombosPanel:
             else:
                 menu.add_command(label=f"Mark {combo.name} as a first-year combo",
                                  command=lambda: self.set_first_year(combo, True))
-            menu.add_command(label=f"Add a member to {combo.name}...", command=self.add_member)
             menu.add_separator()
             menu.add_command(label=f"Withdraw {combo.name}...", command=self.withdraw)
         self.menu = menu                              # (kept for tests)
