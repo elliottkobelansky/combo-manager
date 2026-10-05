@@ -314,17 +314,18 @@ class App:
                             "help:", wraplength=640, justify="left").pack(anchor="w", pady=(14, 4))
         row = ttk.Frame(tab)
         row.pack(anchor="w")
-        ttk.Button(row, text=EMAIL, style="Accent.TButton",
-                   command=lambda: __import__("webbrowser").open(f"mailto:{EMAIL}?subject=Combo%20Scheduler")
-                   ).pack(side="left")
+        email = ttk.Label(row, text=EMAIL, style="Link.TLabel", cursor="hand2")   # click: opens the mail app
+        email.pack(side="left")
+        email.bind("<Button-1>", lambda _: __import__("webbrowser").open(f"mailto:{EMAIL}?subject=Combo%20Scheduler"))
 
-        def copy():
+        def copy(_=None):
             from clipboard import copy_text
             copy_text(self.root, EMAIL)
-            copied.configure(text="Copied!")
-        ttk.Button(row, text="Copy address", command=copy).pack(side="left", padx=8)
-        copied = ttk.Label(row, text="", style="Hint.TLabel")
-        copied.pack(side="left")
+            copy_link.configure(text="Copied")
+            self.root.after(2000, lambda: copy_link.configure(text="Copy"))
+        copy_link = ttk.Label(row, text="Copy", style="Hint.TLabel", cursor="hand2")
+        copy_link.pack(side="left", padx=(12, 0))
+        copy_link.bind("<Button-1>", copy)
         ttk.Label(tab, text="Every set on that calendar is a group of students getting up on stage to play music "
                             "together. Thanks for making it happen, and I hope this leaves you a little less time in "
                             "spreadsheets and a little more time listening. Have a great semester of shows!",

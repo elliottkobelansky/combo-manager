@@ -39,11 +39,23 @@ def mono_font():
     return tkfont.nametofont("TkFixedFont").actual("family")
 
 
+def _unstamp_labels(widget):
+    """Sun Valley's theme switch calls tk_setPalette, which writes its text colour into every existing ttk label and
+    so overrides the label styles (grey hints, blue step titles and links). Clearing it lets the styles show."""
+    for child in widget.winfo_children():
+        if child.winfo_class() == "TLabel":
+            child.configure(foreground="")
+        _unstamp_labels(child)
+
+
 def apply(root, mode="light"):
     mode = mode if mode in PALETTES else "light"
     p = PALETTES[mode]
     style = ttk.Style(root)
     if sv_ttk is not None:
+        if not getattr(root, "_unstamp_bound", False):    # after the palette pass (it runs on the same event)
+            root.bind("<<ThemeChanged>>", lambda e: root.after_idle(_unstamp_labels, root), add="+")
+            root._unstamp_bound = True
         sv_ttk.set_theme(mode)
     else:                                              # fallback: the plain 'clam' theme, recoloured
         style.theme_use("clam")
@@ -63,6 +75,7 @@ def apply(root, mode="light"):
     style.configure("Sub.TLabel", font=(family, 10), foreground=p["muted"])
     style.configure("Hint.TLabel", font=(family, 9), foreground=p["muted"])
     style.configure("CardTitle.TLabel", font=(family, 12, "bold"))
+    style.configure("Link.TLabel", font=(family, 11), foreground=p["accent"])
     style.configure("Step.TLabel", font=(family, 12, "bold"), foreground=p["accent"])
     style.configure("Big.Accent.TButton", font=(family, 11, "bold"), padding=(18, 8))
     root.option_add("*Toplevel.background", p["bg"])
