@@ -21,7 +21,7 @@ try:
 except ImportError:
     Calendar = None
 
-GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, int, int?, policy, bool; section = a heading
+GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, int, int?, policy, timing, bool; section = a heading
     (None, "Semester", "section"),
     ("semester_name", "Semester name", "text"),
     ("start_date", "First possible show day", "date"),
@@ -34,9 +34,11 @@ GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, 
     (None, "First-year combos", "section"),
     ("use_first_year", "First-year combos", "bool"),
     ("first_year_earliest_date", "First-year combos play from", "date"),
+    ("first_year_first_show_supervised", "First show supervised", "bool"),
     (None, "Supervision", "section"),
     ("every_combo_supervised", "Supervised nights", "bool"),
     ("max_supervised_nights", "Max supervised nights (all profs)", "int?"),
+    ("supervision_timing", "Supervised nights preferred", "timing"),
     (None, "Emails", "section"),
     ("student_email_domain", "Student email domain", "text"),
     ("email_domain_fixes", "Student email domain fixes", "wide"),
@@ -47,6 +49,8 @@ GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, 
     ("solver_time_limit_sec", "Solver time (seconds)", "int"),
 ]
 POLICIES = {"open": "Leave open", "auto": "Fill every set"}      # settings.json value -> what the menu shows
+TIMINGS = {"none": "Any time", "early": "Earlier in the semester", "late": "Later in the semester"}
+MENUS = {"policy": (POLICIES, "open", 14), "timing": (TIMINGS, "none", 22)}   # kind -> (choices, default, width)
 
 
 class ScrollFrame(ttk.Frame):
@@ -296,8 +300,9 @@ class SettingsPanel:
             ttk.Label(gen, text=label, anchor="w").grid(row=r, column=0, sticky="nw", padx=(0, 16), pady=(9, 0))
             if kind in ("date", "date?"):
                 w = DateField(gen, optional=kind == "date?")
-            elif kind == "policy":
-                w = ttk.Combobox(gen, values=list(POLICIES.values()), state="readonly", width=14)
+            elif kind in MENUS:
+                choices, _, width = MENUS[kind]
+                w = ttk.Combobox(gen, values=list(choices.values()), state="readonly", width=width)
                 w.bind("<<ComboboxSelected>>", lambda _: self.update_dependents())
             elif kind == "bool":
                 var = tk.BooleanVar()
@@ -369,8 +374,9 @@ class SettingsPanel:
             v = data.get(key, DEFAULTS.get(key))
             if kind in ("date", "date?"):
                 w.var.set(v or "")
-            elif kind == "policy":
-                w.set(POLICIES.get(v or "open", POLICIES["open"]))
+            elif kind in MENUS:
+                choices, default, _ = MENUS[kind]
+                w.set(choices.get(v or default, choices[default]))
             elif kind == "bool":
                 w.var.set(bool(v))
             else:
@@ -388,7 +394,10 @@ class SettingsPanel:
         """Greys out the settings that have no effect with the others as they are."""
         w = {key: widget for key, (widget, _) in self.widgets.items()}
         set_enabled(w["first_year_earliest_date"], w["use_first_year"].var.get())
-        set_enabled(w["max_supervised_nights"], w["every_combo_supervised"].var.get())
+        supervised = w["every_combo_supervised"].var.get()
+        set_enabled(w["max_supervised_nights"], supervised)
+        set_enabled(w["supervision_timing"], supervised)
+        set_enabled(w["first_year_first_show_supervised"], supervised and w["use_first_year"].var.get())
 
     def recolor(self):
         PALETTE.update(self.get_palette())
@@ -403,8 +412,8 @@ class SettingsPanel:
                 data[key] = bool(w.var.get())
             elif kind in ("int", "int?"):
                 data[key] = as_int(w.get())
-            elif kind == "policy":
-                data[key] = next(k for k, shown in POLICIES.items() if shown == w.get())
+            elif kind in MENUS:
+                data[key] = next(k for k, shown in MENUS[kind][0].items() if shown == w.get())
             else:
                 data[key] = w.get().strip() or None
         data["show_days"] = self.show_days.rows

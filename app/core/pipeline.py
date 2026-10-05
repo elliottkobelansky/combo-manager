@@ -57,6 +57,10 @@ def run_schedule(inp: ScheduleInput, settings: Settings) -> Result:
         cap = settings.max_supervised_nights
         report.append(("info", f"Supervised nights (a professor attends), {len(sup)}"
                                f"{f' of at most {cap}' if cap else ''}: {', '.join(make_label(d) for d in sup)}."))
+        for c in stats["first_year_unsupervised"]:
+            first = min(d for d, cs in lineup.items() if c in cs)
+            report.append(("warn", f"First-year {combos[c].name}'s first show ({make_label(first)}) isn't on a "
+                                   "supervised night: no way to fit it without breaking a more important goal."))
     if stats["spacing_violations"]:
         report.append(("warn", f"{int(stats['spacing_violations'])} pair(s) of shows for one combo are closer than "
                                f"{settings.min_days_between_shows} days."))

@@ -273,6 +273,30 @@ def main():
         print(f"{'PASS' if ok else 'FAIL'}  too-small supervision cap is explained")
         failures += not ok
 
+    # First-year combos' first show on a supervised night; supervision_timing pulls the nights to one end.
+    from core.stats import schedule_stats
+    runs, bad = {}, []
+    for timing in ("early", "late"):
+        s = replace(base, extra_slot_policy="open", supervision_timing=timing)
+        r = runs[timing] = run_schedule(inp, s)
+        fy = [c for c in r.combos if r.combos[c].first_year]
+        missed = [c for c in fy if min(d for d, cs in r.lineup.items() if c in cs) not in r.supervised]
+        if not fy or missed or r.stats["first_year_unsupervised"]:
+            bad.append(f"{timing}: first-year combos without a supervised first show: {missed} (of {len(fy)})")
+        sets = {d: {k: c for k, c in enumerate(cs, start=1)} for d, cs in r.lineup.items()}
+        sections, problems = schedule_stats(sets, r.nights, r.combos, inp, s, r.supervised)
+        lines = dict(sections)["Supervision"]
+        if problems or not any(l.startswith(f"First-year combos whose first show is supervised: {len(fy)} of") for l in lines):
+            bad.append(f"{timing}: rule check {problems[:2]} / {lines}")
+    mean = {t: sum(d.toordinal() for d in r.supervised) / len(r.supervised) for t, r in runs.items()}
+    if not mean["early"] < mean["late"]:
+        bad.append(f"supervised nights earlier with 'late' than with 'early' ({mean})")
+    ok = not bad
+    print(f"{'PASS' if ok else 'FAIL'}  first-year first show supervised; supervised nights earlier / later on request")
+    for b_ in bad:
+        print("      -", b_)
+    failures += not ok
+
     # Switches: supervision off = no supervised nights and nothing about them in the rule check; first-year off =
     # no combo is first-year, whatever the approvals say.
     from core.stats import schedule_stats

@@ -59,6 +59,8 @@ class Settings:
     solver_time_limit_sec: float = 90
     every_combo_supervised: bool = True   # every combo plays at least one night a professor attends (off = no supervision)
     max_supervised_nights: Optional[int] = None   # cap on those nights (None = no cap); within it, as few as possible
+    supervision_timing: str = "none"      # supervised nights preferred "early" or "late" in the semester, or "none"
+    first_year_first_show_supervised: bool = True   # a first-year combo's first show on a supervised night (soft)
     use_first_year: bool = True           # off: no combo is treated as first-year (the input adapter clears the flag)
     # Read by the input adapter only (the core never sees an email rule): the students' address domain (blank = any),
     # and domain typos to correct, {typed domain: real domain}.

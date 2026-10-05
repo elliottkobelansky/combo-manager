@@ -23,6 +23,7 @@ DEFAULTS = {
     "end_date": "2027-04-09",
     "use_first_year": True,
     "first_year_earliest_date": "2027-01-26",
+    "first_year_first_show_supervised": True,
     "min_days_between_shows": 28,
     "max_blocked_dates_per_person": 3,
     "min_usable_nights_per_combo": 3,
@@ -32,6 +33,7 @@ DEFAULTS = {
     "max_shows_per_combo": 4,
     "every_combo_supervised": True,
     "max_supervised_nights": 10,
+    "supervision_timing": "none",
     "solver_time_limit_sec": 90,
     "student_email_domain": "mail.mcgill.ca",
     "email_domain_fixes": "mcgill.ca -> mail.mcgill.ca",
@@ -54,6 +56,9 @@ HELP = {
     "use_first_year": "On: combos marked First year in the approvals don't play before the date below (unless "
                       "there's no other way). Off: every combo is treated the same.",
     "first_year_earliest_date": "The first day first-year combos can play. Needed while the switch above is on.",
+    "first_year_first_show_supervised": "On: a first-year combo's first show is on a supervised night, so they get "
+                                        "feedback on their first set (a strong preference, can add a supervised "
+                                        "night). Needs supervised nights on.",
     "min_days_between_shows": "Ideal gap between one combo's shows; closer pairs are avoided, the closer the more.",
     "max_blocked_dates_per_person": "Warning only: flags students who blocked more show nights than this.",
     "min_usable_nights_per_combo": "Warning only: flags combos whose members' conflicts leave fewer usable nights.",
@@ -69,6 +74,8 @@ HELP = {
     "max_supervised_nights": "The most supervised nights in the whole semester, counting all professors together "
                              "(not per professor). One night covers every combo playing it. Blank = no limit (still "
                              "as few as possible).",
+    "supervision_timing": "A light preference for when the supervised nights fall: earlier or later in the "
+                          "semester. First-year combos' first shows still come first.",
     "solver_time_limit_sec": "How long the solver searches (roughly seconds). 90 is plenty: it stops early once it has the best schedule.",
     "student_email_domain": "Students' email domain, e.g. mail.mcgill.ca. Other addresses are fine, just listed. "
                             "Blank = don't check.",
@@ -245,6 +252,9 @@ def validate(data):
     if use_first_year and fy_date is None and blank(data.get("first_year_earliest_date")):
         errors.append("First-year combos is on, but the date they can start playing is blank. Pick that date, or "
                       "turn first-year combos off.")
+    timing = str(data.get("supervision_timing") or "none").strip().lower()
+    if timing not in ("none", "early", "late"):
+        errors.append("Settings supervision_timing must be none, early or late.")
     min_total, max_total = get_int("min_shows_per_combo", low=1), get_int("max_shows_per_combo", low=1)
     if min_total is None and blank(data.get("min_shows_per_combo")):
         errors.append("Settings: the minimum shows per combo is missing (e.g. 2).")
@@ -264,6 +274,8 @@ def validate(data):
         solver_time_limit_sec=get_int("solver_time_limit_sec", 90, low=1) or 90,
         every_combo_supervised=bool(data.get("every_combo_supervised", True)),
         max_supervised_nights=get_int("max_supervised_nights", low=1),
+        supervision_timing=timing,
+        first_year_first_show_supervised=bool(data.get("first_year_first_show_supervised", True)),
         use_first_year=use_first_year,
         student_email_domain=domain,
         email_domain_fixes=fixes,

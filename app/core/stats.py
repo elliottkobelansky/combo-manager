@@ -110,6 +110,17 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
             pref = [d for d in sup if nmap[d].supervision_preferred]
             if any(n.supervision_preferred for n in nights):
                 lines.append(f"On a 'Supervision preferred' show day: {len(pref)} of {len(sup)}.")
+            fy = [c for c in combos if combos[c].first_year and shows.get(c)]
+            if fy and settings.first_year_first_show_supervised:
+                missed = sorted(combos[c].name for c in fy if min(d for d, _ in shows[c]) not in supervised)
+                lines.append(f"First-year combos whose first show is supervised: {len(fy) - len(missed)} of {len(fy)}"
+                             + (f" (not: {', '.join(missed)})." if missed else "."))
+            if sup and settings.supervision_timing in ("early", "late"):
+                first, last = nights[0].date, nights[-1].date
+                mid = first + (last - first) / 2
+                half = sum(1 for d in sup if (d <= mid) == (settings.supervision_timing == "early"))
+                lines.append(f"In the {'first' if settings.supervision_timing == 'early' else 'second'} half of the "
+                             f"semester (preferred): {half} of {len(sup)}.")
             sections.append(("Supervision", lines))
             for c in combos:
                 if not on_sup[c]:

@@ -10,9 +10,12 @@ from .model import Night, Settings
 W_UNFILLED = 1000   # per empty set. In open mode this means: every combo gets its shows
 W_FIRST_YEAR = 800  # per show a first-year combo plays before first_year_earliest_date (only if there's no other way)
 W_SPREAD = 600      # per unit of (max - min) shows per combo, per venue and overall: equal show counts
+W_FY_SUP = 500      # per first-year combo whose first show isn't on a supervised night (feedback on their first set)
 W_SUP_DAY = 400     # per supervised night that isn't on a "Supervision preferred" show day (ShowDays sheet)
 W_SUPERVISED = 300  # per supervised night: as few nights needing a professor as possible (within the cap)
 W_VENUES = 150      # per combo with no show at a venue it could play at: 1 Upstairs + 1 Clara beats Upstairs twice
+W_SUP_TIMING = 100  # per supervised night at the wrong end of the semester (supervision_timing earlier / later),
+                    # scaled 0..100 by how far it is from the preferred end
 W_SPACING = 80      # max cost of one pair of a combo's shows (same-day). The cost falls off quadratically and
                     # reaches 0 at min_days_between_shows.
 W_SHARED = 30       # per student who plays twice in one night (two of their combos on the same night): minor
@@ -68,6 +71,15 @@ def precheck_supervision(combos, nights, settings: Settings) -> List[str]:
         return [f"max_supervised_nights is {cap}, but {cap} nights hold at most {room} combos and there are "
                 f"{len(combos)}. Raise max_supervised_nights (or set every_combo_supervised to No)."]
     return []
+
+
+def timing_cost(d, nights, timing):
+    """0 at the preferred end of the semester, W_SUP_TIMING at the other end, in proportion between."""
+    first, last = nights[0].date, nights[-1].date
+    if timing not in ("early", "late") or last == first:
+        return 0
+    frac = (d - first).days / (last - first).days
+    return round(W_SUP_TIMING * (frac if timing == "early" else 1 - frac))
 
 
 def policy_open(settings: Settings) -> bool:
@@ -175,6 +187,20 @@ def solve_combos(combos, allowed, nights, show_min, settings: Settings):
             need, room = need + 1, room + k
         model.Add(sum(sup.values()) >= need)
 
+    # first-year combos: their first show on a supervised night. The night d with no show before it is the first
+    # show, so miss >= p[c, d] - sup[d] - (shows before d) forces miss = 1 only there, when d isn't supervised.
+    fy_miss = {}
+    if sup and settings.first_year_first_show_supervised:
+        for c in cids:
+            if not combos[c].first_year:
+                continue
+            mine = sorted(d for (cc, d) in p if cc == c)
+            if not mine:
+                continue
+            fy_miss[c] = model.NewBoolVar(f"fymiss_{c}")
+            for i, d in enumerate(mine):
+                model.Add(fy_miss[c] >= p[c, d] - sup[d] - sum(p[c, e] for e in mine[:i]))
+
     # first-year combos avoid nights before the cutoff
     early = []
     cutoff = settings.first_year_earliest_date
@@ -215,6 +241,8 @@ def solve_combos(combos, allowed, nights, show_min, settings: Settings):
                    + sum(w * y for w, (y, *_) in zip(shared_cost, shared))
                    + W_FIRST_YEAR * sum(var for var, *_ in early)
                    + W_SUPERVISED * sum(sup.values())
+                   + W_FY_SUP * sum(fy_miss.values())
+                   + sum(timing_cost(d, nights, settings.supervision_timing) * var for d, var in sup.items())
                    + W_SUP_DAY * sum(var for d, var in sup.items() if not nmap[d].supervision_preferred
                                      and any(n.supervision_preferred for n in nights)))
     solver = cp_model.CpSolver()
@@ -236,7 +264,8 @@ def solve_combos(combos, allowed, nights, show_min, settings: Settings):
                  bound=solver.BestObjectiveBound(), spacing_violations=sum(solver.Value(q) for q in spacing),
                  shared_nights=[(d, a, b) for y, d, a, b in shared if solver.Value(y)],
                  early_first_year=[(d, c) for var, d, c in early if solver.Value(var)],
-                 supervised={d for d, var in sup.items() if solver.Value(var)})
+                 supervised={d for d, var in sup.items() if solver.Value(var)},
+                 first_year_unsupervised=sorted(c for c, var in fy_miss.items() if solver.Value(var)))
     return chosen, stats
 
 
