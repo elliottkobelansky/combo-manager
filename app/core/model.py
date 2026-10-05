@@ -51,6 +51,7 @@ class Settings:
     first_year_earliest_date: Optional[date] = None
     max_blocked_dates_per_person: Optional[int] = 3
     min_usable_nights_per_combo: Optional[int] = 3
+    min_members_per_combo: Optional[int] = 4      # warning only: combos with fewer members are flagged
     max_shows_per_combo: Optional[int] = 4
     min_shows_per_combo: Optional[int] = None   # total, at any venues (venue minimums still apply); open mode: exactly.
                                                 # Required in settings.json; None only for a hand-built Settings

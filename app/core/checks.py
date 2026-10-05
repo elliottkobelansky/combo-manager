@@ -34,10 +34,12 @@ def analyze(inp: ScheduleInput, settings: Settings, nights: List[Night]):
         allowed[c.id] = ok                     # the first-year cutoff is a strong preference, handled by the solver
         if c.first_year and settings.first_year_earliest_date:
             ok = {d for d in ok if d >= settings.first_year_earliest_date}
+        few = settings.min_members_per_combo
         if not c.members:
             report.append(("warn", f"{c.name} has no members."))
-        elif len(c.members) < 2:
-            report.append(("warn", f"{c.name} has only {len(c.members)} member."))
+        elif few and len(c.members) < few:
+            report.append(("warn", f"{c.name} has only {len(c.members)} member{'s' if len(c.members) > 1 else ''} "
+                                   f"(fewer than {few})."))
         mu = settings.min_usable_nights_per_combo
         if mu and len(ok) < mu:
             why = ", first-year rule" if c.first_year else ""

@@ -354,6 +354,83 @@ def main():
     ok = picked_ok and read_ok and app_config.input_files(tmp) == usual and usual["approvals"] == tmp / "Combo Approvals.xlsx"
     print(f"{'PASS' if ok else 'FAIL'}  input files: a renamed file in another folder is picked, read, and reset")
     failures += not ok
+
+    # Members changed in the app: added, removed, a new liaison; the approvals file itself never changes.
+    from core.checks import analyze
+    from store import Store
+    (tmp / "scheduler_data.json").unlink(missing_ok=True)
+    make(tmp / "a.xlsx", tmp / "f.xlsx", nights, 33, seed=1, sem=base.semester_name)
+    clean = load_input(tmp, base, "a.xlsx", "f.xlsx")
+    sem, a, b = base.semester_name, clean.combos[0], clean.combos[1]
+    leaving, newbie = a.liaison, "new.player@mail.mcgill.ca"
+    stay = sorted(a.members - {leaving})[0]
+    joiner = next(e for e in sorted(clean.blocked, key=lambda e: -len(clean.blocked[e])) if e not in b.members)
+    st = Store(tmp)
+    st.add_member(sem, a.ref, newbie)
+    st.remove_member(sem, a.ref, leaving)
+    st.set_liaison(sem, a.ref, stay)
+    st.add_member(sem, b.ref, joiner)
+    st.save()
+    approvals_before = (tmp / "a.xlsx").read_bytes()
+    edited = load_input(tmp, base, "a.xlsx", "f.xlsx")
+    by_ref = {c.ref: c for c in edited.combos}
+    allowed_clean, _ = analyze(clean, base, nights)
+    allowed_edit, _ = analyze(edited, base, nights)
+    bad = []
+    if not (newbie in by_ref[a.ref].members and leaving not in by_ref[a.ref].members):
+        bad.append("add/remove not applied")
+    if by_ref[a.ref].liaison != stay:
+        bad.append("chosen liaison not used")
+    if joiner not in by_ref[b.ref].members or allowed_edit[b.id] != allowed_clean[b.id] - clean.blocked[joiner]:
+        bad.append("an added member's conflicts don't count for their new combo")
+    if (tmp / "a.xlsx").read_bytes() != approvals_before:
+        bad.append("the approvals file was changed")
+    if not any("changed in the app" in t and a.name in t for _, t in edited.notes):
+        bad.append("the check doesn't list the changes")
+    st = Store(tmp)                                    # undo everything: back to exactly the approvals
+    st.remove_member(sem, a.ref, newbie)
+    st.add_member(sem, a.ref, leaving)
+    st.set_liaison(sem, a.ref, "")
+    st.remove_member(sem, b.ref, joiner)
+    st.save()
+    back = {c.ref: c for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos}
+    if (back[a.ref].members, back[a.ref].liaison, back[b.ref].members) != (a.members, a.liaison, b.members):
+        bad.append("undoing the changes doesn't restore the combos")
+    if Store(tmp).data["members"].get(sem):
+        bad.append("undone changes are still stored")
+    st = Store(tmp)                                    # liaison removed without a new one: the next member stands in
+    st.remove_member(sem, a.ref, leaving)
+    st.save()
+    stand_in = {c.ref: c for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos}[a.ref]
+    if not stand_in.liaison or stand_in.liaison not in stand_in.members:
+        bad.append("a combo whose liaison was removed has no liaison")
+    st = Store(tmp)                                    # everyone removed: the combo stays, with a warning
+    for e in a.members:
+        st.remove_member(sem, a.ref, e)
+    st.save()
+    empty = load_input(tmp, base, "a.xlsx", "f.xlsx")
+    _, report = analyze(empty, base, nights)
+    if a.ref not in {c.ref for c in empty.combos} or not any(f"{a.name} has no members" in t for _, t in report):
+        bad.append("a combo with everyone removed disappears or isn't flagged")
+    (tmp / "scheduler_data.json").unlink()
+    _, report4 = analyze(clean, replace(base, min_members_per_combo=4), nights)
+    _, report_off = analyze(clean, replace(base, min_members_per_combo=None), nights)
+    small = [c for c in clean.combos if len(c.members) < 4]
+    if small and not any("fewer than 4" in t for _, t in report4) or any("fewer than" in t for _, t in report_off):
+        bad.append("the members-per-combo warning doesn't follow the setting")
+    ok = not bad
+    (tmp / "half.xlsx").write_bytes((tmp / "a.xlsx").read_bytes()[:3000])      # caught mid-sync
+    try:
+        load_input(tmp, base, "half.xlsx", "f.xlsx")
+        bad.append("a half-written approvals file was read")
+    except Exception as e:
+        if "middle of syncing" not in str(e):
+            bad.append(f"a half-written approvals file gives {type(e).__name__}, not a plain message")
+    ok = not bad
+    print(f"{'PASS' if ok else 'FAIL'}  member changes in the app: add, remove, liaison, undo; approvals untouched; half-synced file explained")
+    for b_ in bad:
+        print("      -", b_)
+    failures += not ok
     print("\nAll good." if not failures else f"\n{failures} scenario(s) failed.")
     return failures
 

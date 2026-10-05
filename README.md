@@ -175,12 +175,23 @@ changes. **Export PDF** rebuilds `Schedule.pdf` from `Schedule.xlsx` (the same
 as Run's step 3); with unsaved changes it asks: save them first, export the saved schedule only, or cancel.
 Nothing in this tab writes a file by itself.
 
+**Changing a combo's members** (Combos tab; also on right-click): **Add member...** finds someone the scheduler
+already knows (type part of a name or email) or takes a new email, guesses the name from it (change it if needed) and
+optionally sets the instrument; it warns if they're in another combo or, once a schedule exists, have a conflict or a
+second show on one of this combo's nights. **Remove...** takes someone out; removing the liaison first asks who takes
+over. Removed people stay listed in grey: right-click > **Put back**. **Make liaison** changes the liaison. None of
+this touches `Combo Approvals.xlsx`: the changes are kept in `scheduler_data.json` (by Response Id, so they stay
+attached to the right combo as new responses come in), applied whenever the approvals are read, and listed by
+**Check inputs**. A combo with fewer members than the "Warn: members per combo" setting (default 4) shows ⚠ and is
+flagged by the check. After the schedule is out, run **Check the schedule** after a change: a new member's conflicts
+count from then on.
+
 **Combos tab:** every accepted combo (with its liaison and shows) and its people, in columns: Instrument, Also in
 (other combos), Conflicts (dates submitted), Email; with a search box. **Click an Instrument cell** to pick one
 (Saxophone, Trumpet, Trombone, Guitar, Piano, Bass, Drums, or Other: type anything); it's per person per combo and
-kept in `scheduler_data.json`. **Export combo list PDF** writes `Combos.pdf` (every combo with its supervisor and
+kept in `scheduler_data.json`. **Export combo list** writes `Combos.pdf` (every combo with its supervisor and
 members, liaison first, instruments when set; numbered like the calendar). Double-click a person
-(or **Change name...**) to correct their name, or double-click their email (or **Change email...**) to fix a typo'd
+(or **Rename...**) to correct their name, or double-click their email (or **Fix email...**) to fix a typo'd
 address: the spreadsheets aren't changed, the fix is applied whenever they're read, to the combos *and* the
 conflicts, so a member whose conflicts didn't count because of a typo is matched again (corrected emails show ✎;
 typing the original back removes the fix); it's kept in `scheduler_data.json` and used everywhere (PDFs, checks,
@@ -257,7 +268,8 @@ nights but needs 1").
 | `use_first_year` | The **First-year combos** switch. On: combos marked First year = Yes in the approvals avoid playing before `first_year_earliest_date` (strong preference, see goals), and in fill-every-set mode get no extra shows. Off: every combo is treated the same, whatever the approvals say. Settings saved before this switch existed: on when there's a date. |
 | `first_year_earliest_date` | The first day first-year combos can play. Required while the switch is on; kept but ignored while it's off. |
 | `max_blocked_dates_per_person` | Warning only: flags students who blocked many show nights. |
-| `min_usable_slots_per_combo` | Warning only: flags combos whose members' conflicts leave fewer usable nights than this. |
+| `min_usable_nights_per_combo` | Warning only: flags combos whose members' conflicts leave fewer usable nights than this. |
+| `min_members_per_combo` | Warning only (default 4): flags combos with fewer members than this, e.g. after someone is removed in the Combos tab. Blank = no warning. |
 | `extra_slot_policy` | **Leftover sets** in the app. `open` = Leave open (recommended): each combo gets its shows; the sets left over stay open for volunteers, or you fill them by hand (Schedule or Swaps tab). `auto` = Fill every set: the solver fills every set, so some combos get extra shows. |
 | `min_shows_per_combo` | Every combo gets at least this many shows in total, at any venues, as long as each venue's "Min per combo" is met. In `open` mode: exactly this many. Required. |
 | `max_shows_per_combo` | Cap on total shows per combo. Blank = no cap. |
@@ -331,7 +343,7 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 | `app/schedule_panel.py` | The app's Schedule tab (nights and sets, who could take an open set, Export PDF). |
 | `app/store.py` | `scheduler_data.json`: combo numbers, corrected names and emails, instruments. |
 | `app/outputs/combos_pdf.py` | Writes `Combos.pdf` (the Combos tab's Export button). |
-| `app/combos_panel.py` | The app's Combos tab (all combos and people; correct a name). |
+| `app/combos_panel.py` | The app's Combos tab (all combos and people; names, emails, instruments, members, liaison). |
 | `app/swap_panel.py`, `app/core/swaps.py` | The app's Swaps tab, and the swap finder behind it (pure, tested in `test_rules.py`). |
 | `app/theme.py` | The app's look (Sun Valley theme, light and dark). The About tab (author and contact) is in `scheduler_app.py`. |
 | `app/settings_file.py` | Reads, checks and saves `settings.json` (defaults and help texts live here). |

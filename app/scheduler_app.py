@@ -143,7 +143,7 @@ class App:
 
     def build_main(self):
         """The full app: data folder, Run tab, and the other tabs."""
-        shell, theme = self.shell, self.theme
+        shell = self.shell
         where = ttk.Frame(shell)                      # row 2: data folder and its buttons
         where.pack(fill="x", pady=(4, 0))
         ttk.Button(where, text="Open folder", command=lambda: open_path(self.folder)).pack(side="right", padx=(6, 0))

@@ -4,6 +4,9 @@
     names        {email: name}                              corrected names (the Combos tab); others are guessed
     instruments  {semester: {"Combo 05|email": instrument}} per person per combo (the Combos tab)
     emails       {email as typed: corrected email}          fixes applied when reading both spreadsheets
+    members      {semester: {response id: {"add": [email], "remove": [email], "liaison": email}}}
+                                                            members added or removed and the liaison changed in the
+                                                            app (the Combos tab); the approvals are never changed
 
 Written by the app and by solve.py (when a new combo gets its number). Keep it with the other files (the synced
 OneDrive folder is ideal).
@@ -23,7 +26,7 @@ class Store:
             self.data = {}
         except ValueError:
             raise ValueError(f"{self.path} is damaged. Restore it from a backup (it's in the data folder).")
-        for key in ("numbers", "names", "instruments", "emails"):
+        for key in ("numbers", "names", "instruments", "emails", "members"):
             self.data.setdefault(key, {})
         self.changed = False
 
@@ -66,6 +69,49 @@ class Store:
             table.pop(key, None)
         self.changed = True
 
+    # members added or removed in the app, per combo (by its response id, which never changes)
+    def member_changes(self, semester, ref):
+        """{"add": [...], "remove": [...], "liaison": email or ""} for this combo (all empty when unchanged)."""
+        ch = self.data["members"].get(semester, {}).get(str(ref), {})
+        return {"add": list(ch.get("add", [])), "remove": list(ch.get("remove", [])), "liaison": ch.get("liaison", "")}
+
+    def _save_changes(self, semester, ref, ch):
+        table = self.data["members"].setdefault(semester, {})
+        kept = {k: v for k, v in ch.items() if v}
+        if kept:
+            table[str(ref)] = kept
+        else:
+            table.pop(str(ref), None)
+        self.changed = True
+
+    def set_liaison(self, semester, ref, email):
+        """The combo's liaison from now on ("" = back to the approvals' liaison)."""
+        ch = self.member_changes(semester, ref)
+        ch["liaison"] = email.lower()
+        self._save_changes(semester, ref, ch)
+
+    def add_member(self, semester, ref, email):
+        """Adds email to the combo. Someone removed earlier is just put back."""
+        email = email.lower()
+        ch = self.member_changes(semester, ref)
+        if email in ch["remove"]:
+            ch["remove"].remove(email)
+        elif email not in ch["add"]:
+            ch["add"].append(email)
+        self._save_changes(semester, ref, ch)
+
+    def remove_member(self, semester, ref, email):
+        """Takes email out of the combo. Someone added in the app is simply un-added."""
+        email = email.lower()
+        ch = self.member_changes(semester, ref)
+        if email in ch["add"]:
+            ch["add"].remove(email)
+        elif email not in ch["remove"]:
+            ch["remove"].append(email)
+        if ch["liaison"] == email:
+            ch["liaison"] = ""
+        self._save_changes(semester, ref, ch)
+
     # email fixes
     @property
     def emails(self):
@@ -90,4 +136,10 @@ class Store:
         for table in self.data["instruments"].values():
             for key in [k for k in table if k.split("|", 1)[1] == shown]:
                 table[key.split("|", 1)[0] + "|" + new] = table.pop(key)
+        for table in self.data["members"].values():
+            for ch in table.values():
+                for kind in ("add", "remove"):
+                    ch[kind] = [new if e == shown else e for e in ch.get(kind, [])]
+                if ch.get("liaison") == shown:
+                    ch["liaison"] = new
         self.changed = True

@@ -40,6 +40,7 @@ GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, 
     (None, "Warnings and solver", "section"),
     ("max_blocked_dates_per_person", "Warn: conflicts per person", "int?"),
     ("min_usable_nights_per_combo", "Warn: usable nights per combo", "int?"),
+    ("min_members_per_combo", "Warn: members per combo", "int?"),
     ("solver_time_limit_sec", "Solver time (seconds)", "int"),
 ]
 POLICIES = {"open": "Leave open", "auto": "Fill every set"}      # settings.json value -> what the menu shows

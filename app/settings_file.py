@@ -25,6 +25,7 @@ DEFAULTS = {
     "min_days_between_shows": 28,
     "max_blocked_dates_per_person": 3,
     "min_usable_nights_per_combo": 3,
+    "min_members_per_combo": 4,
     "extra_slot_policy": "open",
     "min_shows_per_combo": 2,
     "max_shows_per_combo": 4,
@@ -55,6 +56,8 @@ HELP = {
     "min_days_between_shows": "Ideal gap between one combo's shows; closer pairs are avoided, the closer the more.",
     "max_blocked_dates_per_person": "Warning only: flags students who blocked more show nights than this.",
     "min_usable_nights_per_combo": "Warning only: flags combos whose members' conflicts leave fewer usable nights.",
+    "min_members_per_combo": "Warning only: flags combos with fewer members than this (e.g. after someone is "
+                             "removed in the Combos tab). Blank = no warning.",
     "extra_slot_policy": "Leave open: each combo gets its shows; the sets left over stay open for volunteers, or you "
                          "fill them by hand (Schedule or Swaps tab). Fill every set: some combos get extra shows.",
     "min_shows_per_combo": "Every combo gets at least this many shows, at any venues (each venue's minimum still "
@@ -253,6 +256,7 @@ def validate(data):
         first_year_earliest_date=fy_date if use_first_year else None,
         max_blocked_dates_per_person=get_int("max_blocked_dates_per_person", low=0),
         min_usable_nights_per_combo=get_int("min_usable_nights_per_combo", low=0),
+        min_members_per_combo=get_int("min_members_per_combo", low=1) if "min_members_per_combo" in data else 4,
         max_shows_per_combo=max_total,
         min_shows_per_combo=min_total,
         extra_slot_policy=policy,

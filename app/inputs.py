@@ -29,9 +29,11 @@ This is the only file that knows what the inputs look like. If data collection c
 that returns the same ScheduleInput.
 """
 import re
+import zipfile
 from pathlib import Path
 
 from openpyxl import load_workbook
+from openpyxl.utils.exceptions import InvalidFileException
 
 from core.model import Combo, ScheduleInput
 from store import Store
@@ -95,6 +97,10 @@ def read_export(path, sheet, defaults, what, notes, needs=()):
         raise InputError(f"Can't find {path}.")
     except PermissionError:
         raise InputError(f"Can't open {path}. Close it in Excel and run again.")
+    except (zipfile.BadZipFile, KeyError, InvalidFileException, OSError):
+        # e.g. caught half-written while OneDrive syncs a new version (the flow just added a row)
+        raise InputError(f"Couldn't read {Path(path).name}: it may be in the middle of syncing, or it isn't a real "
+                         "Excel file. Wait a moment and try again (Reload).")
     if sheet and sheet not in wb.sheetnames:
         raise InputError(f"{what}: {path} has no sheet named '{sheet}'. Sheets: {', '.join(wb.sheetnames)}")
     ws = wb[sheet] if sheet else next(
@@ -237,7 +243,7 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
         notes.append(("warn", f"{what}: no submissions for {semester}. Semesters in the table: "
                               f"{', '.join(seen_sems) or 'none'}. Is semester_name in the settings right?"))
 
-    found, pending, rejected, withdrawn, seen_refs, outside = [], [], [], [], set(), set()
+    found, pending, rejected, withdrawn, seen_refs, outside, edited = [], [], [], [], set(), set(), {}
     for xl, key, r in rows:
         status = str(cell(r, status_i) or "").strip().lower()
         ref = ref_of(cell(r, id_i)) if id_i is not None and not blank(cell(r, id_i)) else f"row{xl}"
@@ -267,10 +273,32 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
                 members.append(e)
                 if not rules.is_student(e):
                     outside.add(e)
-        if not members:
+        # members added or removed in the app (Combos tab) count as if the approvals said so
+        changes, had_members = store.member_changes(semester, ref), bool(members)
+        for e in changes["remove"]:
+            if e in seen:
+                members.remove(e)
+                seen.discard(e)
+            else:
+                notes.append(("info", f"{what} {who}: {e} was removed in the app but isn't in the approvals any "
+                                      "more; nothing to do."))
+        for e in changes["add"]:
+            if e in seen:
+                notes.append(("info", f"{what} {who}: {e} was added in the app and is now in the approvals too."))
+            else:
+                members.append(e)
+                seen.add(e)
+                if not rules.is_student(e):
+                    outside.add(e)
+        if changes["add"] or changes["remove"] or changes["liaison"]:
+            edited[ref] = changes
+        if not members and not had_members:
             notes.append(("warn", f"{what} {who}: accepted but has no valid member emails; skipped."))
             continue
-        liaison = liaison if liaison in seen else members[0]
+        if changes["liaison"] in seen:                  # chosen in the app
+            liaison = changes["liaison"]
+        elif liaison not in seen:                       # e.g. the liaison was removed: the first member stands in
+            liaison = members[0] if members else ""
         prof_m = EMAIL_RE.search(str(cell(r, prof_i) or "")) if prof_i is not None else None
         prof = store.fix_email(prof_m.group(0).lower()) if prof_m else ""
         if prof_i is not None and not prof:
@@ -322,6 +350,12 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
     if gone:
         notes.append(("warn", f"No longer accepted: {', '.join(gone)}. If the schedule is already out, give their "
                               "sets away or set them to OPEN (Swaps or Schedule tab); check with step 3."))
+    for c in combos:
+        if c.ref in edited:
+            ch = edited[c.ref]
+            what_changed = ([f"added {e}" for e in ch["add"]] + [f"removed {e}" for e in ch["remove"]]
+                            + ([f"liaison {ch['liaison']}"] if ch["liaison"] else []))
+            notes.append(("info", f"{c.name}: changed in the app (not in the approvals): {', '.join(what_changed)}."))
     names = [c.name for c in combos]
     for n in sorted({n for n in names if names.count(n) > 1}):
         notes.append(("warn", f"Two combos are both named '{n}'. Rename one; the schedule can't tell them apart."))
