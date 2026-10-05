@@ -424,7 +424,7 @@ class CombosPanel:
                 menu.add_separator()
             menu.add_command(label=f"Add a member to {combo.name}...", command=self.add_member)
             if not self.data["settings"].use_first_year:
-                menu.add_command(label="First-year tag: first-year combos are off (Settings tab)", state="disabled")
+                pass                                  # first-year combos are off (Settings): no tag, no option
             elif combo.first_year:
                 menu.add_command(label=f"Remove the first-year tag from {combo.name}",
                                  command=lambda: self.set_first_year(combo, False))
