@@ -108,23 +108,34 @@ class SwapPanel:
     # loading
     def load(self, quiet=False):
         """quiet: when loading by itself (app start, folder change), a problem is shown in the tab, not a pop-up.
-        Pending changes are never thrown away by a quiet reload; a Reload click asks first."""
-        if self.pending:
-            if quiet or not messagebox.askyesno("Discard pending changes?", f"{len(self.pending)} change(s) haven't "
-                                                "been saved. Reload anyway and lose them?", icon="warning"):
+        Pending changes are never thrown away by a quiet reload (it refreshes the combos' members and names and
+        keeps the pending schedule); a Reload click asks first."""
+        keep = bool(self.pending) and quiet and self.state is not None
+        if self.pending and not keep:
+            if not messagebox.askyesno("Discard pending changes?", f"{len(self.pending)} change(s) haven't "
+                                       "been saved. Reload anyway and lose them?", icon="warning"):
                 return
-        self.pending = []
-        self.refresh_pending()
+        if not keep:
+            self.pending = []
+            self.refresh_pending()
         folder = self.get_folder()
         try:
             settings, _ = load_settings(folder / SETTINGS_FILE)
             files = input_files(folder)
             inp = load_input(folder, settings, files["approvals"], files["conflicts"])
             combos = {c.id: c for c in inp.combos}
-            if quiet and not (folder / "Schedule.xlsx").exists():
-                raise ScheduleFileError("No Schedule.xlsx yet: make the schedule first (Run tab, step 2).")
-            sets, problems, supervised, typed = read_schedule(folder / "Schedule.xlsx", combos)
+            if keep:                          # members changed (Combos tab) while swaps are pending: keep the schedule
+                if any(c and c not in combos for row in self.state["sets"].values() for c in row.values()):
+                    return                    # a combo is gone: wait until the pending changes are confirmed
+                sets, supervised, typed = self.state["sets"], self.state["supervised"], self.state["typed"]
+                problems = []
+            else:
+                if quiet and not (folder / "Schedule.xlsx").exists():
+                    raise ScheduleFileError("No Schedule.xlsx yet: make the schedule first (Run tab, step 2).")
+                sets, problems, supervised, typed = read_schedule(folder / "Schedule.xlsx", combos)
         except (SettingsError, InputError, ScheduleFileError) as e:
+            if keep:
+                return
             if not quiet:
                 messagebox.showerror("Can't load the schedule", str(e))
             self.state = None
@@ -141,7 +152,8 @@ class SwapPanel:
         def name_of(e):                       # adds the email when two people would look the same
             n = names.get(e) or name_from_email(e)
             return f"{n} ({e})" if n in clash else n
-        self.base_sets = {d: dict(row) for d, row in sets.items()}
+        if not keep:
+            self.base_sets = {d: dict(row) for d, row in sets.items()}
         self.state = dict(settings=settings, inp=inp, combos=combos, sets=sets, supervised=supervised, typed=typed,
                           nights=generate_nights(settings), name_of=name_of)
         # "Combo 07 (Ana Ruiz)": the liaison, so the director recognises the combo
