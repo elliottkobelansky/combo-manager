@@ -433,7 +433,7 @@ class SettingsPanel:
 
     def new_semester(self, new):
         """When the semester name changes and the old semester's schedule is in the data folder: offers to move its
-        files into a folder named after it. True = move, False = leave them, 'cancel' = don't save, None = no
+        files into Archive/<semester> in the data folder. True = move, False = leave them, 'cancel' = don't save, None = no
         semester change (or nothing to move)."""
         if not self.path.exists():
             return None
@@ -455,8 +455,8 @@ class SettingsPanel:
         self.old_semester = on_file or old.semester_name
         answer = messagebox.askyesnocancel(
             "New semester", f"The semester changes from {old.semester_name} to {new.semester_name}.\n\n"
-            f"Move {self.old_semester}'s files (Schedule.xlsx, the PDFs, contact lists, schedule backups) into a "
-            f"'{self.old_semester}' folder in the data folder?\n\nYes: move them (recommended).\nNo: leave them (the "
+            f"Move {self.old_semester}'s files (Schedule.xlsx, the PDFs, contact lists, schedule backups) into "
+            f"'Archive/{self.old_semester}' in the data folder?\n\nYes: move them (recommended).\nNo: leave them (the "
             f"app ignores a schedule from another semester; making the {new.semester_name} schedule moves them "
             "then).\nCancel: don't save.")
         return "cancel" if answer is None else answer
@@ -522,7 +522,7 @@ class SettingsPanel:
         if archive:
             from outputs.excel_schedule import archive_semester
             moved = archive_semester(self.get_folder(), self.old_semester)
-            warnings = [f"{self.old_semester}'s files moved to the '{moved.name}' folder."] + warnings
+            warnings = [f"{self.old_semester}'s files moved to 'Archive/{moved.name}'."] + warnings
         self.saved = self.snapshot()
         self.check_unsaved()
         self.status.configure(text=f"Saved to {SETTINGS_FILE}." + (f" Note: {' '.join(warnings)}" if warnings else ""),

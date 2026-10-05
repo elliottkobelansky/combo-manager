@@ -43,7 +43,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 ### 3. Hand-over: program local, data in OneDrive (decided 2026-10-05)
 - **Synced (OneDrive), one shared folder e.g. `Combo Scheduler data`:** `Combo Approvals.xlsx` and `Conflicts.xlsx`
   (the flows write there), `settings.json`, `scheduler_data.json`, `Schedule.xlsx` + `Schedule backups/`, the PDFs
-  and contact lists, past semesters' folders.
+  and contact lists, and `Archive/` with past semesters.
 - **Local (each computer):** the program (unzipped folder now, the packaged app later), `~/.combo-scheduler-python`
   (rebuilt if missing), `~/.combo_scheduler.json` (which data folder, text size, dark mode: per computer on purpose).
 - [ ] First run with no data folder chosen and no `data/` next to the program: ask for the data folder (today an
@@ -106,7 +106,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   pending changes, one backup per save; searches in the background), Settings (sections, switches, unsaved-changes
   warning, year check), About. Setup screen on first run, text size, dark mode, horizontal scrollbars.
 - **Schedule file:** `Schedule.xlsx` is hand-editable, records its semester, and decides the nights once it
-  exists; a new semester files the old files into a folder named after it.
+  exists; a new semester files the old files into `Archive/<semester>`.
 - **Project:** git + private GitHub repo, `app/` `data/` `dev/` layout, launchers that find a Python with tkinter, the Mac zip,
   realistic fake data (instruments, supervisors), `Quick Start.pdf`.
 

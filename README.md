@@ -129,7 +129,7 @@ reads the file as it is now (shows per combo, open sets nobody can take, and the
 
 **A new semester:** `Schedule.xlsx` records the semester it was made for. Change the semester name in Settings and
 Save: the app offers to move last semester's files (`Schedule.xlsx`, the PDFs, `Contact lists.xlsx`, `Schedule
-backups`) into a folder named after it in the data folder. A schedule from another semester is never shown or
+backups`) into `Archive/<semester>` in the data folder. A schedule from another semester is never shown or
 checked as this one's, and step 2 moves it away first if it's still there. Combo numbers, member edits and
 instruments are kept per semester in `scheduler_data.json`, so the new semester starts at Combo 01.
 

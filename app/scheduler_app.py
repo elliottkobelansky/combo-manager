@@ -484,8 +484,8 @@ class App:
         if other is not None:                         # last semester's files: filed away, nothing is lost
             if not messagebox.askyesno(
                     "New semester", f"Schedule.xlsx is {('for ' + other) if other else 'from another semester'}. "
-                    f"Its files (schedule, PDFs, contact lists, backups) will be moved into a folder named "
-                    f"'{other or 'Old schedule'}' in the data folder, then a new schedule is made.\n\nGo ahead?"):
+                    f"Its files (schedule, PDFs, contact lists, backups) will be moved into "
+                    f"'Archive/{other or 'Old schedule'}' in the data folder, then a new schedule is made.\n\nGo ahead?"):
                 return
         elif existing and not messagebox.askyesno(
                 "Replace the schedule?",

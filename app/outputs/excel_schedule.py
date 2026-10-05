@@ -8,8 +8,9 @@ from openpyxl.styles import Font, PatternFill
 
 
 
-# A semester's files in the data folder: moved together into a folder named after the semester when a new semester
-# starts (archive_semester).
+# A semester's files in the data folder: moved together into Archive/<semester>/ when a new semester starts
+# (archive_semester).
+ARCHIVE = "Archive"
 SEMESTER_FILES = ["Schedule.xlsx", "Schedule.pdf", "Combos.pdf", "Contact lists.xlsx", "Schedule backups"]
 
 
@@ -61,22 +62,23 @@ def check_semester(path, settings):
     if sem != settings.semester_name:
         raise ScheduleFileError(f"{Path(path).name} is for {sem or 'another semester'}, not {settings.semester_name}. "
                                 f"Make the {settings.semester_name} schedule (Run tab, step 2); the old files are moved "
-                                "into a folder named after their semester first.")
+                                "into the data folder's Archive first.")
 
 
 def archive_semester(folder, semester):
-    """Moves a semester's files (SEMESTER_FILES) into folder/<semester>/ (or '<semester> (2)', ... if that exists).
-    Returns the new folder, or None when there was nothing to move."""
+    """Moves a semester's files (SEMESTER_FILES) into folder/Archive/<semester>/ (or '<semester> (2)', ... if that
+    exists). Returns the new folder, or None when there was nothing to move."""
     import shutil
     folder = Path(folder)
     present = [folder / n for n in SEMESTER_FILES if (folder / n).exists()]
     if not present:
         return None
     name = re.sub(r'[\\/:*?"<>|]+', "-", str(semester or "Old schedule")).strip() or "Old schedule"
-    dest, n = folder / name, 2
+    archive = folder / ARCHIVE
+    dest, n = archive / name, 2
     while dest.exists():
-        dest, n = folder / f"{name} ({n})", n + 1
-    dest.mkdir()
+        dest, n = archive / f"{name} ({n})", n + 1
+    dest.mkdir(parents=True)
     for p in present:
         shutil.move(str(p), str(dest / p.name))
     return dest
