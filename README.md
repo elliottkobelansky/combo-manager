@@ -199,7 +199,7 @@ taken by then): it can claim open sets in the Swaps tab.
 **Combos tab:** every accepted combo (with its liaison and shows) and its people, in columns: Instrument, Also in
 (other combos), Conflicts (dates submitted), Email; with a search box. **Click an Instrument cell** to pick one
 (Saxophone, Trumpet, Trombone, Guitar, Piano, Bass, Drums, or Other: type anything); it's per person per combo and
-kept in `scheduler_data.json`. **Export combo list** writes `Combos.pdf` (every combo with its supervisor and
+kept in `scheduler_data.json`. **Export PDF** writes `Combos.pdf` (every combo with its supervisor and
 members, liaison first, instruments when set; numbered like the calendar). Double-click a person
 (or Actions > **Change name**) to correct their name, or double-click their email (or Actions > **Change email**) to fix a typo'd
 address: the spreadsheets aren't changed, the fix is applied whenever they're read, to the combos *and* the

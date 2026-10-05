@@ -77,7 +77,7 @@ class CombosPanel:
         self.actions_hint = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.actions_hint.pack(side="left", padx=10)
         self.tree.bind("<<TreeviewSelect>>", lambda _: self.show_actions_hint(), add="+")
-        ttk.Button(bottom, text="Export combo list", style="Accent.TButton",
+        ttk.Button(bottom, text="Export PDF", style="Accent.TButton",
                    command=self.export_pdf).pack(side="right")
 
         self.data = None

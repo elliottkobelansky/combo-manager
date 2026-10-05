@@ -65,8 +65,8 @@ class SchedulePanel:
 
         bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
-        ttk.Button(bottom, text="Export PDF", style="Accent.TButton", command=self.export_pdf).pack(side="left")
-        ttk.Button(bottom, text="Expand all", command=lambda: self.expand(True)).pack(side="left", padx=(12, 0))
+        ttk.Button(bottom, text="Export PDF", style="Accent.TButton", command=self.export_pdf).pack(side="right")
+        ttk.Button(bottom, text="Expand all", command=lambda: self.expand(True)).pack(side="left")
         ttk.Button(bottom, text="Collapse all", command=lambda: self.expand(False)).pack(side="left", padx=6)
         ttk.Button(bottom, text="Export contact lists", command=self.export_contacts).pack(side="left", padx=(12, 0))
         self.status = ttk.Label(bottom, text="", style="Hint.TLabel")
