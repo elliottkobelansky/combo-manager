@@ -25,8 +25,9 @@ combos are scheduled and appear in `Combos.pdf`.
 - [ ] Test with a few test submissions, then delete the test rows.
 
 **Director's routine:** click Accept / Accept - first-year combo / Reject in Outlook (custom responses;
-the flow turns the click into Status = Accepted / Rejected and First year = Yes / No). To withdraw a combo or fix its first-year
-tag, edit that row in the workbook. Rows still Pending = waiting for a decision. The flow gives up after 30 days
+the flow turns the click into Status = Accepted / Rejected and First year = Yes / No). Everything else is in the
+app's Combos tab (2026-10-05): withdraw / put back, fix the first-year tag, add or remove members, change the
+liaison; pending combos are listed there in grey. Rows still Pending = waiting for a decision. The flow gives up after 30 days
 (Power Automate's limit), so a row older than that stays Pending until it's typed in by hand (in README step 2).
 
 **Combo Info retired (2026-10-04).** Python reads `Combo Approvals.xlsx` directly again (`inputs.py`: only Accepted
@@ -153,8 +154,8 @@ handled without problems. This happens sometimes, and it shouldn't be an issue.
 **Fixed in the code (2026-10-04):**
 - [x] The parser keeps any valid email (it used to remove non-`@mail.mcgill.ca` members). The report lists
   non-McGill members as INFO.
-- [x] A bare `@mcgill.ca` is still rewritten to `@mail.mcgill.ca` (a common student slip); other domains are
-  kept as typed (lowercased, so `Jamie@Gmail.com` = `jamie@gmail.com`).
+- [x] A bare `@mcgill.ca` is still rewritten to `@mail.mcgill.ca` (a common student slip; since 2026-10-05 the
+  `email_domain_fixes` setting); other domains are kept as typed (lowercased, so `Jamie@Gmail.com` = `jamie@gmail.com`).
 - [x] A supervisor with a non-McGill address is fine; only a student address (`@mail.mcgill.ca`) is flagged.
 - [x] Fake data has a Gmail member and a Gmail liaison with conflicts; `test_rules.py` checks they're kept.
 - Already there: a warning when someone submits conflicts but isn't in any combo (catches one person using a
@@ -186,14 +187,14 @@ checklist (settings values, set times, numbering restarts).
   such as `9001`).
 - **Accept / reject / withdraw without the approval email:** type the Status into the table (e.g. the request
   expired after 30 days, or went to the wrong person). Already in README step 2; move it to the guide.
-- **Fix a mistake in a submission:** edit the Members / Liaison / First year cell in the table (the script reads
-  the table, not the form). Or have them resubmit and reject the old row (see the withdraw / correction idea).
+- **Fix a mistake in a submission:** the app's Combos tab (add / remove members, liaison, first-year tag, names,
+  emails), kept in `scheduler_data.json`; the table isn't touched. Or have them resubmit and reject the old row.
 - **Conflicts for someone who can't use the form** (non-McGill member, form closed, sent by email): submit the
   conflict form for them with their email typed in.
 - **Late combo after the schedule is out:** accept it (it gets the next number; existing numbers
   are kept), and give it open sets in the app (Schedule tab: double-click an open set) in `Schedule.xlsx`; check with `solve.py --stats`. Don't re-run `solve.py`.
-- **Swaps and withdrawals after publishing:** edit the Combo column in `Schedule.xlsx` (`OPEN` for a freed set),
-  then `solve.py --stats`.
+- **Swaps and withdrawals after publishing:** the app (Swaps / Schedule tabs; Combos tab > Withdraw opens the
+  combo's sets). By hand: edit the Combo column in `Schedule.xlsx` (`OPEN` for a freed set), then `solve.py --stats`.
 - **The flow is broken or its owner left:** how to rebuild it (the step-by-step setup), and where the
   ownership notes are (#6). Meanwhile, approve by typing into the table.
 - **Python not available on this computer:** what to install (README Setup), or who to ask.
@@ -206,8 +207,20 @@ README; the README stays the technical reference.
 ## 9. Instruments: track each combo's instrumentation and check restrictions
 
 **Started (2026-10-04):** the director can set each person's instrument per combo in the app's Combos tab (saved in
-`scheduler_data.json`, per semester: "Combo 05|email" -> instrument). Not used yet by the checks, the solver or
-the PDFs; next steps below (and maybe show instruments on the combo list PDF).
+`scheduler_data.json`, per semester: "Combo 05|email" -> instrument). Since 2026-10-05: shown on `Combos.pdf`,
+members listed by instrument (Other, Voice, Trumpet, Saxophone, Trombone, Guitar, Piano, Bass, Drums, none; in
+`util.INSTRUMENTS`), and the fake data has realistic instruments. Not used yet by the checks or the solver.
+
+**Next (asked for 2026-10-05): per-instrument limits on combos per student.** A student playing a horn should be
+in at most 1 combo; a rhythm-section player (piano, guitar, bass, drums) in at most 2; others to decide (voice?
+"Other"?).
+- [ ] Settings: a small table, instrument (or group: Horns = Trumpet, Saxophone, Trombone; Rhythm = Piano, Guitar,
+  Bass, Drums) -> most combos per student, blank = no limit. Decide whether the limit counts the student's combos
+  in total or only those where they play that instrument (e.g. a pianist who also sings in a second combo).
+- [ ] Check inputs and the Combos tab warn about students over their limit (a warning, not a solver rule: it's
+  about who's in which combo, which the director decides when approving).
+- [ ] The Add member dialog warns before adding someone over their limit.
+- [ ] Tests (fake data already has students in several combos with instruments).
 
 **Goal:** the director currently keeps track of which instruments each combo has, and of instrument
 restrictions, by hand. Could this be automatic?
@@ -312,6 +325,41 @@ Also done: **give it away** (to another combo, or leave it open; only when not n
 - [ ] Maybe: "move the supervision too" when a swap would take a combo off its only supervised night.
 - [ ] Maybe (Stage 3): a swap-request form + flow + table, shown in the Swaps tab as an inbox (legal / not legal,
   Apply).
+
+---
+
+## 14. Robustness, distribution and the app (2026-10-05)
+
+**Done:**
+- [x] Git repository (local; no GitHub remote yet). Folder layout: launchers at the top, `app/`, `dev/`, `data/`
+  (data is gitignored: real student emails from Winter on).
+- [x] First run: a Setup screen (Install, then the app reopens) instead of a half-working window.
+- [x] Settings: grouped and scrollable; switches for supervised nights and first-year combos (on needs a date);
+  student email domain and domain fixes as settings; "Warn: members per combo"; unsaved changes shown (orange note,
+  "Settings ●") and asked about when leaving; saving reloads the other tabs; solver limit default 90.
+- [x] Solver: "Shows per venue" removed; new goal "one show at each venue a combo can make"; goals re-ranked
+  (fewest supervised nights above venues; student twice in a night last).
+- [x] Run tab: pick the two spreadsheets from anywhere (remembered per computer and data folder); Step 2 shows
+  "still working" lines.
+- [x] Combos tab: Actions menu (add / remove members, liaison, first-year tag, withdraw / put back), pending
+  combos in grey, members by instrument; all kept in `scheduler_data.json`, the approvals never changed.
+- [x] Fixes: label colours under the Sun Valley theme; stale-copy overwrite of `scheduler_data.json`; half-synced
+  spreadsheets; pop-up menus stuck open / off-screen on Linux; supervisor rows; the member list while swaps are pending.
+
+**Still to do:**
+- [ ] Pin package versions (`requirements.txt`, used by the Install button).
+- [ ] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `settings.json` and `Schedule.xlsx`.
+- [ ] A log file in the data folder, for "send this to whoever maintains it".
+- [ ] A "someone else has this open" lock file, and warnings about OneDrive conflict copies.
+- [ ] Warn when an approvals row changed after the combo was edited in the app (snapshot of the row at edit time),
+  and when a Response Id comes back with completely different members (form responses reset mid-semester).
+- [ ] Decide: keep or drop the `email_domain_fixes` setting (proposal: drop it, and instead warn when the same
+  name appears on two domains, e.g. `ana.ruiz@mcgill.ca` vs `@mail.mcgill.ca`; see #10).
+- [ ] Combos tab: **New combo...** for late combos after the form closed (members, liaison, supervisor; next number).
+- [ ] Conflicts: overrule / restore a conflict in the app instead of Excel.
+- [ ] PyInstaller builds (Windows / Mac / Linux) on GitHub Actions, then test on real Windows and Mac (#12);
+  needs the GitHub remote.
+- [ ] Maybe: the HiGHS experiment (does a browser-only web app keep up with CP-SAT?), and the web app after Winter 2027.
 
 ---
 
