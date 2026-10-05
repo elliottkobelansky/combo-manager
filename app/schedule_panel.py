@@ -10,7 +10,7 @@ from tkinter import messagebox, ttk
 
 from core.model import make_label
 from core.swaps import claimers
-from theme import popup, scrolled_tree
+from theme import in_background, popup, scrolled_tree
 
 
 class SchedulePanel:
@@ -297,12 +297,12 @@ class SchedulePanel:
     def show_claimers(self, item, d, k):
         st = self.swaps.state
         self.frame.configure(cursor="watch")
-        self.frame.update_idletasks()
-        try:
-            options = claimers(st["sets"], st["nights"], st["combos"], st["inp"], st["settings"], st["supervised"],
-                               st["typed"], d, k, st["name_of"])
-        finally:
-            self.frame.configure(cursor="")
+        in_background(self.frame, lambda: claimers(st["sets"], st["nights"], st["combos"], st["inp"], st["settings"],
+                                                   st["supervised"], st["typed"], d, k, st["name_of"]),
+                      lambda options: self.claimers_menu(item, d, k, options))
+
+    def claimers_menu(self, item, d, k, options):
+        self.frame.configure(cursor="")
         menu = self.menu()
         if not options:
             menu.add_command(label="No combo can take this set (conflicts or rules)", state="disabled")

@@ -93,6 +93,7 @@ def apply(root, mode="light", scale=None):
         root.configure(background=p["bg"])
     _scale_named_fonts(root)
     style.configure("Treeview", rowheight=size(26))
+    style.configure("Treeview.Heading", padding=(size(6), 2, 2, 2))   # column titles: not flush with the left edge
     family = ui_font()
     style.configure("Title.TLabel", font=(family, size(18), "bold"))
     style.configure("Sub.TLabel", font=(family, size(10)), foreground=p["muted"])
@@ -139,6 +140,32 @@ def size_columns(tree):
     """(Re)sets a scrolled_tree's column widths for the current text size."""
     for col, _, width, stretch in tree.spec:
         tree.column(col, width=size(width), minwidth=size(width), stretch=stretch, anchor="w")
+
+
+def in_background(widget, work, done):
+    """Runs work() in a thread, then done(result) back in the window's thread. A calculation of a few tenths of a
+    second on the window's own thread stops it drawing, which a Mac shows as a black window."""
+    import queue
+    import threading
+    results = queue.Queue()
+
+    def run():
+        try:
+            results.put((True, work()))
+        except Exception as e:                        # passed on, so it shows up like any other error
+            results.put((False, e))
+    threading.Thread(target=run, daemon=True).start()
+
+    def poll():
+        try:
+            ok, value = results.get_nowait()
+        except queue.Empty:
+            widget.after(30, poll)
+            return
+        if not ok:
+            raise value
+        done(value)
+    widget.after(30, poll)
 
 
 def popup(menu, x, y):

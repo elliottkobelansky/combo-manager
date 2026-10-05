@@ -14,6 +14,7 @@ from inputs import InputError, load_input, name_from_email
 from store import Store
 from outputs.excel_schedule import ScheduleFileError, open_label, read_schedule, write_swap
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
+from theme import in_background
 
 
 class SwapPanel:
@@ -22,6 +23,7 @@ class SwapPanel:
         self.state, self.options, self.shows, self.visible = None, [], [], []
         self.labels, self.by_name = {}, {}
         self.pending, self.base_sets = [], None       # changes not saved yet; the schedule as it is on disk
+        self.search_id = 0                            # the latest option search (an older one's results are dropped)
         self.listeners = []                           # called whenever the (pending) schedule changes
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
 
@@ -201,15 +203,20 @@ class SwapPanel:
         if not sel:
             return
         d, k = self.shows[int(sel[0])]
-        st = self.state
-        self.frame.configure(cursor="watch")
-        self.frame.update_idletasks()
-        try:
-            self.options = swap_options(st["sets"], st["nights"], st["combos"], st["inp"], st["settings"],
-                                        st["supervised"], st["typed"], self.cid(), d, k, st["name_of"])
-        finally:
-            self.frame.configure(cursor="")
-        self.list_options()
+        st, cid = self.state, self.cid()
+        self.options = []
+        self.clear(self.option_list)
+        self.details.configure(text="Finding options...")
+        self.search_id += 1
+        search = self.search_id
+
+        def done(options):
+            if search == self.search_id:              # not overtaken by another pick meanwhile
+                self.options = options
+                self.list_options()
+        in_background(self.frame, lambda: swap_options(st["sets"], st["nights"], st["combos"], st["inp"],
+                                                       st["settings"], st["supervised"], st["typed"], cid, d, k,
+                                                       st["name_of"]), done)
 
     def list_options(self):
         if not self.state:
@@ -220,13 +227,27 @@ class SwapPanel:
         if claim:
             if not self.cid():
                 return
-            st = self.state
-            options = swap_options(st["sets"], st["nights"], st["combos"], st["inp"], st["settings"],
-                                   st["supervised"], st["typed"], self.cid(), name_of=st["name_of"])
-        elif not self.show_list.selection():
+            st, cid = self.state, self.cid()
+            self.details.configure(text="Finding open sets...")
+            self.search_id += 1
+            search = self.search_id
+
+            def done(options):
+                if search == self.search_id and self.mode.get() == "claim":
+                    self.show_options(options)
+            in_background(self.frame, lambda: swap_options(st["sets"], st["nights"], st["combos"], st["inp"],
+                                                           st["settings"], st["supervised"], st["typed"], cid,
+                                                           name_of=st["name_of"]), done)
             return
-        else:
-            options = [o for o in self.options if (o.kind in ("give", "drop")) == give]
+        if not self.show_list.selection():
+            return
+        self.show_options([o for o in self.options if (o.kind in ("give", "drop")) == give])
+
+    def show_options(self, options):
+        """Fills the options table (best first) for the current mode."""
+        self.clear(self.option_list)
+        mode = self.mode.get()
+        give, claim = mode == "give", mode == "claim"
         self.visible = options
         self.option_list.heading("with", text="Give to" if give else "Take" if claim else "Swap with")
         self.option_list.heading("place", text="The show" if give else f"{self.short()} plays instead"
