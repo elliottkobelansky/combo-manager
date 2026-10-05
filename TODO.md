@@ -40,10 +40,18 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [ ] Once real sign-ups are in: tune "Ideal days between shows" with `python app/solve.py --compare-gaps 14 21 28 35`.
 - [ ] Solver time: 90 (the new default; the current fake `settings.json` still says 30).
 
-### 3. Hand-over
-- [ ] Put the program folder in the shared OneDrive with `data/`, and try it on the **director's** computer
-  (Windows or Mac). Watch for: OneDrive dropping the Mac launcher's run permission (`chmod +x`), and the Mac
-  "Open Anyway" step.
+### 3. Hand-over: program local, data in OneDrive (decided 2026-10-05)
+- **Synced (OneDrive), one shared folder e.g. `Combo Scheduler data`:** `Combo Approvals.xlsx` and `Conflicts.xlsx`
+  (the flows write there), `settings.json`, `scheduler_data.json`, `Schedule.xlsx` + `Schedule backups/`, the PDFs
+  and contact lists, past semesters' folders.
+- **Local (each computer):** the program (unzipped folder now, the packaged app later), `~/.combo-scheduler-python`
+  (rebuilt if missing), `~/.combo_scheduler.json` (which data folder, text size, dark mode: per computer on purpose).
+- [ ] First run with no data folder chosen and no `data/` next to the program: ask for the data folder (today an
+  empty `data/` is quietly made next to the program).
+- [ ] The zip (and the packaged app) ship without `data/`; the fake data becomes a separate demo folder.
+- [ ] Quick Start + README: install the program locally, pick the OneDrive data folder, flows write into it.
+- [ ] Point both flows at the shared data folder.
+- [ ] Try it on the **director's** computer (Windows or Mac), including the Mac "Open Anyway" step.
 - [ ] Walk the director through `Quick Start.pdf` once.
 
 ### 4. Safety (small, worth doing)
