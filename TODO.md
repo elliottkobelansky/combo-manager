@@ -47,7 +47,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [ ] Walk the director through `Quick Start.pdf` once.
 
 ### 4. Safety (small, worth doing)
-- [ ] Back the code up off this laptop: a private GitHub repo (`gh auth login`).
+- [x] Backed up: private GitHub repo `elliottkobelansky/combo-scheduler` (2026-10-05; `data/` is never pushed).
 - [ ] Pin package versions (`requirements.txt`, used by the Install button).
 - [ ] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `settings.json`, `Schedule.xlsx`.
 - [ ] A log file in the data folder, for "send this to whoever maintains it".
@@ -99,7 +99,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   warning, year check), About. Setup screen on first run, text size, dark mode, horizontal scrollbars.
 - **Schedule file:** `Schedule.xlsx` is hand-editable, records its semester, and decides the nights once it
   exists; a new semester files the old files into a folder named after it.
-- **Project:** git (local), `app/` `data/` `dev/` layout, launchers that find a Python with tkinter, the Mac zip,
+- **Project:** git + private GitHub repo, `app/` `data/` `dev/` layout, launchers that find a Python with tkinter, the Mac zip,
   realistic fake data (instruments, supervisors), `Quick Start.pdf`.
 
 ## Decisions (so they aren't re-opened)
