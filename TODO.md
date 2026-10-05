@@ -368,6 +368,14 @@ Also done: **give it away** (to another combo, or leave it open; only when not n
 - [ ] PyInstaller builds (Windows / Mac / Linux) on GitHub Actions, then test on real Windows and Mac (#12);
   needs the GitHub remote.
 - [ ] Maybe: the HiGHS experiment (does a browser-only web app keep up with CP-SAT?), and the web app after Winter 2027.
+- [ ] Low priority: settings that change the nights (dates, show days, skip / extra dates, sets per night, set
+  times) after a schedule exists. Today the nights come from the settings but who plays from `Schedule.xlsx`, so an
+  added night shows up empty (and can't be claimed), a cancelled night's shows silently vanish from the Schedule tab,
+  the check and a rebuilt PDF, and changed times disagree with the file. Decided (2026-10-05): don't force a new
+  schedule; once one exists, `Schedule.xlsx` decides which nights exist. On Save settings with night changes, show
+  the effect (nights added / cancelled with the combos that lose a show / times changed) and offer: update
+  `Schedule.xlsx` in place (backup; new nights open; cancelled nights removed, their combos named), make a new
+  schedule (before publishing), or cancel. Mismatches found any other way get a clear warning.
 
 ---
 
