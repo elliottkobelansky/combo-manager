@@ -525,7 +525,8 @@ class SettingsPanel:
             warnings = [f"{self.old_semester}'s files moved to the '{moved.name}' folder."] + warnings
         self.saved = self.snapshot()
         self.check_unsaved()
-        self.status.configure(text=f"Saved to {SETTINGS_FILE}." + (f" Note: {' '.join(warnings)}" if warnings else ""))
+        self.status.configure(text=f"Saved to {SETTINGS_FILE}." + (f" Note: {' '.join(warnings)}" if warnings else ""),
+                              style="Warn.TLabel" if warnings else "Hint.TLabel")
         if self.on_save:
             self.on_save()
         return True

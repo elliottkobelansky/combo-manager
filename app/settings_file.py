@@ -272,7 +272,23 @@ def validate(data):
     timed = [sd for sd in show_days if sd.first_set is not None]
     if timed and len(timed) < len(show_days):
         warnings.append("Only some show days have set times; the others will show set numbers instead.")
+    warnings += year_warnings(settings)
     return settings, warnings
+
+
+def year_warnings(s):
+    """A year in the semester name ('Winter 2027'; '2026-2027' allows both) that the dates don't match: likely
+    last semester's dates left in. A warning only."""
+    years = {int(y) for y in re.findall(r"\b(?:19|20)\d{2}\b", s.semester_name)}
+    if not years:
+        return []
+    dates = ([("first show day", s.start_date), ("last show day", s.end_date)]
+             + [("skip date", d) for d in sorted(s.skip_dates)] + [("extra date", d) for d, _, _ in s.extra_dates])
+    off = [f"{what} {d}" for what, d in dates if d and d.year not in years]
+    if not off:
+        return []
+    return [f"The semester is '{s.semester_name}', but these dates are in another year: {', '.join(off)}. "
+            "Leftover dates from an earlier semester?"]
 
 
 def read_data(path):
