@@ -351,15 +351,18 @@ class CombosPanel:
         if not item:
             return
         self.tree.selection_set(item)
-        self.popup(self.build_menu(), event.x_root, event.y_root)
+        menu = self.build_menu()
+        menu.update_idletasks()
+        win = self.frame.winfo_toplevel()                 # the window's edges, not the screen's: with two monitors
+        bottom = win.winfo_rooty() + win.winfo_height()   # the "screen" can be taller than the one the app is on
+        up = event.y_root + menu.winfo_reqheight() > bottom
+        self.popup(menu, event.x_root, event.y_root - menu.winfo_reqheight() if up else event.y_root)
 
     def actions_menu(self):
         """The Actions button: the same menu as a right-click, for the selected row, opened under the button."""
         b, menu = self.actions, self.build_menu()
-        menu.update_idletasks()
-        below = b.winfo_rooty() + b.winfo_height()
-        fits = below + menu.winfo_reqheight() <= b.winfo_screenheight()
-        self.popup(menu, b.winfo_rootx(), below if fits else max(0, b.winfo_rooty() - menu.winfo_reqheight()))
+        menu.update_idletasks()                           # the button is at the bottom of the window: open upward
+        self.popup(menu, b.winfo_rootx(), max(0, b.winfo_rooty() - menu.winfo_reqheight()))
 
     def show_actions_hint(self):
         kind, combo, email = self.selected()
