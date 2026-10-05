@@ -255,6 +255,82 @@ def main():
         ok = "max_supervised_nights" in str(e)
         print(f"{'PASS' if ok else 'FAIL'}  too-small supervision cap is explained")
         failures += not ok
+
+    # Switches: supervision off = no supervised nights and nothing about them in the rule check; first-year off =
+    # no combo is first-year, whatever the approvals say.
+    from core.stats import schedule_stats
+    (tmp / "scheduler_data.json").unlink(missing_ok=True)
+    make(tmp / "a.xlsx", tmp / "f.xlsx", nights, 33, seed=1, sem=base.semester_name)
+    inp = load_input(tmp, base, "a.xlsx", "f.xlsx")
+    s = replace(base, extra_slot_policy="open", every_combo_supervised=False)
+    result = run_schedule(inp, s)
+    sets = {d: {k: c for k, c in enumerate(cs, start=1)} for d, cs in result.lineup.items()}
+    _, problems = schedule_stats(sets, result.nights, result.combos, inp, s, None)
+    ok = not result.supervised and not check(result, inp, s) and not problems
+    print(f"{'PASS' if ok else 'FAIL'}  supervision off: {len(result.supervised)} supervised nights, rule check clean")
+    failures += not ok
+    on, _ = validate({**DEFAULTS, "first_year_earliest_date": "2027-02-01"})
+    off, _ = validate({**DEFAULTS, "first_year_earliest_date": "2027-02-01", "use_first_year": False})
+    fy_on = sum(c.first_year for c in load_input(tmp, on, "a.xlsx", "f.xlsx").combos)
+    fy_off = sum(c.first_year for c in load_input(tmp, off, "a.xlsx", "f.xlsx").combos)
+    result = run_schedule(load_input(tmp, off, "a.xlsx", "f.xlsx"), replace(off, solver_time_limit_sec=10))
+    ok = fy_on > 0 and fy_off == 0 and off.first_year_earliest_date is None and not result.stats["early_first_year"]
+    print(f"{'PASS' if ok else 'FAIL'}  first-year off: {fy_on} first-year combos with it on, {fy_off} with it off")
+    failures += not ok
+
+    # Email rules from the settings: domain fixes, the student domain, and old settings keeping McGill's rules.
+    from inputs import EmailRules
+    from settings_file import parse_domain_fixes
+    bad = []
+    if parse_domain_fixes("mcgill.ca -> mail.mcgill.ca; @Gmial.com = gmail.com\n") != {
+            "mcgill.ca": "mail.mcgill.ca", "gmial.com": "gmail.com"}:
+        bad.append("parse_domain_fixes misread a list")
+    for wrong in ("mcgill.ca", "mcgill.ca -> ", "a -> b"):
+        try:
+            parse_domain_fixes(wrong)
+            bad.append(f"parse_domain_fixes accepted {wrong!r}")
+        except ValueError:
+            pass
+    rules = EmailRules("mail.mcgill.ca", {"gmial.com": "gmail.com"})
+    if rules.norm(" Ana.Ruiz@GMIAL.com ") != "ana.ruiz@gmail.com" or rules.norm("prof@mcgill.ca") != "prof@mcgill.ca":
+        bad.append("EmailRules.norm")
+    legacy = {k: v for k, v in DEFAULTS.items() if k not in ("student_email_domain", "email_domain_fixes")}
+    old, _ = validate(legacy)
+    if old.student_email_domain != "mail.mcgill.ca" or old.email_domain_fixes != {"mcgill.ca": "mail.mcgill.ca"}:
+        bad.append("settings saved before the email settings existed lost McGill's rules")
+    try:
+        validate({**DEFAULTS, "email_domain_fixes": "nonsense"})
+        bad.append("validate accepted unreadable email_domain_fixes")
+    except Exception:
+        pass
+    outside = lambda inp: [t for _, t in inp.notes if "with an email outside" in t]
+    anywhere, _ = validate({**DEFAULTS, "student_email_domain": ""})
+    elsewhere, _ = validate({**DEFAULTS, "student_email_domain": "school.edu"})
+    if outside(load_input(tmp, anywhere, "a.xlsx", "f.xlsx")):
+        bad.append("a blank student domain still lists outside members")
+    if not outside(load_input(tmp, elsewhere, "a.xlsx", "f.xlsx")):
+        bad.append("members outside student_email_domain aren't listed")
+    ok = not bad
+    print(f"{'PASS' if ok else 'FAIL'}  email rules come from the settings (domain fixes, student domain, old settings)")
+    for b in bad:
+        print("      -", b)
+    failures += not ok
+
+    # Input files from anywhere: picked per data folder, remembered, and back to the data folder's file on reset.
+    import app_config
+    app_config.CONFIG = tmp / "config.json"
+    elsewhere_dir = Path(tempfile.mkdtemp())
+    (tmp / "a.xlsx").replace(elsewhere_dir / "renamed approvals.xlsx")
+    usual = app_config.input_files(tmp)
+    app_config.pick_input_file(tmp, "approvals", elsewhere_dir / "renamed approvals.xlsx")
+    files = app_config.input_files(tmp)
+    picked_ok = (files["approvals"] == elsewhere_dir / "renamed approvals.xlsx" and files["conflicts"] == usual["conflicts"]
+                 and app_config.input_files(elsewhere_dir)["approvals"] == elsewhere_dir / "Combo Approvals.xlsx")
+    read_ok = len(load_input(tmp, base, files["approvals"], "f.xlsx").combos) == len(inp.combos)
+    app_config.pick_input_file(tmp, "approvals", None)
+    ok = picked_ok and read_ok and app_config.input_files(tmp) == usual and usual["approvals"] == tmp / "Combo Approvals.xlsx"
+    print(f"{'PASS' if ok else 'FAIL'}  input files: a renamed file in another folder is picked, read, and reset")
+    failures += not ok
     print("\nAll good." if not failures else f"\n{failures} scenario(s) failed.")
     return failures
 

@@ -5,6 +5,8 @@ from pathlib import Path
 
 # The default data folder (spreadsheets, settings, outputs): data/ next to app/. The app can pick another one.
 DATA_FOLDER = Path(__file__).resolve().parent.parent / "data"
+# The input spreadsheets' usual names (the app can pick other files: app_config.py).
+APPROVALS_FILE, CONFLICTS_FILE = "Combo Approvals.xlsx", "Conflicts.xlsx"
 EXCEL_EPOCH = date(1899, 12, 30)
 
 

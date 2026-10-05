@@ -7,6 +7,7 @@ settings.json is plain text; you can read it, but the app is the easy way to cha
 times HH:MM (24-hour).
 """
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -19,6 +20,7 @@ DEFAULTS = {
     "semester_name": "Winter 2027",
     "start_date": "2027-01-12",
     "end_date": "2027-04-09",
+    "use_first_year": True,
     "first_year_earliest_date": None,
     "min_days_between_shows": 28,
     "max_blocked_dates_per_person": 3,
@@ -30,6 +32,8 @@ DEFAULTS = {
     "every_combo_supervised": True,
     "max_supervised_nights": 10,
     "solver_time_limit_sec": 30,
+    "student_email_domain": "mail.mcgill.ca",
+    "email_domain_fixes": "mcgill.ca -> mail.mcgill.ca",
     "show_days": [
         {"weekday": "Tuesday", "venue": "Upstairs", "sets": 4, "min_per_combo": 1, "first_set": "19:00",
          "set_length": 45, "break": 15, "supervision_preferred": True},
@@ -46,6 +50,7 @@ HELP = {
     "semester_name": "Must match the form's Semester answer exactly (e.g. Winter 2027).",
     "start_date": "First day shows could happen.",
     "end_date": "Last day shows could happen.",
+    "use_first_year": "Off: no combo is treated as first-year, whatever the approvals say.",
     "first_year_earliest_date": "First-year combos avoid playing before this date. Blank = no such date.",
     "min_days_between_shows": "Ideal gap between one combo's shows; closer pairs are avoided, the closer the more.",
     "max_blocked_dates_per_person": "Warning only: flags students who blocked more show nights than this.",
@@ -54,10 +59,41 @@ HELP = {
     "min_shows_per_combo": "Shows per combo in total, at any venues (venue minimums still apply). Open mode: exactly this.",
     "core_shows_per_venue": "Only if the line above is blank: open mode shows per venue. Also caps first-years in auto mode.",
     "max_shows_per_combo": "Cap on total shows per combo. Blank = no cap.",
-    "every_combo_supervised": "Every combo plays at least one night a professor attends (a full night, no open sets).",
+    "every_combo_supervised": "Every combo plays at least one night a professor attends (a full night, no open sets). "
+                              "Off: no supervised nights.",
     "max_supervised_nights": "At most this many supervised nights; within it, as few as possible. Blank = no limit.",
     "solver_time_limit_sec": "How long the solver searches (roughly seconds). 30 is plenty unless it says FEASIBLE.",
+    "student_email_domain": "Students' email domain, e.g. mail.mcgill.ca. Other addresses are fine, just listed. "
+                            "Blank = don't check.",
+    "email_domain_fixes": "Domain slips to correct, e.g. mcgill.ca -> mail.mcgill.ca, gmial.com -> gmail.com. "
+                          "Blank = none.",
 }
+
+# Settings saved before these existed keep McGill's behaviour.
+LEGACY = {"student_email_domain": "mail.mcgill.ca", "email_domain_fixes": "mcgill.ca -> mail.mcgill.ca"}
+
+
+def parse_domain_fixes(text):
+    """'mcgill.ca -> mail.mcgill.ca, gmial.com -> gmail.com' -> {typed: real}. Also takes '=' or '→', and a dict.
+    Raises ValueError naming the part it can't read."""
+    if isinstance(text, dict):
+        pairs = text.items()
+    else:
+        pairs = []
+        for part in re.split(r"[,;\n]+", str(text or "")):
+            if not part.strip():
+                continue
+            bits = re.split(r"\s*(?:->|→|=)\s*", part.strip())
+            if len(bits) != 2 or not all(bits):
+                raise ValueError(f"can't read '{part.strip()}'. Write it as typed.domain -> real.domain")
+            pairs.append(bits)
+    fixes = {}
+    for typed, real in pairs:
+        typed, real = str(typed).strip().lstrip("@").lower(), str(real).strip().lstrip("@").lower()
+        if "." not in typed or "." not in real or " " in typed + real:
+            raise ValueError(f"'{typed} -> {real}' doesn't look like two email domains")
+        fixes[typed] = real
+    return fixes
 
 
 class SettingsError(Exception):
@@ -188,6 +224,15 @@ def validate(data):
     policy = str(data.get("extra_slot_policy") or "open").strip().lower()
     if policy not in ("auto", "open"):
         errors.append("Settings extra_slot_policy must be open or auto.")
+    domain = str(data.get("student_email_domain", LEGACY["student_email_domain"]) or "").strip().lstrip("@").lower()
+    if domain and ("." not in domain or " " in domain):
+        errors.append(f"Settings student_email_domain: '{domain}' isn't an email domain (e.g. mail.mcgill.ca).")
+    try:
+        fixes = parse_domain_fixes(data.get("email_domain_fixes", LEGACY["email_domain_fixes"]))
+    except ValueError as e:
+        errors.append(f"Settings email_domain_fixes: {e}.")
+        fixes = {}
+    use_first_year = bool(data.get("use_first_year", True))
     min_total, max_total = get_int("min_shows_per_combo", low=0), get_int("max_shows_per_combo", low=1)
     if min_total and max_total and min_total > max_total:
         errors.append(f"Settings: min_shows_per_combo ({min_total}) is more than max_shows_per_combo ({max_total}).")
@@ -195,7 +240,7 @@ def validate(data):
         semester_name=name, start_date=start, end_date=end, show_days=show_days,
         skip_dates=skips, extra_dates=extras, extra_times=extra_times,
         min_days_between_shows=get_int("min_days_between_shows", 14, low=0) or 0,
-        first_year_earliest_date=get_date("first_year_earliest_date", required=False),
+        first_year_earliest_date=get_date("first_year_earliest_date", required=False) if use_first_year else None,
         max_blocked_dates_per_person=get_int("max_blocked_dates_per_person", low=0),
         min_usable_nights_per_combo=get_int("min_usable_nights_per_combo", low=0),
         max_shows_per_combo=max_total,
@@ -205,6 +250,9 @@ def validate(data):
         solver_time_limit_sec=get_int("solver_time_limit_sec", 30, low=1) or 30,
         every_combo_supervised=bool(data.get("every_combo_supervised", True)),
         max_supervised_nights=get_int("max_supervised_nights", low=1),
+        use_first_year=use_first_year,
+        student_email_domain=domain,
+        email_domain_fixes=fixes,
     )
     if errors:
         raise SettingsError("\n".join(f"  - {e}" for e in errors))

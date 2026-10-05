@@ -246,7 +246,8 @@ instruments, brackets and any separator around a valid address are ignored. Dupl
 - [ ] Text with no email at all (e.g. a name alone, "same as above", "TBD"): report every leftover word or chunk
   of the Members cell that isn't an email, so the director can spot a missing member.
 - [ ] Typos in the domain (`@mail.mcgil.ca`, `@mail.mcgill.com`, `@gmial.com`, `@mailmcgill.ca`): warn, and
-  suggest the likely right address.
+  suggest the likely right address. Known slips can already be corrected automatically with the `email_domain_fixes`
+  setting (2026-10-05); still to do: spot unknown ones (e.g. close to `student_email_domain`) and suggest a fix.
 - [ ] A missing or doubled `@`, or spaces inside an address (`first.last @mail.mcgill.ca`).
 - [ ] The same person under two addresses (McGill in one combo, Gmail in another): only the conflict-form check
   in #7 covers this now.

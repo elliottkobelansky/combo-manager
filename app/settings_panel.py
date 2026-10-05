@@ -17,22 +17,37 @@ try:
 except ImportError:
     Calendar = None
 
-GENERAL = [  # (key, label, kind)  kind: text, date, date?, int, int?, policy, bool
+GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, int, int?, policy, bool
     ("semester_name", "Semester name", "text"),
     ("start_date", "First possible show day", "date"),
     ("end_date", "Last possible show day", "date"),
+    ("use_first_year", "First-year combos", "bool"),
     ("first_year_earliest_date", "First-year combos from", "date?"),
     ("extra_slot_policy", "Leftover sets", "policy"),
     ("min_shows_per_combo", "Shows per combo (total)", "int?"),
     ("max_shows_per_combo", "Most shows per combo", "int?"),
     ("core_shows_per_venue", "Shows per venue (old rule)", "int"),
-    ("every_combo_supervised", "Every combo supervised once", "bool"),
+    ("every_combo_supervised", "Supervised nights", "bool"),
     ("max_supervised_nights", "Most supervised nights", "int?"),
     ("min_days_between_shows", "Ideal days between shows", "int"),
     ("max_blocked_dates_per_person", "Warn: conflicts per person", "int?"),
     ("min_usable_nights_per_combo", "Warn: usable nights per combo", "int?"),
     ("solver_time_limit_sec", "Solver time (seconds)", "int"),
+    ("student_email_domain", "Student email domain", "text"),
+    ("email_domain_fixes", "Email domain fixes", "wide"),
 ]
+DEPENDS = {"first_year_earliest_date": "use_first_year",        # greyed out while the switch on the right is off
+           "max_supervised_nights": "every_combo_supervised"}
+
+
+def set_enabled(widget, on):
+    """Enables or disables a widget and everything inside it (e.g. a DateField's entry and buttons)."""
+    try:
+        widget.state(["!disabled"] if on else ["disabled"])
+    except (AttributeError, tk.TclError):
+        pass
+    for child in widget.winfo_children():
+        set_enabled(child, on)
 
 
 def weekday_of(text):
@@ -229,10 +244,10 @@ class SettingsPanel:
                 w = ttk.Combobox(gen, values=["open", "auto"], state="readonly", width=8)
             elif kind == "bool":
                 var = tk.BooleanVar()
-                w = ttk.Checkbutton(gen, variable=var)
+                w = ttk.Checkbutton(gen, variable=var, command=self.update_dependents)
                 w.var = var
             else:
-                w = ttk.Entry(gen, width=22 if kind == "text" else 8)
+                w = ttk.Entry(gen, width={"text": 22, "wide": 34}.get(kind, 8))
             w.grid(row=r, column=1, sticky="w", pady=3)
             ttk.Label(gen, text=HELP[key], anchor="w", justify="left", style="Hint.TLabel", wraplength=430).grid(
                 row=r, column=2, sticky="w", padx=(12, 0))
@@ -301,7 +316,12 @@ class SettingsPanel:
         self.show_days.set(data.get("show_days") or [])
         self.skip_dates.set(data.get("skip_dates") or [])
         self.extra_dates.set(data.get("extra_dates") or [])
+        self.update_dependents()
         self.status.configure(text=note)
+
+    def update_dependents(self):
+        for key, switch in DEPENDS.items():
+            set_enabled(self.widgets[key][0], self.widgets[switch][0].var.get())
 
     def collect(self):
         data = {}

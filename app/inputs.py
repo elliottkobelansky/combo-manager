@@ -4,7 +4,8 @@ COMBO APPROVALS (Combo Approvals.xlsx, table Approvals, filled by the approval f
 Columns found by words in the header, so exact wording and order don't matter:
     Response Id | Submitted | Semester | Liaison | Members | Supervisor | First year | Status | Decided by | ... | Notes
       - Members: every member's email, any separator and any text around them ("piano: ana.ruiz@..." works);
-        the liaison is added if missing; a bare @mcgill.ca becomes @mail.mcgill.ca
+        the liaison is added if missing; domain slips are corrected (settings email_domain_fixes, e.g. a bare
+        @mcgill.ca becomes @mail.mcgill.ca)
       - Status: Pending, Accepted, Rejected or Withdrawn (any capitalisation). Only Accepted rows are scheduled;
         Pending ones are reported (level "pending"), anything else gets a warning
       - optional: a header with "combo" and "name" -> that combo's name instead of Combo 01, 02, ...
@@ -34,11 +35,10 @@ from openpyxl import load_workbook
 
 from core.model import Combo, ScheduleInput
 from store import Store
-from util import blank, to_date
+from util import APPROVALS_FILE, CONFLICTS_FILE, blank, to_date  # noqa: F401  (others import the names from here)
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+'\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
-APPROVALS_FILE, CONFLICTS_FILE = "Combo Approvals.xlsx", "Conflicts.xlsx"
-EXAMPLE_EMAILS = {"first.last@mail.mcgill.ca"}      # placeholders from the form text; add more if needed
+EXAMPLE_NAMES = {"first.last"}                      # placeholder addresses from the form text (first.last@<domain>)
 
 # Used only if the conflicts export has no header row (the first cell is a number instead of a title).
 DEFAULT_CONFLICT_HEADERS = ["Id", "Start time", "Completion time", "Email", "Name", "Semester", "Your McGill Email",
@@ -50,22 +50,39 @@ class InputError(Exception):
     pass
 
 
-def norm_student(e):
-    """McGill students are @mail.mcgill.ca, and a bare @mcgill.ca is a common slip, so fix it. Any other address
-    (e.g. a Gmail address for a non-McGill member) is kept as typed, just lowercased."""
-    e = str(e or "").strip().lower()
-    return e[: -len("@mcgill.ca")] + "@mail.mcgill.ca" if e.endswith("@mcgill.ca") else e
+class EmailRules:
+    """The settings' email rules. norm(): lowercase and correct a domain slip (email_domain_fixes, e.g. mcgill.ca ->
+    mail.mcgill.ca); any other address (e.g. Gmail for a member from elsewhere) is kept as typed. is_student(): on
+    student_email_domain (always True when that's blank)."""
+
+    def __init__(self, domain="", fixes=None):
+        self.domain, self.fixes = domain, fixes or {}
+
+    @classmethod
+    def from_settings(cls, settings):
+        return cls(settings.student_email_domain, settings.email_domain_fixes)
+
+    def norm(self, e):
+        e = str(e or "").strip().lower()
+        user, at, dom = e.rpartition("@")
+        return f"{user}@{self.fixes[dom]}" if at and dom in self.fixes else e
+
+    def is_student(self, e):
+        return not self.domain or e.endswith("@" + self.domain)
+
+    def is_example(self, e):
+        return e.rpartition("@")[0] in EXAMPLE_NAMES
 
 
 def same(a, b):
     return str(a or "").strip().casefold() == str(b or "").strip().casefold()
 
 
-def first_email(*cells):
+def first_email(rules, *cells):
     for c in cells:
         m = EMAIL_RE.search(str(c or ""))
         if m:
-            return norm_student(m.group(0))
+            return rules.norm(m.group(0))
     return ""
 
 
@@ -141,7 +158,7 @@ COUNTS = ("", "active", "ok", "okay", "accepted", "counted", "counts")
 OVERRULED = ("overruled", "rejected", "ignored", "not counted")
 
 
-def parse_conflicts(path, sheet, semester, notes, fix=lambda e: e):
+def parse_conflicts(path, sheet, semester, notes, fix=lambda e: e, rules=EmailRules()):
     what = "Conflicts"
     headers, rows = read_export(path, sheet, DEFAULT_CONFLICT_HEADERS, what, notes)
     sem_i = col(headers, "semester")
@@ -156,7 +173,7 @@ def parse_conflicts(path, sheet, semester, notes, fix=lambda e: e):
     best, submissions = {}, 0
     for xl, key, r in rows:
         login = cell(r, login_i)
-        email = fix(first_email(cell(r, typed_i), "" if same(login, "anonymous") else login))
+        email = fix(first_email(rules, cell(r, typed_i), "" if same(login, "anonymous") else login))
         if not email:
             notes.append(("warn", f"Conflicts row {xl}: no email; skipped."))
             continue
@@ -199,7 +216,7 @@ def parse_conflicts(path, sheet, semester, notes, fix=lambda e: e):
 ACCEPTED, REJECTED, WITHDRAWN = ("accepted",), ("rejected",), ("withdrawn",)
 
 
-def parse_approvals(path, sheet, semester, notes, store):
+def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use_first_year=True):
     """The approvals table -> accepted Combos, numbered with (and adding to) store's numbers for this semester."""
     what = "Approvals"
     headers, rows = read_export(path, sheet, None, what, notes, needs=("status", "members"))
@@ -225,7 +242,7 @@ def parse_approvals(path, sheet, semester, notes, store):
         status = str(cell(r, status_i) or "").strip().lower()
         ref = ref_of(cell(r, id_i)) if id_i is not None and not blank(cell(r, id_i)) else f"row{xl}"
         seen_refs.add(ref)
-        liaison = store.fix_email(first_email(cell(r, liaison_i)))
+        liaison = store.fix_email(first_email(rules, cell(r, liaison_i)))
         who = f"response {ref} ({liaison or 'no liaison'})"
         if status in REJECTED:
             rejected.append(who)
@@ -242,13 +259,13 @@ def parse_approvals(path, sheet, semester, notes, store):
             continue
         members, seen = [], set()
         for m in EMAIL_RE.findall(" ".join(str(cell(r, i) or "") for i in (liaison_i, members_i))):
-            e = store.fix_email(norm_student(m))
-            if e in EXAMPLE_EMAILS:
+            e = store.fix_email(rules.norm(m))
+            if rules.is_example(e):
                 notes.append(("warn", f"{what} {who}: example address '{e}' found; removed."))
             elif e not in seen:
                 seen.add(e)
                 members.append(e)
-                if not e.endswith("@mail.mcgill.ca"):
+                if not rules.is_student(e):
                     outside.add(e)
         if not members:
             notes.append(("warn", f"{what} {who}: accepted but has no valid member emails; skipped."))
@@ -258,18 +275,20 @@ def parse_approvals(path, sheet, semester, notes, store):
         prof = store.fix_email(prof_m.group(0).lower()) if prof_m else ""
         if prof_i is not None and not prof:
             notes.append(("warn", f"{what} {who}: no supervisor email."))
-        elif prof.endswith("@mail.mcgill.ca"):
+        elif rules.domain and rules.is_student(prof):
             notes.append(("warn", f"{what} {who}: supervisor '{prof}' is a student address. A mistake?"))
         found.append(dict(xl=xl, key=key, ref=ref, members=frozenset(members), liaison=liaison, prof=prof,
                           name=str(cell(r, name_i)).strip() if name_i is not None and not blank(cell(r, name_i)) else "",
-                          fy=fy_i is not None and str(cell(r, fy_i) or "").strip().lower() in ("yes", "y", "true", "1")))
+                          fy=use_first_year and fy_i is not None
+                          and str(cell(r, fy_i) or "").strip().lower() in ("yes", "y", "true", "1")))
 
     if pending:
         notes.append(("pending", f"{len(pending)} combo(s) are still Pending (no decision yet), so they are NOT "
                                  f"scheduled: {', '.join(pending)}."))
     outside &= {e for f in found for e in f["members"]}
     if outside:
-        notes.append(("info", f"{what}: {len(outside)} member(s) with a non-McGill email: {', '.join(sorted(outside))}. "
+        notes.append(("info", f"{what}: {len(outside)} member(s) with an email outside {rules.domain}: "
+                              f"{', '.join(sorted(outside))}. "
                               "That's fine; their conflicts count if they submit the conflict form with this same "
                               "address."))
     if rejected:
@@ -347,8 +366,10 @@ def load_input(folder, settings, approvals=APPROVALS_FILE, conflicts=CONFLICTS_F
     except ValueError as e:
         raise InputError(str(e))
     notes = []
-    blocked = parse_conflicts(folder / conflicts, conflicts_sheet, settings.semester_name, notes, store.fix_email)
-    combos = parse_approvals(folder / approvals, approvals_sheet, settings.semester_name, notes, store)
+    rules = EmailRules.from_settings(settings)
+    blocked = parse_conflicts(folder / conflicts, conflicts_sheet, settings.semester_name, notes, store.fix_email, rules)
+    combos = parse_approvals(folder / approvals, approvals_sheet, settings.semester_name, notes, store, rules,
+                             settings.use_first_year)
     if store.changed:
         store.save()
     return ScheduleInput(combos=combos, blocked=blocked, notes=notes)

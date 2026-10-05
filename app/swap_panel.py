@@ -6,6 +6,7 @@ pending, the tab shows the schedule as if they were done, so the next swap is ch
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from app_config import input_files
 from core import generate_nights
 from core.model import make_label
 from core.swaps import apply_option, swap_options
@@ -117,7 +118,8 @@ class SwapPanel:
         folder = self.get_folder()
         try:
             settings, _ = load_settings(folder / SETTINGS_FILE)
-            inp = load_input(folder, settings)
+            files = input_files(folder)
+            inp = load_input(folder, settings, files["approvals"], files["conflicts"])
             combos = {c.id: c for c in inp.combos}
             if quiet and not (folder / "Schedule.xlsx").exists():
                 raise ScheduleFileError("No Schedule.xlsx yet: make the schedule first (Run tab, step 2).")

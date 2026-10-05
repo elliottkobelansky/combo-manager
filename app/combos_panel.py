@@ -7,6 +7,7 @@ kept in scheduler_data.json in the data folder (store.py), so the PDFs, the chec
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
+from app_config import input_files
 from core.model import make_label
 from inputs import EMAIL_RE, InputError, load_input, name_from_email
 from outputs.excel_schedule import ScheduleFileError, read_schedule
@@ -71,7 +72,8 @@ class CombosPanel:
         folder = self.get_folder()
         try:
             settings, _ = load_settings(folder / SETTINGS_FILE)
-            inp = load_input(folder, settings)
+            files = input_files(folder)
+            inp = load_input(folder, settings, files["approvals"], files["conflicts"])
             self.store = Store(folder)
         except (SettingsError, InputError, ValueError) as e:
             if not quiet:

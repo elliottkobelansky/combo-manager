@@ -56,8 +56,13 @@ class Settings:
     extra_slot_policy: str = "auto"       # "auto": fill every set. "open": leave extras for volunteers
     core_shows_per_venue: int = 1         # used by "open" and for first-years: shows per venue before extras
     solver_time_limit_sec: float = 30
-    every_combo_supervised: bool = True   # every combo plays at least one night a professor attends
+    every_combo_supervised: bool = True   # every combo plays at least one night a professor attends (off = no supervision)
     max_supervised_nights: Optional[int] = None   # cap on those nights (None = no cap); within it, as few as possible
+    use_first_year: bool = True           # off: no combo is treated as first-year (the input adapter clears the flag)
+    # Read by the input adapter only (the core never sees an email rule): the students' address domain (blank = any),
+    # and domain typos to correct, {typed domain: real domain}.
+    student_email_domain: str = ""
+    email_domain_fixes: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

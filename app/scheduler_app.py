@@ -10,7 +10,6 @@ python.org Mac installer) plus openpyxl, ortools and reportlab; the window offer
 """
 import contextlib
 import io
-import json
 import os
 import queue
 import subprocess
@@ -21,9 +20,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from util import DATA_FOLDER  # noqa: E402  (standard library only, safe before packages are installed)
+from app_config import input_files, is_picked, load_config, pick_input_file, save_config  # noqa: E402
+from util import APPROVALS_FILE, CONFLICTS_FILE, DATA_FOLDER  # noqa: E402  (both standard library only, safe before packages are installed)
 AUTHOR, EMAIL = "Elliott Kobelansky", "elliottkobelansky@gmail.com"
-CONFIG = Path.home() / ".combo_scheduler.json"
 PACKAGES = {"openpyxl": "openpyxl", "ortools": "ortools", "reportlab": "reportlab"}   # import name -> pip name
 OPTIONAL = {"tkcalendar": "tkcalendar", "sv_ttk": "sv-ttk"}   # pop-up calendars; the modern look
 
@@ -59,7 +58,9 @@ def run_solve(args, folder, write):
             return len(s)
     with contextlib.redirect_stdout(Writer()), contextlib.redirect_stderr(Writer()):
         try:
-            return solve.main(["--folder", str(folder)] + args) or 0
+            files = input_files(folder)
+            return solve.main(["--folder", str(folder), "--approvals", str(files["approvals"]),
+                               "--conflicts", str(files["conflicts"])] + args) or 0
         except SystemExit as e:                       # argparse errors
             return e.code or 0
         except Exception:
@@ -87,21 +88,6 @@ def open_path(path):
         subprocess.Popen(["xdg-open", path])
 
 
-def load_config():
-    try:
-        data = json.loads(CONFIG.read_text())
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        return {}
-
-
-def save_config(**changes):
-    try:
-        CONFIG.write_text(json.dumps({**load_config(), **changes}))
-    except OSError:
-        pass                                          # only a convenience
-
-
 def load_folder():
     folder = load_config().get("folder")
     if folder and Path(folder).is_dir():
@@ -112,6 +98,11 @@ def load_folder():
 
 def save_folder(folder):
     save_config(folder=str(folder))
+
+
+def shorten(text, room):
+    """Long paths shortened in the middle: '/home/.../OneDrive/Combos'."""
+    return text if len(text) <= room else text[:room // 3] + " \u2026 " + text[-(room - room // 3 - 3):]
 
 
 # ---------------------------------------------------------------- the window
@@ -167,6 +158,21 @@ class App:
             self.tabs.add(self.settings.frame, text="Settings")
         self.tabs.add(self.about_tab(), text="About")
 
+        # which input spreadsheets are read (usually the data folder's; Choose... picks another file)
+        sources = ttk.Frame(run_tab)
+        sources.pack(fill="x", pady=(0, 12))
+        self.source_labels = {}
+        for r, (which, title) in enumerate([("approvals", "Combo approvals"), ("conflicts", "Conflicts")]):
+            ttk.Label(sources, text=title + ":", width=17, anchor="w").grid(row=r, column=0, sticky="w", pady=2)
+            label = ttk.Label(sources, text="", style="Hint.TLabel", anchor="w")
+            label.grid(row=r, column=1, sticky="ew", padx=(0, 8))
+            ttk.Button(sources, text="Choose...", command=lambda w=which: self.choose_input(w)).grid(row=r, column=2, pady=2)
+            reset = ttk.Button(sources, text="Use data folder", command=lambda w=which: self.choose_input(w, reset=True))
+            reset.grid(row=r, column=3, padx=(6, 0), pady=2)
+            self.source_labels[which] = (label, reset)
+        sources.columnconfigure(1, weight=1)
+        self.show_sources()
+
         # the three steps, as cards
         cards = ttk.Frame(run_tab)
         cards.pack(fill="x")
@@ -219,8 +225,8 @@ class App:
                        "and open it again.\n")
             self.install_button.pack(side="right")
         else:
-            self.write("Ready. Put the latest Combo Approvals.xlsx and Conflicts.xlsx in the data folder (or let OneDrive "
-                       "sync them), then start with step 1.\n")
+            self.write("Ready. Make sure the two spreadsheets above are the latest (OneDrive can keep them synced), "
+                       "then start with step 1.\n")
         self.root.after(100, self.drain)
         self.root.after(300, self.autoload)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -264,12 +270,37 @@ class App:
         ttk.Label(tab, text="Free to use, share and change.", style="Hint.TLabel").pack(anchor="w", pady=(24, 0))
         return tab
 
+    def show_sources(self):
+        """The Run tab's two input lines: which file each one is, and whether it's there."""
+        for which, (label, reset) in self.source_labels.items():
+            path, picked = input_files(self.folder)[which], is_picked(self.folder, which)
+            text = shorten(str(path), 70) if picked else f"{path.name} in the data folder"
+            label.configure(text=text + ("" if path.exists() else "   (not there yet)"))
+            if picked:
+                reset.grid()
+            else:
+                reset.grid_remove()
+
+    def choose_input(self, which, reset=False):
+        if reset:
+            pick_input_file(self.folder, which, None)
+        else:
+            current = input_files(self.folder)[which]
+            picked = filedialog.askopenfilename(
+                title="Combo approvals spreadsheet" if which == "approvals" else "Conflicts spreadsheet",
+                initialdir=str(current.parent if current.parent.is_dir() else self.folder),
+                filetypes=[("Excel workbook", "*.xlsx"), ("All files", "*.*")])
+            if not picked:
+                return
+            picked = Path(picked)
+            usual = self.folder / (APPROVALS_FILE if which == "approvals" else CONFLICTS_FILE)
+            pick_input_file(self.folder, which, None if picked == usual else picked)   # the usual file: nothing to remember
+        self.show_sources()
+        self.autoload()
+
     def folder_text(self, room=60):
         """The data folder, shortened in the middle when long: 'Data folder:  /home/.../OneDrive/Combos'."""
-        text = str(self.folder)
-        if len(text) > room:
-            text = text[:room // 3] + " \u2026 " + text[-(room - room // 3 - 3):]
-        return f"Data folder:  {text}"
+        return f"Data folder:  {shorten(str(self.folder), room)}"
 
     def color_output(self):
         p, mono = self.palette, self.theme.mono_font()
@@ -326,6 +357,7 @@ class App:
             self.folder = Path(picked)
             self.folder_label.configure(text=self.folder_text())
             save_folder(self.folder)
+            self.show_sources()
             if self.settings:
                 self.settings.reload()
             self.autoload()
@@ -401,6 +433,7 @@ class App:
 
     def finish(self):
         self.busy = False
+        self.show_sources()
         self.autoload()                               # the schedule may have changed
         self.status.configure(text="Ready.")
         for b in self.buttons + [self.install_button]:
