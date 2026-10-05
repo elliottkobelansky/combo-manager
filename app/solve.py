@@ -25,7 +25,8 @@ from core.stats import schedule_stats
 from inputs import APPROVALS_FILE, CONFLICTS_FILE, InputError, load_input, name_from_email
 from store import Store
 from util import DATA_FOLDER
-from outputs.excel_schedule import ScheduleFileError, read_schedule, schedule_nights, write_schedule
+from outputs.excel_schedule import (ScheduleFileError, archive_semester, check_semester, read_schedule,
+                                    schedule_nights, schedule_semester, write_schedule)
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 
 
@@ -127,6 +128,8 @@ def main(argv=None):
     f = Path(a.folder)
     try:
         settings, setting_warnings = load_settings(f / a.settings)
+        if a.stats:
+            check_semester(f / a.out, settings)          # another semester's schedule isn't this one's
         # --stats looks at the schedule as it is: its own nights; anything else plans from the settings
         nights = schedule_nights(f / a.out, settings) if a.stats and (f / a.out).exists() else generate_nights(settings)
         days, sets = Counter(n.weekday for n in nights), Counter()
@@ -152,6 +155,10 @@ def main(argv=None):
         if a.compare_gaps:
             compare_gaps(inp, settings, a.compare_gaps)
             return 0
+        if (f / a.out).exists() and schedule_semester(f / a.out, settings) != settings.semester_name:
+            old = schedule_semester(f / a.out)          # recorded in the file, or unknown
+            moved = archive_semester(f, old or "Old schedule")
+            print(f"\n{a.out} was for {old or 'another semester'}: moved its files to {moved}.")
         outputs = [f / a.out] + ([f / a.pdf] if a.pdf else [])
         if not a.yes and not confirm(outputs):
             print("Cancelled. Nothing was changed.")

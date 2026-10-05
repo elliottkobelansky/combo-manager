@@ -8,8 +8,83 @@ from openpyxl.styles import Font, PatternFill
 
 
 
+# A semester's files in the data folder: moved together into a folder named after the semester when a new semester
+# starts (archive_semester).
+SEMESTER_FILES = ["Schedule.xlsx", "Schedule.pdf", "Combos.pdf", "Contact lists.xlsx", "Schedule backups"]
+
+
+def schedule_semester(path, settings=None):
+    """The semester Schedule.xlsx was made for (kept in the file's properties). For a file made before that was
+    recorded: settings.semester_name if all its nights fall within the settings' dates, else None (unknown)."""
+    from openpyxl import load_workbook
+    from util import to_date
+    try:
+        wb = load_workbook(path, read_only=True)
+    except FileNotFoundError:
+        return None
+    try:
+        if wb.properties.subject:
+            return wb.properties.subject
+        if settings is None or "Schedule" not in wb.sheetnames:
+            return None
+        dates = []
+        for r in wb["Schedule"].iter_rows(min_row=2, max_col=1, values_only=True):
+            try:
+                if r[0] is not None:
+                    dates.append(to_date(r[0]))
+            except ValueError:
+                pass
+        inside = dates and all(settings.start_date <= d <= settings.end_date for d in dates if d)
+        return settings.semester_name if inside else None
+    finally:
+        wb.close()
+
+
+def record_semester(path, semester):
+    """Writes the semester into an older Schedule.xlsx that doesn't say yet (best effort: skipped if it's open)."""
+    from openpyxl import load_workbook
+    try:
+        wb = load_workbook(path)
+        if not wb.properties.subject:
+            wb.properties.subject = semester
+            wb.save(path)
+    except (OSError, KeyError):
+        pass
+
+
+def check_semester(path, settings):
+    """Raises ScheduleFileError when Schedule.xlsx (if there is one) belongs to another semester than the
+    settings'."""
+    if not Path(path).exists():
+        return
+    sem = schedule_semester(path, settings)
+    if sem != settings.semester_name:
+        raise ScheduleFileError(f"{Path(path).name} is for {sem or 'another semester'}, not {settings.semester_name}. "
+                                f"Make the {settings.semester_name} schedule (Run tab, step 2); the old files are moved "
+                                "into a folder named after their semester first.")
+
+
+def archive_semester(folder, semester):
+    """Moves a semester's files (SEMESTER_FILES) into folder/<semester>/ (or '<semester> (2)', ... if that exists).
+    Returns the new folder, or None when there was nothing to move."""
+    import shutil
+    folder = Path(folder)
+    present = [folder / n for n in SEMESTER_FILES if (folder / n).exists()]
+    if not present:
+        return None
+    name = re.sub(r'[\\/:*?"<>|]+', "-", str(semester or "Old schedule")).strip() or "Old schedule"
+    dest, n = folder / name, 2
+    while dest.exists():
+        dest, n = folder / f"{name} ({n})", n + 1
+    dest.mkdir()
+    for p in present:
+        shutil.move(str(p), str(dest / p.name))
+    return dest
+
+
 def write_schedule(path, result, settings):
     wb = Workbook()
+    wb.properties.subject = settings.semester_name     # which semester this schedule is for (schedule_semester)
     hfont, hfill, base = Font(name="Arial", bold=True), PatternFill("solid", fgColor="DDEBF7"), Font(name="Arial")
     first = [True]
 
@@ -72,7 +147,7 @@ def read_schedule(path, combos):
     try:
         wb = load_workbook(path, data_only=True)
     except FileNotFoundError:
-        raise ScheduleFileError(f"Can't find {path}. Run solve.py first.")
+        raise ScheduleFileError(f"No {Path(path).name} yet: make the schedule first (Run tab, step 2).")
     if "Schedule" not in wb.sheetnames:
         raise ScheduleFileError(f"{path} has no 'Schedule' sheet.")
     ws = wb["Schedule"]

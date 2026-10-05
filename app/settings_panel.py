@@ -431,6 +431,36 @@ class SettingsPanel:
         self.check_unsaved()
         self.frame.after(500, self.watch)
 
+    def new_semester(self, new):
+        """When the semester name changes and the old semester's schedule is in the data folder: offers to move its
+        files into a folder named after it. True = move, False = leave them, 'cancel' = don't save, None = no
+        semester change (or nothing to move)."""
+        if not self.path.exists():
+            return None
+        try:
+            old, _ = validate(read_data(self.path))
+        except SettingsError:
+            return None
+        if old.semester_name == new.semester_name:
+            return None
+        from outputs.excel_schedule import SEMESTER_FILES, record_semester, schedule_semester
+        folder = self.get_folder()
+        if not any((folder / n).exists() for n in SEMESTER_FILES):
+            return None
+        on_file = schedule_semester(folder / "Schedule.xlsx", old) if (folder / "Schedule.xlsx").exists() else None
+        if on_file == new.semester_name:              # the schedule is already the new semester's
+            return None
+        if on_file == old.semester_name:              # an older file that only matched by its dates: say so in it,
+            record_semester(folder / "Schedule.xlsx", on_file)   # or it would pass for the new semester's
+        self.old_semester = on_file or old.semester_name
+        answer = messagebox.askyesnocancel(
+            "New semester", f"The semester changes from {old.semester_name} to {new.semester_name}.\n\n"
+            f"Move {self.old_semester}'s files (Schedule.xlsx, the PDFs, contact lists, schedule backups) into a "
+            f"'{self.old_semester}' folder in the data folder?\n\nYes: move them (recommended).\nNo: leave them (the "
+            f"app ignores a schedule from another semester; making the {new.semester_name} schedule moves them "
+            "then).\nCancel: don't save.")
+        return "cancel" if answer is None else answer
+
     def nights_ok(self, new):
         """When a schedule already exists and these settings change the nights, says that they only apply to the
         next schedule made: the current one keeps its own nights (the app reads them from Schedule.xlsx)."""
@@ -485,9 +515,14 @@ class SettingsPanel:
         except SettingsError as e:
             messagebox.showerror("Can't save yet", f"Please fix these first:\n\n{e}")
             return False
-        if not self.nights_ok(new):
+        archive = self.new_semester(new)              # None: same semester; True / False: move the old files?
+        if archive == "cancel" or (archive is None and not self.nights_ok(new)):
             return False
         save_data(self.path, data)
+        if archive:
+            from outputs.excel_schedule import archive_semester
+            moved = archive_semester(self.get_folder(), self.old_semester)
+            warnings = [f"{self.old_semester}'s files moved to the '{moved.name}' folder."] + warnings
         self.saved = self.snapshot()
         self.check_unsaved()
         self.status.configure(text=f"Saved to {SETTINGS_FILE}." + (f" Note: {' '.join(warnings)}" if warnings else ""))

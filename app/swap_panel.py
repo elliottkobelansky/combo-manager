@@ -11,7 +11,8 @@ from core.model import make_label
 from core.swaps import apply_option, swap_options
 from inputs import InputError, load_input, name_from_email
 from store import Store
-from outputs.excel_schedule import ScheduleFileError, open_label, read_schedule, schedule_nights, write_swap
+from outputs.excel_schedule import (ScheduleFileError, check_semester, open_label, read_schedule, schedule_nights,
+                                    write_swap)
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 from theme import in_background
 
@@ -133,6 +134,7 @@ class SwapPanel:
             else:
                 if quiet and not (folder / "Schedule.xlsx").exists():
                     raise ScheduleFileError("No Schedule.xlsx yet: make the schedule first (Run tab, step 2).")
+                check_semester(folder / "Schedule.xlsx", settings)
                 sets, problems, supervised, typed = read_schedule(folder / "Schedule.xlsx", combos)
         except (SettingsError, InputError, ScheduleFileError) as e:
             if keep:

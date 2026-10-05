@@ -480,7 +480,14 @@ class App:
 
     def make_schedule(self):
         existing = [n for n in ("Schedule.xlsx", "Schedule.pdf") if (self.folder / n).exists()]
-        if existing and not messagebox.askyesno(
+        other = self.other_semester()
+        if other is not None:                         # last semester's files: filed away, nothing is lost
+            if not messagebox.askyesno(
+                    "New semester", f"Schedule.xlsx is {('for ' + other) if other else 'from another semester'}. "
+                    f"Its files (schedule, PDFs, contact lists, backups) will be moved into a folder named "
+                    f"'{other or 'Old schedule'}' in the data folder, then a new schedule is made.\n\nGo ahead?"):
+                return
+        elif existing and not messagebox.askyesno(
                 "Replace the schedule?",
                 f"{' and '.join(existing)} already exist and will be REPLACED by a brand-new schedule.\n\n"
                 "Any swaps or edits recorded in the old Schedule.xlsx will be lost. To keep it, cancel and rename "
@@ -488,6 +495,21 @@ class App:
                 icon="warning", default="no"):
             return
         self.run(["-y", "--pdf"], "Making the schedule (this can take up to a minute)...", ticker=True)
+
+    def other_semester(self):
+        """None when there's no Schedule.xlsx or it's for the settings' semester; otherwise the semester it's for
+        ('' when unknown)."""
+        path = self.folder / "Schedule.xlsx"
+        if not path.exists():
+            return None
+        try:
+            from outputs.excel_schedule import schedule_semester
+            from settings_file import SETTINGS_FILE, SettingsError, load_settings
+            settings, _ = load_settings(self.folder / SETTINGS_FILE)
+        except (ImportError, SettingsError):
+            return None
+        sem = schedule_semester(path, settings)
+        return None if sem == settings.semester_name else (schedule_semester(path) or "")
 
     def goto_swaps(self, cid, d, k, mode="swap"):
         self.tabs.select(self.swaps.frame)

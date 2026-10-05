@@ -124,6 +124,12 @@ any combo still Pending. Writes `Schedule.xlsx` and `Schedule.pdf` (printable ca
 The old ByCombo and OpenSlots sheets are gone: they went out of date after the first edit. `python app/solve.py --stats`
 reads the file as it is now (shows per combo, open sets nobody can take, and the rule check).
 
+**A new semester:** `Schedule.xlsx` records the semester it was made for. Change the semester name in Settings and
+Save: the app offers to move last semester's files (`Schedule.xlsx`, the PDFs, `Contact lists.xlsx`, `Schedule
+backups`) into a folder named after it in the data folder. A schedule from another semester is never shown or
+checked as this one's, and step 2 moves it away first if it's still there. Combo numbers, member edits and
+instruments are kept per semester in `scheduler_data.json`, so the new semester starts at Combo 01.
+
 Once `Schedule.xlsx` exists, **it decides which nights there are** (dates, venues, sets, times): the app, the check
 and the rebuilt PDF read them from the file. Changing dates, show days, skip or extra dates in Settings only
 affects the next schedule made (Save settings says so).

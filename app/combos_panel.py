@@ -12,7 +12,7 @@ from tkinter import messagebox, simpledialog, ttk
 from app_config import input_files
 from core.model import make_label
 from inputs import EMAIL_RE, EmailRules, InputError, load_input, name_from_email
-from outputs.excel_schedule import ScheduleFileError, open_label, read_schedule, write_swap
+from outputs.excel_schedule import ScheduleFileError, check_semester, open_label, read_schedule, write_swap
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 from store import Store
 from theme import popup, scrolled_tree
@@ -95,6 +95,7 @@ class CombosPanel:
         shows, sets, supervised = {}, {}, None
         if (folder / "Schedule.xlsx").exists():
             try:
+                check_semester(folder / "Schedule.xlsx", settings)
                 sets, _, supervised, _ = read_schedule(folder / "Schedule.xlsx", combos)
                 for d, row in sets.items():
                     for k, c in row.items():
