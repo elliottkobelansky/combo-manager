@@ -159,7 +159,11 @@ class App:
         from swap_panel import SwapPanel
         from combos_panel import CombosPanel
         self.combos = CombosPanel(self.tabs, lambda: self.folder, lambda: self.palette, open_path,
-                                  on_change=lambda: self.swaps and self.swaps.load(quiet=True))
+                                  on_change=lambda: self.swaps and self.swaps.load(quiet=True),
+                                  get_swaps=lambda: self.swaps,
+                                  after_schedule_change=lambda message: self.run(
+                                      ["--stats", "--pdf"], "Checking the rules and rebuilding Schedule.pdf...",
+                                      intro=message))
         self.tabs.add(self.combos.frame, text="Combos")
         self.swaps = SwapPanel(self.tabs, lambda: self.folder, self.after_swap, lambda: self.palette)
         self.tabs.add(self.swaps.frame, text="Swaps")

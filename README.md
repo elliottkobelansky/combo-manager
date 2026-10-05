@@ -186,6 +186,16 @@ attached to the right combo as new responses come in), applied whenever the appr
 flagged by the check. After the schedule is out, run **Check the schedule** after a change: a new member's conflicts
 count from then on.
 
+**Withdrawing a combo** (Combos tab: **Withdraw...**, or right-click): the combo stops being scheduled and its
+number stays reserved, so the numbering keeps a gap and no other combo's number changes (like setting Status to
+Withdrawn in the approvals, without opening Excel). If the schedule is out, its sets become OPEN in `Schedule.xlsx`
+right away (a backup goes to `Schedule backups`) and `Schedule.pdf` is rebuilt; nothing is given to another combo
+automatically. Volunteers can claim the open sets, or give one to a combo from the Schedule tab ("who could take
+it"). A set on a **supervised night** must be filled (supervised nights are full): the confirmation says so and the
+rule check flags it until it is. Withdrawing waits until pending swaps are confirmed or discarded. Withdrawn combos
+stay listed in grey; right-click > **Put back** returns the combo with its old number but no shows (its sets may be
+taken by then): it can claim open sets in the Swaps tab.
+
 **Combos tab:** every accepted combo (with its liaison and shows) and its people, in columns: Instrument, Also in
 (other combos), Conflicts (dates submitted), Email; with a search box. **Click an Instrument cell** to pick one
 (Saxophone, Trumpet, Trombone, Guitar, Piano, Bass, Drums, or Other: type anything); it's per person per combo and

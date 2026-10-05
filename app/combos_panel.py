@@ -12,7 +12,7 @@ from tkinter import messagebox, simpledialog, ttk
 from app_config import input_files
 from core.model import make_label
 from inputs import EMAIL_RE, EmailRules, InputError, load_input, name_from_email
-from outputs.excel_schedule import ScheduleFileError, read_schedule
+from outputs.excel_schedule import ScheduleFileError, open_label, read_schedule, write_swap
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 from store import Store
 
@@ -20,12 +20,16 @@ INSTRUMENTS = ["Saxophone", "Trumpet", "Trombone", "Guitar", "Piano", "Bass", "D
 
 
 class CombosPanel:
-    def __init__(self, parent, get_folder, get_palette=lambda: {}, open_path=None, on_change=None):
+    def __init__(self, parent, get_folder, get_palette=lambda: {}, open_path=None, on_change=None,
+                 get_swaps=lambda: None, after_schedule_change=None):
         self.get_folder, self.get_palette, self.open_path = get_folder, get_palette, open_path
         self.on_change = on_change                        # reloads the other tabs after an email fix
+        self.get_swaps = get_swaps                        # the Swaps tab (its pending changes)
+        self.after_schedule_change = after_schedule_change  # rebuilds Schedule.pdf after Schedule.xlsx changed
         self.people = {}                                  # tree item id -> (combo name, email); combo None = supervisor
         self.removed = {}                                 # tree item id -> (combo name, email) of a removed member
         self.combo_items = {}                             # tree item id -> combo name
+        self.withdrawn_items = {}                         # tree item id -> Combo withdrawn in the app
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
 
         top = ttk.Frame(self.frame)
@@ -70,6 +74,7 @@ class CombosPanel:
         ttk.Button(bottom, text="Add member...", command=self.add_member).pack(side="left")
         ttk.Button(bottom, text="Remove...", command=self.remove_member).pack(side="left", padx=(6, 0))
         ttk.Button(bottom, text="Make liaison", command=self.make_liaison).pack(side="left", padx=(6, 0))
+        ttk.Button(bottom, text="Withdraw...", command=self.withdraw).pack(side="left", padx=(6, 0))
         ttk.Separator(bottom, orient="vertical").pack(side="left", fill="y", padx=10)
         ttk.Button(bottom, text="Rename...", command=self.rename).pack(side="left")
         ttk.Button(bottom, text="Fix email...", command=self.edit_email).pack(side="left", padx=(6, 0))
@@ -96,7 +101,7 @@ class CombosPanel:
             self.info.configure(text="Not loaded: " + str(e).strip().splitlines()[0])
             return
         combos = {c.id: c for c in inp.combos}
-        shows, sets = {}, {}
+        shows, sets, supervised = {}, {}, None
         if (folder / "Schedule.xlsx").exists():
             try:
                 sets, _, supervised, _ = read_schedule(folder / "Schedule.xlsx", combos)
@@ -106,7 +111,8 @@ class CombosPanel:
                             shows.setdefault(c, []).append(make_label(d) + ("*" if supervised and d in supervised else ""))
             except ScheduleFileError:
                 pass
-        self.data = dict(combos=combos, shows=shows, sets=sets, names=self.store.names, blocked=inp.blocked,
+        self.data = dict(combos=combos, shows=shows, sets=sets, supervised=supervised or set(),
+                         withdrawn={c.name: c for c in inp.withdrawn}, names=self.store.names, blocked=inp.blocked,
                          instruments=self.store.instruments(settings.semester_name), settings=settings,
                          rules=EmailRules.from_settings(settings))
         n_people = len({e for c in combos.values() for e in c.members})
@@ -126,6 +132,7 @@ class CombosPanel:
         self.people.clear()
         self.removed.clear()
         self.combo_items.clear()
+        self.withdrawn_items.clear()
         sem, few = self.data["settings"].semester_name, self.data["settings"].min_members_per_combo
         q = self.search.get().strip().lower()
         combos = self.data["combos"]
@@ -162,6 +169,13 @@ class CombosPanel:
                 pid = self.tree.insert(item, "end", text=f"    {self.name(e)}  \u00b7 removed (right-click to put back)",
                                        values=("", "", "", "", e), tags=(shade, "removed"))
                 self.removed[pid] = (c.name, e)
+        for c in sorted(self.data["withdrawn"].values(), key=lambda c: c.name):
+            label = (f"{c.name} ({self.name(c.liaison)})" if c.liaison else c.name) + "  \u00b7 withdrawn"
+            if q and q not in (label + " " + " ".join(c.members)).lower():
+                continue
+            item = self.tree.insert("", "end", text=label, values=("right-click to put back", "", "", "", ""),
+                                    tags=("removed",))
+            self.withdrawn_items[item] = c
             if c.professor:
                 pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (supervisor)",
                                        values=("", "", "", "", self.mail(c.professor)), tags=(shade,))
@@ -309,6 +323,8 @@ class CombosPanel:
         if not sel or not self.data:
             return None, None, None
         item = sel[0]
+        if item in self.withdrawn_items:
+            return "withdrawn", self.withdrawn_items[item], None
         if item in self.combo_items:
             return "combo", self.data["combos"][self.combo_items[item]], None
         if item in self.removed:
@@ -343,10 +359,14 @@ class CombosPanel:
         elif kind == "supervisor":
             menu.add_command(label="Change name...", command=self.rename)
             menu.add_command(label="Change email...", command=self.edit_email)
-        if kind in ("combo", "person", "removed", "supervisor"):
+        if kind == "withdrawn":
+            menu.add_command(label=f"Put back {combo.name}", command=self.put_back)
+        else:
             if kind != "combo":
                 menu.add_separator()
             menu.add_command(label=f"Add a member to {combo.name}...", command=self.add_member)
+            menu.add_separator()
+            menu.add_command(label=f"Withdraw {combo.name}...", command=self.withdraw)
         self.menu = menu                              # (kept for tests)
         try:
             menu.tk_popup(event.x_root, event.y_root)
@@ -431,6 +451,55 @@ class CombosPanel:
             return
         self.save_changes(lambda s: s.set_liaison(self.data["settings"].semester_name, combo.ref, email),
                           f"{self.name(email)} is now the liaison of {combo.name}.")
+
+    def withdraw(self):
+        """Withdraws the selected combo (kept in scheduler_data.json; its number stays reserved). If the schedule is
+        out, its sets become open in Schedule.xlsx (backup first) and Schedule.pdf is rebuilt."""
+        kind, combo, _ = self.selected()
+        if kind in (None, "withdrawn"):
+            messagebox.showinfo("Withdraw a combo", "Pick the combo to withdraw (or one of its members).")
+            return
+        swaps = self.get_swaps()
+        if swaps and swaps.pending:
+            messagebox.showinfo("Withdraw a combo", f"There are {len(swaps.pending)} unsaved swap change(s). Confirm "
+                                                   "or discard them first (Swaps tab), then withdraw.")
+            return
+        shows = sorted((d, k) for d, row in self.data["sets"].items() for k, c in row.items() if c == combo.id)
+        sup = [d for d, _ in shows if d in self.data["supervised"]]
+        text = f"Withdraw {combo.name}? It won't be scheduled; its number stays reserved (the numbering keeps a gap)."
+        if shows:
+            text += ("\n\nIts shows: " + ", ".join(f"{make_label(d)} (set {k})" for d, k in shows) + ". These sets "
+                     "become OPEN in Schedule.xlsx (a backup is kept): volunteers can claim them, or give one to a "
+                     "combo in the Schedule tab (who could take it).")
+        if sup:
+            text += ("\n\n\u26a0 " + ", ".join(make_label(d) for d in sup) + (" is a supervised night" if len(sup) == 1
+                     else " are supervised nights") + ", which must be full: give that set to another combo.")
+        text += "\n\nThe approvals spreadsheet isn't changed; you can put the combo back here."
+        if not messagebox.askyesno("Withdraw a combo", text, icon="warning"):
+            return
+        folder, settings = self.get_folder(), self.data["settings"]
+        backup = None
+        if shows:
+            try:
+                backup = write_swap(folder / "Schedule.xlsx", {s: None for s in shows}, self.data["combos"],
+                                    open_label(settings))
+            except ScheduleFileError as e:
+                messagebox.showerror("Couldn't withdraw", str(e))
+                return
+        if not self.save_changes(lambda s: s.set_withdrawn(settings.semester_name, combo.ref, True),
+                                 f"Withdrew {combo.name}." + (f" {len(shows)} set(s) opened." if shows else "")):
+            return
+        if shows and self.after_schedule_change:
+            self.after_schedule_change(f"Withdrew {combo.name}: opened " + ", ".join(
+                f"{make_label(d)} set {k}" for d, k in shows) + f". Backup of the old file: {backup}\n")
+
+    def put_back(self):
+        kind, combo, _ = self.selected()
+        if kind != "withdrawn":
+            return
+        self.save_changes(lambda s: s.set_withdrawn(self.data["settings"].semester_name, combo.ref, False),
+                          f"{combo.name} is back" + (" with no shows (its sets were opened when it was withdrawn): it "
+                                                     "can claim open sets in the Swaps tab." if self.data["sets"] else "."))
 
     def choose_liaison(self, combo, emails, question, current=None):
         """A small window listing the members; returns the chosen email, or None when cancelled."""

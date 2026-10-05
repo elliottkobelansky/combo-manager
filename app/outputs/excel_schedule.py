@@ -98,8 +98,8 @@ def read_schedule(path, combos):
         elif name.casefold() in by_name:
             cid = by_name[name.casefold()]
         elif re.match(r"(?i)combo\s*\d", name):
-            problems.append(f"Schedule row {i}: '{name}' looks like a combo but isn't an accepted one (a typo?). "
-                            "Treated as open.")
+            problems.append(f"Schedule row {i}: '{name}' isn't an accepted combo (withdrawn, or a typo?). Treated "
+                            "as open: give the set away or leave it open (Schedule or Swaps tab).")
             cid = None
         else:
             typed[d][k] = name
@@ -112,6 +112,11 @@ def read_schedule(path, combos):
 
 class ScheduleFileError(Exception):
     pass
+
+
+def open_label(settings):
+    """What an open set says in Schedule.xlsx."""
+    return "OPEN - volunteer" if settings.extra_slot_policy == "open" else "(empty)"
 
 
 def write_swap(path, changes, combos, open_label):

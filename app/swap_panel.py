@@ -12,7 +12,7 @@ from core.model import make_label
 from core.swaps import apply_option, swap_options
 from inputs import InputError, load_input, name_from_email
 from store import Store
-from outputs.excel_schedule import ScheduleFileError, read_schedule, write_swap
+from outputs.excel_schedule import ScheduleFileError, open_label, read_schedule, write_swap
 from settings_file import SETTINGS_FILE, SettingsError, load_settings
 
 
@@ -355,9 +355,8 @@ class SwapPanel:
                                                                        if warns else "")
                                    + "\n\nA copy of the current file goes to 'Schedule backups' first."):
             return
-        open_label = "OPEN - volunteer" if st["settings"].extra_slot_policy == "open" else "(empty)"
         try:
-            backup = write_swap(self.get_folder() / "Schedule.xlsx", changes, st["combos"], open_label)
+            backup = write_swap(self.get_folder() / "Schedule.xlsx", changes, st["combos"], open_label(st["settings"]))
         except ScheduleFileError as e:
             messagebox.showerror("Couldn't save", str(e))
             return

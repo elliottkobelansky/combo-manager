@@ -244,6 +244,7 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
                               f"{', '.join(seen_sems) or 'none'}. Is semester_name in the settings right?"))
 
     found, pending, rejected, withdrawn, seen_refs, outside, edited = [], [], [], [], set(), set(), {}
+    app_withdrawn = []                             # accepted, but withdrawn in the app (Combos tab)
     for xl, key, r in rows:
         status = str(cell(r, status_i) or "").strip().lower()
         ref = ref_of(cell(r, id_i)) if id_i is not None and not blank(cell(r, id_i)) else f"row{xl}"
@@ -305,7 +306,8 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
             notes.append(("warn", f"{what} {who}: no supervisor email."))
         elif rules.domain and rules.is_student(prof):
             notes.append(("warn", f"{what} {who}: supervisor '{prof}' is a student address. A mistake?"))
-        found.append(dict(xl=xl, key=key, ref=ref, members=frozenset(members), liaison=liaison, prof=prof,
+        (app_withdrawn if changes["withdrawn"] else found).append(
+                     dict(xl=xl, key=key, ref=ref, members=frozenset(members), liaison=liaison, prof=prof,
                           name=str(cell(r, name_i)).strip() if name_i is not None and not blank(cell(r, name_i)) else "",
                           fy=use_first_year and fy_i is not None
                           and str(cell(r, fy_i) or "").strip().lower() in ("yes", "y", "true", "1")))
@@ -346,6 +348,15 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
         combos.append(Combo(id=name, name=name, members=f["members"], first_year=f["fy"], liaison=f["liaison"],
                             professor=f["prof"], ref=f["ref"]))
     kept_refs = {f["ref"] for f in kept}
+    gone_in_app = []
+    for f in sorted(app_withdrawn, key=lambda f: f["key"]):
+        if f["ref"] in numbers:                    # its number stays reserved: the numbering keeps a gap
+            name = f["name"] or f"Combo {numbers[f['ref']]:0{digits}d}"
+            gone_in_app.append(Combo(id=name, name=name, members=f["members"], first_year=f["fy"],
+                                     liaison=f["liaison"], professor=f["prof"], ref=f["ref"]))
+    if gone_in_app:
+        notes.append(("info", f"Withdrawn in the app: {', '.join(c.name for c in gone_in_app)}."))
+    kept_refs |= {c.ref for c in gone_in_app}
     gone = sorted(f"Combo {n:0{digits}d}" for ref, n in numbers.items() if ref in seen_refs and ref not in kept_refs)
     if gone:
         notes.append(("warn", f"No longer accepted: {', '.join(gone)}. If the schedule is already out, give their "
@@ -366,7 +377,7 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
                 notes.append(("warn", f"{a.name} and {b.name} share {shared} members: the same combo accepted twice? "
                                       "If so, set the older one to Rejected."))
     notes.append(("info", f"Combos: {len(combos)} accepted for {semester}."))
-    return combos
+    return combos, gone_in_app
 
 
 def name_from_email(email):
@@ -402,8 +413,8 @@ def load_input(folder, settings, approvals=APPROVALS_FILE, conflicts=CONFLICTS_F
     notes = []
     rules = EmailRules.from_settings(settings)
     blocked = parse_conflicts(folder / conflicts, conflicts_sheet, settings.semester_name, notes, store.fix_email, rules)
-    combos = parse_approvals(folder / approvals, approvals_sheet, settings.semester_name, notes, store, rules,
+    combos, withdrawn = parse_approvals(folder / approvals, approvals_sheet, settings.semester_name, notes, store, rules,
                              settings.use_first_year)
     if store.changed:
         store.save()
-    return ScheduleInput(combos=combos, blocked=blocked, notes=notes)
+    return ScheduleInput(combos=combos, blocked=blocked, notes=notes, withdrawn=withdrawn)

@@ -419,6 +419,23 @@ def main():
     if small and not any("fewer than 4" in t for _, t in report4) or any("fewer than" in t for _, t in report_off):
         bad.append("the members-per-combo warning doesn't follow the setting")
     ok = not bad
+    (tmp / "scheduler_data.json").unlink(missing_ok=True)   # withdrawn in the app: a gap, never reused, put back
+    first = {c.ref: c.name for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos}
+    st = Store(tmp)
+    st.set_withdrawn(sem, a.ref, True)
+    st.save()
+    wd = load_input(tmp, base, "a.xlsx", "f.xlsx")
+    if a.ref in {c.ref for c in wd.combos} or [c.name for c in wd.withdrawn] != [first[a.ref]]:
+        bad.append("a withdrawn combo is still scheduled, or isn't listed as withdrawn")
+    if {c.ref: c.name for c in wd.combos} != {r: n for r, n in first.items() if r != a.ref}:
+        bad.append("withdrawing a combo renumbered the others")
+    if any("No longer accepted" in t_ for _, t_ in wd.notes):
+        bad.append("an app-withdrawn combo gets the 'no longer accepted' warning")
+    st = Store(tmp)
+    st.set_withdrawn(sem, a.ref, False)
+    st.save()
+    if {c.ref: c.name for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos} != first:
+        bad.append("putting a combo back doesn't give it its old number")
     (tmp / "half.xlsx").write_bytes((tmp / "a.xlsx").read_bytes()[:3000])      # caught mid-sync
     try:
         load_input(tmp, base, "half.xlsx", "f.xlsx")

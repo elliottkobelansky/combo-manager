@@ -4,9 +4,10 @@
     names        {email: name}                              corrected names (the Combos tab); others are guessed
     instruments  {semester: {"Combo 05|email": instrument}} per person per combo (the Combos tab)
     emails       {email as typed: corrected email}          fixes applied when reading both spreadsheets
-    members      {semester: {response id: {"add": [email], "remove": [email], "liaison": email}}}
-                                                            members added or removed and the liaison changed in the
-                                                            app (the Combos tab); the approvals are never changed
+    members      {semester: {response id: {"add": [email], "remove": [email], "liaison": email, "withdrawn": true}}}
+                                                            members added or removed, the liaison changed and combos
+                                                            withdrawn in the app (the Combos tab); the approvals are
+                                                            never changed
 
 Written by the app and by solve.py (when a new combo gets its number). Keep it with the other files (the synced
 OneDrive folder is ideal).
@@ -71,9 +72,11 @@ class Store:
 
     # members added or removed in the app, per combo (by its response id, which never changes)
     def member_changes(self, semester, ref):
-        """{"add": [...], "remove": [...], "liaison": email or ""} for this combo (all empty when unchanged)."""
+        """{"add": [...], "remove": [...], "liaison": email or "", "withdrawn": bool} for this combo (all empty when
+        unchanged)."""
         ch = self.data["members"].get(semester, {}).get(str(ref), {})
-        return {"add": list(ch.get("add", [])), "remove": list(ch.get("remove", [])), "liaison": ch.get("liaison", "")}
+        return {"add": list(ch.get("add", [])), "remove": list(ch.get("remove", [])), "liaison": ch.get("liaison", ""),
+                "withdrawn": bool(ch.get("withdrawn"))}
 
     def _save_changes(self, semester, ref, ch):
         table = self.data["members"].setdefault(semester, {})
@@ -83,6 +86,12 @@ class Store:
         else:
             table.pop(str(ref), None)
         self.changed = True
+
+    def set_withdrawn(self, semester, ref, withdrawn):
+        """Withdraws the combo (True) or puts it back (False). Its number stays reserved either way."""
+        ch = self.member_changes(semester, ref)
+        ch["withdrawn"] = bool(withdrawn)
+        self._save_changes(semester, ref, ch)
 
     def set_liaison(self, semester, ref, email):
         """The combo's liaison from now on ("" = back to the approvals' liaison)."""
