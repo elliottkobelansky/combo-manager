@@ -65,9 +65,9 @@ HELP = {
     "max_shows_per_combo": "Cap on total shows per combo. Blank = no cap.",
     "every_combo_supervised": "On: every combo plays at least one night a professor attends from start to end (that "
                               "night has no open sets). Off: no supervised nights.",
-    "max_supervised_nights": "For the whole semester, all combos together: the most nights you can get a professor to "
-                             "come. One night covers every combo playing it. Blank = no limit (still as few as "
-                             "possible).",
+    "max_supervised_nights": "The most supervised nights in the whole semester, counting all professors together "
+                             "(not per professor). One night covers every combo playing it. Blank = no limit (still "
+                             "as few as possible).",
     "solver_time_limit_sec": "How long the solver searches (roughly seconds). 30 is plenty unless it says FEASIBLE.",
     "student_email_domain": "Students' email domain, e.g. mail.mcgill.ca. Other addresses are fine, just listed. "
                             "Blank = don't check.",
