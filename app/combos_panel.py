@@ -181,7 +181,7 @@ class CombosPanel:
             label = f"Waiting for a decision \u00b7 {who}"
             if q and q not in (label + " " + " ".join(c.members)).lower():
                 continue
-            item = self.tree.insert("", "end", text=label, values=("approve or reject it in Outlook / Teams", "", "",
+            item = self.tree.insert("", "end", text=label, values=("approve or reject it in Outlook", "", "",
                                                                    "", ""),
                                     open=bool(q) or self.tree_key(label) in open_items, tags=("removed",))
             self.pending_items[item] = c
@@ -415,7 +415,7 @@ class CombosPanel:
         if kind is None:
             menu.add_command(label="Pick a combo or a person in the list first", state="disabled")
         elif kind == "pending":
-            menu.add_command(label="Waiting for a decision: approve or reject it in Outlook or Teams", state="disabled")
+            menu.add_command(label="Waiting for a decision: approve or reject it in Outlook", state="disabled")
         elif kind == "withdrawn":
             menu.add_command(label=f"Put back {combo.name}...", command=self.put_back)
         else:

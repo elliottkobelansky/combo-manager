@@ -24,7 +24,7 @@ combos are scheduled and appear in `Combos.pdf`.
   `if(startsWith(outputs('Decision'), 'Accept'), '...', '...')`.
 - [ ] Test with a few test submissions, then delete the test rows.
 
-**Director's routine:** click Accept / Accept - first-year combo / Reject in Outlook or Teams (custom responses;
+**Director's routine:** click Accept / Accept - first-year combo / Reject in Outlook (custom responses;
 the flow turns the click into Status = Accepted / Rejected and First year = Yes / No). To withdraw a combo or fix its first-year
 tag, edit that row in the workbook. Rows still Pending = waiting for a decision. The flow gives up after 30 days
 (Power Automate's limit), so a row older than that stays Pending until it's typed in by hand (in README step 2).

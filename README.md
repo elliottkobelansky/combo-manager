@@ -198,7 +198,7 @@ taken by then): it can claim open sets in the Swaps tab.
 
 **Pending combos and the first-year tag** (Combos tab): combos still waiting for a decision are listed in grey
 ("Waiting for a decision · liaison", with their members); approve or reject them with the approval email's buttons
-in Outlook or Teams, which also records the decision and (once built) emails the liaison. Keep using **Accept -
+in Outlook, which also records the decision and (once built) emails the liaison. Keep using **Accept -
 first-year combo** there: it's the moment the director knows. To fix a tag afterwards, Actions > **Mark as a
 first-year combo** / **Remove the first-year tag**: kept in `scheduler_data.json`, it wins over the approvals' First
 year column, and Check inputs lists it. If the schedule is out it isn't made again; the message names any show
