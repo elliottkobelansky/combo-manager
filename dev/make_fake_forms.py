@@ -26,6 +26,14 @@ from util import DATA_FOLDER
 
 EPOCH = date(1899, 12, 30)
 OUTSIDE = ["jamie.outside@gmail.com", "sam.guest@gmail.com"]   # non-McGill members: must be kept like anyone else
+# Made-up faculty (not real people), staff addresses (@mcgill.ca); picked by Response Id, so the random draws for
+# members and conflicts stay the same as before.
+PROFS = ["helene.marchand", "darnell.whitfield", "ingrid.solberg", "rafael.quintero", "catherine.beaulieu",
+         "malcolm.ashby", "yuki.tanabe", "olivier.gauthier"]
+
+
+def prof_for(rid):
+    return f"{PROFS[rid % len(PROFS)]}@mcgill.ca"
 
 FIRST = ["Ana", "Ben", "Chloe", "Daniel", "Emma", "Felix", "Grace", "Hugo", "Isla", "Jonah", "Kenji", "Leah", "Mateo",
          "Nadia", "Oscar", "Priya", "Quinn", "Rosa", "Samir", "Tess", "Uma", "Victor", "Wen", "Xavier", "Yara", "Zoe",
@@ -116,7 +124,7 @@ def make(approvals_path, conflicts_path, nights, n_combos=33, seed=1, sem="Fall 
                           members=list(dict.fromkeys(clean(e) for e in members))))
         decided = status not in ("Pending", "")
         ws.append([rid, f"2026-10-{3 + rid // 40:02d}T{16 + rid % 8}:{rid % 60:02d}:00Z", semester, members[0],
-                   "\n".join(members), "prof@mcgill.ca", fy, status, "Director" if decided else None,
+                   "\n".join(members), prof_for(rid), fy, status, "Director" if decided else None,
                    f"2026-10-{4 + rid // 40:02d}" if decided else None, note])
 
     if mistakes:
