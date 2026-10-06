@@ -676,8 +676,8 @@ class CombosPanel:
             self.open_path(path)
 
     def export_xlsx(self):
-        """Combos.xlsx: one table per combo (members by instrument, liaison, emails, other combos, supervisor) and a
-        sheet with everyone, then opens it."""
+        """Combos.xlsx: one table per combo (members by instrument with emails, the liaison marked, the supervisor),
+        then opens it."""
         if not self.data:
             messagebox.showinfo("Combo list", "Nothing loaded yet.")
             return

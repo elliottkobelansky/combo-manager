@@ -277,8 +277,7 @@ yet; alphabetical within one instrument. The liaison is marked, not moved to the
 (Saxophone, Trumpet, Trombone, Guitar, Piano, Bass, Drums, or Other: type anything); it's per person per combo and
 kept in `scheduler_data.json`. **Export PDF** writes `Combos.pdf` (every combo with its supervisor and
 members, instruments when set; numbered like the calendar); **Export Excel** writes `Combos.xlsx` (one table per
-combo, like the schedule's: each member with instrument, liaison, email and other combos, then the supervisor; plus
-an Everyone sheet to sort and filter). Double-click a person
+combo, like the schedule's: each member with instrument and email, the liaison marked, then the supervisor). Double-click a person
 (or Actions > **Change name**) to correct their name, or double-click their email (or Actions > **Change email**) to fix a typo'd
 address: the spreadsheets aren't changed, the fix is applied whenever they're read, to the combos *and* the
 conflicts, so a member whose conflicts didn't count because of a typo is matched again (corrected emails show ✎;
