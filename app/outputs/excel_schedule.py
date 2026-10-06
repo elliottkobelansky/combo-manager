@@ -1,23 +1,169 @@
-"""Output writer: core.Result -> Schedule.xlsx, and reading it back after hand edits."""
+"""Schedule.xlsx: an export of the schedule (schedule_file.py) to read, print, sort or share. Rebuilt after every
+change and never read back, so editing it changes nothing.
+
+    By night    one table per show night: set, time, combo, each member (liaison marked) with their instrument
+                (in the Combos tab's order), and the supervisor
+    All sets    one row per set (date, venue, set, times, combo, supervised): for sorting and filtering
+    Supervision the supervised nights and who plays them (when every combo has a supervised night)
+    Report      what the solver said when the schedule was made
+
+At the end, the readers for the old, hand-editable Schedule.xlsx (before 2026-10-06), used once to turn one into
+schedule.json (schedule_file.convert_old).
+"""
 import re
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
+from openpyxl.styles import Border, Font, PatternFill, Side
 
-from data_folder import (COMBOS_PDF, CONTACTS_XLSX, SCHEDULE_BACKUPS, SCHEDULE_PDF, SCHEDULE_XLSX, schedule_backups,
-                         archive as archive_folder)
+from core.model import WEEKDAYS, make_label
+from schedule_file import ScheduleFileError
 from shared_folder import save_workbook
+from util import by_instrument
+
+FONT = "Arial"
+HEAD_FILL, NIGHT_FILL = PatternFill("solid", fgColor="DDEBF7"), PatternFill("solid", fgColor="B4C6E7")
+GREY = "666666"
+COL_LINE, BLOCK_LINE = Side(style="thin", color="B4C6E7"), Side(style="thin", color="5B7DB1")
 
 
-# A semester's files in the data folder: moved together into Archive/<semester>/ when a new semester starts
-# (archive_semester).
-SEMESTER_FILES = [SCHEDULE_XLSX, SCHEDULE_PDF, COMBOS_PDF, CONTACTS_XLSX, SCHEDULE_BACKUPS]
+def lines(ws, first, last, cols):
+    """Lines for a block of rows (a set, a combo's people): between the columns, and a darker one under the block."""
+    for r in range(first, last + 1):
+        for col in range(1, cols + 1):
+            ws.cell(r, col).border = Border(left=COL_LINE, right=COL_LINE, bottom=BLOCK_LINE if r == last else None)
 
 
-def schedule_semester(path, settings=None):
-    """The semester Schedule.xlsx was made for (kept in the file's properties). For a file made before that was
+def header(ws, names, cols=None):
+    """A table's column names, bold on blue, boxed."""
+    ws.append(names)
+    for c in ws[ws.max_row][:cols or len(names)]:
+        c.font, c.fill = Font(name=FONT, bold=True), HEAD_FILL
+        c.border = Border(left=COL_LINE, right=COL_LINE, top=BLOCK_LINE, bottom=BLOCK_LINE)
+
+
+def open_label(settings):
+    """What an open set says in the exports."""
+    return "OPEN - volunteer" if settings.extra_slot_policy == "open" else "(empty)"
+
+
+def write_schedule_xlsx(path, schedule, combos, settings, name_of, instruments):
+    """schedule: a schedule_file.Schedule. combos: {id: Combo}; name_of(email) -> name; instruments:
+    {(combo name, email): instrument} (Store.instruments). PermissionError: it's open in Excel."""
+    wb = Workbook()
+    wb.properties.subject = schedule.semester
+    supervised = schedule.supervised or set()
+    open_text = open_label(settings)
+
+    def font(**kw):
+        return Font(name=FONT, **kw)
+
+    # By night: one table per night
+    ws = wb.active
+    ws.title = "By night"
+    ws.append([f"{schedule.semester}: combo shows"])
+    ws["A1"].font = font(bold=True, size=14)
+    ws.append([f"Made by the Combo Scheduler on {datetime.now():%Y-%m-%d %H:%M}. Editing this file changes nothing: "
+               "make changes in the app, which rebuilds it."])
+    ws["A2"].font = font(italic=True, color=GREY)
+    for n in schedule.nights:
+        ws.append([])
+        ws.append([f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  supervised night" if n.date in supervised
+                                                                   else "")])
+        r = ws.max_row
+        for col in range(1, 6):
+            ws.cell(r, col).fill = NIGHT_FILL
+        ws.cell(r, 1).font = font(bold=True, size=11)
+        header(ws, ["Set", "Time", "Combo", "Name", "Instrument"])
+        for k in range(1, n.n_slots + 1):
+            first = ws.max_row + 1
+            cid, text = schedule.sets.get(n.date, {}).get(k), schedule.typed.get(n.date, {}).get(k)
+            when = n.set_range(k)
+            if cid:
+                combo = combos[cid]
+                inst = {e: instruments.get((combo.name, e), "") for e in combo.members}
+                people = [(name_of(e) + ("  (liaison)" if e == combo.liaison else ""), inst[e])
+                          for e in by_instrument(combo.members, inst.get, name_of)]
+                if combo.professor:
+                    people.append((name_of(combo.professor) + "  (supervisor)", ""))
+                for i, (who, instrument) in enumerate(people or [("", "")]):
+                    ws.append([k, when, combo.name] if i == 0 else ["", "", ""])
+                    ws.cell(ws.max_row, 4).value, ws.cell(ws.max_row, 5).value = who, instrument
+                    for c in ws[ws.max_row]:
+                        c.font = font(bold=c.column == 3)
+            else:
+                ws.append([k, when, text or open_text])
+                for c in ws[ws.max_row]:
+                    c.font = font(italic=bool(text), color=None if text else GREY)
+            lines(ws, first, ws.max_row, 5)
+    for letter, w in zip("ABCDE", (6, 18, 16, 34, 16)):
+        ws.column_dimensions[letter].width = w
+    ws.page_setup.fitToWidth, ws.sheet_properties.pageSetUpPr.fitToPage = 1, True
+    ws.page_setup.fitToHeight = 0
+
+    def sheet(title, header, rows, widths):
+        s = wb.create_sheet(title)
+        s.append(header)
+        for c in s[1]:
+            c.font, c.fill = font(bold=True), HEAD_FILL
+        for row in rows:
+            s.append(row)
+        for row in s.iter_rows(min_row=2):
+            for c in row:
+                c.font = font()
+        for letter, w in zip("ABCDEFGHIJ", widths):
+            s.column_dimensions[letter].width = w
+        s.freeze_panes = "A2"
+        s.auto_filter.ref = s.dimensions
+        return s
+
+    timed = any(n.first_set is not None for n in schedule.nights)
+    rows = []
+    for n in schedule.nights:
+        for k in range(1, n.n_slots + 1):
+            cid, text = schedule.sets.get(n.date, {}).get(k), schedule.typed.get(n.date, {}).get(k)
+            rows.append([n.date, WEEKDAYS[n.date.weekday()], n.venue, k]
+                        + ([n.set_time(k), n.set_end(k)] if timed else [])
+                        + [combos[cid].name if cid else text or open_text]
+                        + (["Yes" if n.date in supervised else ""] if schedule.supervised is not None else []))
+    s = sheet("All sets", ["Date", "Day", "Venue", "Set"] + (["Start", "End"] if timed else []) + ["Combo"]
+              + (["Supervised"] if schedule.supervised is not None else []), rows,
+              (14, 12, 14, 6) + ((10, 10) if timed else ()) + (36, 12))
+    for r in range(2, s.max_row + 1):
+        s.cell(row=r, column=1).number_format = "yyyy-mm-dd"
+        if timed:
+            s.cell(row=r, column=5).number_format = s.cell(row=r, column=6).number_format = "h:mm AM/PM"
+    if schedule.supervised is not None:
+        sup = [[n.date, WEEKDAYS[n.date.weekday()], n.venue,
+                ", ".join(combos[c].name for k, c in sorted(schedule.sets.get(n.date, {}).items()) if c)]
+               for n in schedule.nights if n.date in supervised]
+        s = sheet("Supervision", ["Date", "Day", "Venue", "Combos playing"], sup, (14, 12, 14, 60))
+        for r in range(2, s.max_row + 1):
+            s.cell(row=r, column=1).number_format = "yyyy-mm-dd"
+    if schedule.report:
+        sheet("Report", ["Level", "Message"], [[str(l).upper(), t] for l, t in schedule.report], (10, 120))
+    save_workbook(wb, path)
+
+
+# ---------------------------------------------------------------- the old, hand-editable Schedule.xlsx (read once)
+
+def is_old_schedule(path):
+    """True for a Schedule.xlsx of the old kind (it has a 'Schedule' sheet; the exports don't)."""
+    from openpyxl import load_workbook
+    try:
+        wb = load_workbook(path, read_only=True)
+    except Exception:                                  # not a workbook at all, or locked: not ours to convert
+        return False
+    try:
+        return "Schedule" in wb.sheetnames
+    finally:
+        wb.close()
+
+
+def old_schedule_semester(path, settings=None):
+    """The semester an old Schedule.xlsx was made for (kept in the file's properties). For a file made before that was
     recorded: settings.semester_name if all its nights fall within the settings' dates, else None (unknown)."""
     from openpyxl import load_workbook
     from util import to_date
@@ -43,111 +189,8 @@ def schedule_semester(path, settings=None):
         wb.close()
 
 
-def record_semester(path, semester):
-    """Writes the semester into an older Schedule.xlsx that doesn't say yet (best effort: skipped if it's open)."""
-    from openpyxl import load_workbook
-    try:
-        wb = load_workbook(path)
-        if not wb.properties.subject:
-            wb.properties.subject = semester
-            save_workbook(wb, path)
-    except (OSError, KeyError):
-        pass
-
-
-def check_semester(path, settings):
-    """Raises ScheduleFileError when Schedule.xlsx (if there is one) belongs to another semester than the
-    settings'."""
-    if not Path(path).exists():
-        return
-    sem = schedule_semester(path, settings)
-    if sem != settings.semester_name:
-        raise ScheduleFileError(f"{Path(path).name} is for {sem or 'another semester'}, not {settings.semester_name}. "
-                                f"Make the {settings.semester_name} schedule (Run tab, step 2); the old files are moved "
-                                "into the data folder's Archive first.")
-
-
-def semester_paths(folder):
-    """The SEMESTER_FILES that are there (Schedule backups is in App data)."""
-    folder = Path(folder)
-    paths = [schedule_backups(folder) if n == SCHEDULE_BACKUPS else folder / n for n in SEMESTER_FILES]
-    return [p for p in paths if p.exists()]
-
-
-def archive_semester(folder, semester):
-    """Moves a semester's files (SEMESTER_FILES) into folder/Archive/<semester>/ (or '<semester> (2)', ... if that
-    exists). Returns the new folder, or None when there was nothing to move."""
-    import shutil
-    folder = Path(folder)
-    present = semester_paths(folder)
-    if not present:
-        return None
-    name = re.sub(r'[\\/:*?"<>|]+', "-", str(semester or "Old schedule")).strip() or "Old schedule"
-    archive = archive_folder(folder)
-    dest, n = archive / name, 2
-    while dest.exists():
-        dest, n = archive / f"{name} ({n})", n + 1
-    dest.mkdir(parents=True)
-    for p in present:
-        shutil.move(str(p), str(dest / p.name))
-    return dest
-
-
-def write_schedule(path, result, settings):
-    wb = Workbook()
-    wb.properties.subject = settings.semester_name     # which semester this schedule is for (schedule_semester)
-    hfont, hfill, base = Font(name="Arial", bold=True), PatternFill("solid", fgColor="DDEBF7"), Font(name="Arial")
-    first = [True]
-
-    def sheet(title, header, rows, widths):
-        ws = wb.active if first[0] else wb.create_sheet()
-        first[0] = False
-        ws.title = title
-        ws.append(header)
-        for c in ws[1]:
-            c.font, c.fill = hfont, hfill
-        for r in rows:
-            ws.append(r)
-        for row in ws.iter_rows(min_row=2):
-            for c in row:
-                c.font = base
-        for letter, w in zip("ABCDEFGHIJ", widths):
-            ws.column_dimensions[letter].width = w
-        ws.freeze_panes = "A2"
-        return ws
-
-    policy, combos = settings.extra_slot_policy, result.combos
-
-    timed = any(n.first_set is not None for n in result.nights)   # Start/End columns only when set times are set up
-    rows = []
-    for n in result.nights:
-        order = result.lineup.get(n.date, [])
-        for k in range(1, n.n_slots + 1):
-            c = order[k - 1] if k <= len(order) else None
-            rows.append([n.date, n.weekday, n.venue, k] + ([n.set_time(k), n.set_end(k)] if timed else [])
-                        + [combos[c].name if c else ("OPEN - volunteer" if policy == "open" else "(empty)")]
-                        + (["Yes" if n.date in result.supervised else ""] if settings.every_combo_supervised else []))
-    header = (["Date", "Day", "Venue", "Set"] + (["Start", "End"] if timed else []) + ["Combo"]
-              + (["Supervised"] if settings.every_combo_supervised else []))
-    ws = sheet("Schedule", header, rows, (14, 12, 14, 6) + ((10, 10) if timed else ()) + (36, 12))
-    for r in range(2, ws.max_row + 1):
-        ws.cell(row=r, column=1).number_format = "yyyy-mm-dd"
-        if timed:
-            ws.cell(row=r, column=5).number_format = ws.cell(row=r, column=6).number_format = "h:mm AM/PM"
-
-    if settings.every_combo_supervised:
-        sheet("Supervision", ["Date", "Day", "Venue", "Professor (fill in)"],
-              [[n.date, n.weekday, n.venue, ""] for n in result.nights if n.date in result.supervised],
-              (14, 12, 14, 30))
-        for r in range(2, wb["Supervision"].max_row + 1):
-            wb["Supervision"].cell(row=r, column=1).number_format = "yyyy-mm-dd"
-
-    sheet("Report", ["Level", "Message"], [[l.upper(), t] for l, t in result.report], (10, 120))
-    save_workbook(wb, path)
-
-
-def read_schedule(path, combos):
-    """Schedule.xlsx (possibly edited by hand) -> (sets, problems, supervised, typed).
+def read_old_schedule(path, combos):
+    """An old Schedule.xlsx (possibly edited by hand) -> (sets, problems, supervised, typed).
     sets = {date: {set number: combo id or None}}. A Combo cell that is blank, 'OPEN...' or '(empty)' is open (None).
     Anything else that isn't a combo name (e.g. 'Jam session') goes in typed = {date: {set number: text}}: shown on
     the PDF as written, and the set counts as taken (None in sets). Text that looks like a mistyped combo name
@@ -196,14 +239,8 @@ def read_schedule(path, combos):
     return dict(sets), problems, (supervised if vi is not None else None), dict(typed)
 
 
-class ScheduleFileError(Exception):
-    pass
-
-
-def schedule_nights(path, settings):
-    """The show nights as Schedule.xlsx has them (date, venue, number of sets, set times), sorted. Once a schedule
-    exists it decides which nights there are: changing dates or show days in the settings only affects the next
-    schedule made. ("Supervised nights preferred here" still comes from the settings' show days.)"""
+def old_schedule_nights(path, settings):
+    """The show nights as an old Schedule.xlsx has them (date, venue, number of sets, set times), sorted."""
     from datetime import datetime as dt
     from openpyxl import load_workbook
     from core.model import Night
@@ -222,7 +259,7 @@ def schedule_nights(path, settings):
             start = to_time(r[col["start"]]) if "start" in col else None
             end = to_time(r[col["end"]]) if "end" in col else None
         except (ValueError, TypeError):
-            continue                                  # read_schedule reports unreadable rows
+            continue                                  # read_old_schedule reports unreadable rows
         if d:
             rows[d][k] = (str(r[col.get("venue", 2)] or "").strip(), start, end)
     # as in core.slots: a regular show day's own flag; any other night is preferred when its venue is
@@ -239,45 +276,3 @@ def schedule_nights(path, settings):
         nights.append(Night(d, venue, max(sets), first if length > 0 else None, max(length, 0), max(gap, 0),
                             by_day.get((d.weekday(), venue.casefold()), venue.casefold() in preferred_venues)))
     return nights
-
-
-def open_label(settings):
-    """What an open set says in Schedule.xlsx."""
-    return "OPEN - volunteer" if settings.extra_slot_policy == "open" else "(empty)"
-
-
-def write_swap(path, changes, combos, open_label):
-    """Writes swapped sets into the Combo column of Schedule.xlsx (everything else, including hand edits, stays).
-    changes = {(date, set number): combo id or None (open)}. A copy of the file as it was goes into a
-    'App data/Schedule backups' folder in the data folder first. Returns the backup's path."""
-    import shutil
-    from datetime import datetime
-    from openpyxl import load_workbook
-    from util import to_date
-    path = Path(path)
-    backups = schedule_backups(path.parent)
-    backups.mkdir(parents=True, exist_ok=True)
-    backup = backups / f"{path.stem} {datetime.now():%Y-%m-%d %H%M%S}{path.suffix}"
-    shutil.copy2(path, backup)
-    wb = load_workbook(path)
-    ws = wb["Schedule"]
-    head = [str(v or "").strip().lower() for v in next(ws.iter_rows(max_row=1, values_only=True), ())]
-    di, si, ci = (head.index(h) if h in head else j for h, j in (("date", 0), ("set", 3), ("combo", 4)))
-    todo = dict(changes)
-    for row in ws.iter_rows(min_row=2):
-        try:
-            key = (to_date(row[di].value), int(row[si].value))
-        except (ValueError, TypeError):
-            continue
-        if key in todo:
-            c = todo.pop(key)
-            row[ci].value = combos[c].name if c else open_label
-    if todo:
-        raise ScheduleFileError("Couldn't find these sets in Schedule.xlsx: "
-                                + ", ".join(f"{d} set {k}" for d, k in sorted(todo)) + ". Nothing was changed.")
-    try:
-        save_workbook(wb, path)
-    except PermissionError:
-        raise ScheduleFileError(f"Can't save {path.name}: it's open in Excel. Close it and try again. "
-                                "Nothing was changed.")
-    return backup

@@ -11,9 +11,9 @@ from tkinter import messagebox, simpledialog, ttk
 
 from app_config import input_files
 from core.model import make_label
-from data_folder import COMBOS_PDF, SCHEDULE_XLSX, settings_path
+from data_folder import COMBOS_PDF, COMBOS_XLSX, settings_path
 from inputs import EMAIL_RE, EmailRules, InputError, load_input, name_from_email
-from outputs.excel_schedule import ScheduleFileError, check_semester, open_label, read_schedule, write_swap
+from schedule_file import ScheduleFileError, has_schedule, load as load_schedule, save_changes
 from settings_file import SettingsError, load_settings
 from store import Store
 from theme import popup, scrolled_tree
@@ -27,7 +27,7 @@ class CombosPanel:
         self.get_folder, self.get_palette, self.open_path = get_folder, get_palette, open_path
         self.on_change = on_change                        # reloads the other tabs after an email fix
         self.get_swaps = get_swaps                        # the Swaps tab (its pending changes)
-        self.after_schedule_change = after_schedule_change  # rebuilds Schedule.pdf after Schedule.xlsx changed
+        self.after_schedule_change = after_schedule_change  # rebuilds the PDF and xlsx after the schedule changed
         self.people = {}                                  # tree item id -> (combo name, email); combo None = supervisor
         self.removed = {}                                 # tree item id -> (combo name, email) of a removed member
         self.combo_items = {}                             # tree item id -> combo name
@@ -71,8 +71,10 @@ class CombosPanel:
         self.actions_hint = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.actions_hint.pack(side="left", padx=10)
         self.tree.bind("<<TreeviewSelect>>", lambda _: self.show_actions_hint(), add="+")
+        ttk.Button(bottom, text="Export Excel", style="Accent.TButton",
+                   command=self.export_xlsx).pack(side="right")
         ttk.Button(bottom, text="Export PDF", style="Accent.TButton",
-                   command=self.export_pdf).pack(side="right")
+                   command=self.export_pdf).pack(side="right", padx=(0, 6))
 
         self.data = None
         self.recolor()
@@ -94,10 +96,10 @@ class CombosPanel:
             return
         combos = {c.id: c for c in inp.combos}
         shows, sets, supervised = {}, {}, None
-        if (folder / SCHEDULE_XLSX).exists():
+        if has_schedule(folder):
             try:
-                check_semester(folder / SCHEDULE_XLSX, settings)
-                sets, _, supervised, _ = read_schedule(folder / SCHEDULE_XLSX, combos)
+                sched = load_schedule(folder, combos, settings)
+                sets, supervised = sched.sets, sched.supervised
                 for d, row in sets.items():
                     for k, c in row.items():
                         if c:
@@ -111,7 +113,7 @@ class CombosPanel:
                          rules=EmailRules.from_settings(settings))
         n_people = len({e for c in combos.values() for e in c.members})
         self.info.configure(text=f"{len(combos)} combos, {n_people} students." + (
-            " * = supervised night." if shows else " (No Schedule.xlsx yet: shows aren't listed.)"))
+            " * = supervised night." if shows else " (No schedule yet: shows aren't listed.)"))
         self.fill()
 
     def name(self, email):
@@ -398,6 +400,15 @@ class CombosPanel:
         p = self.get_palette() or {}
         menu = tk.Menu(self.tree, tearoff=0, background=p.get("panel"), foreground=p.get("text"),
                        activebackground=p.get("accent"), activeforeground=p.get("accent_text"))
+        if combo is not None:
+            if combo.liaison:
+                menu.add_command(label=f"Copy liaison email of {combo.name} ({self.name(combo.liaison)})",
+                                 command=lambda: self.copy_emails(combo, liaison=True))
+            else:
+                menu.add_command(label=f"Copy liaison email of {combo.name} (no liaison)", state="disabled")
+            menu.add_command(label=f"Copy emails of {combo.name} (students and supervisor)",
+                             command=lambda: self.copy_emails(combo))
+            menu.add_separator()
         if kind == "person":
             if email != combo.liaison:
                 menu.add_command(label="Make liaison", command=self.make_liaison)
@@ -435,6 +446,25 @@ class CombosPanel:
             menu.add_command(label=f"Withdraw {combo.name}...", command=self.withdraw)
         self.menu = menu                              # (kept for tests)
         return menu
+
+    def copy_emails(self, combo, liaison=False):
+        """The combo's emails, ready to paste into Outlook: the liaison, the other members by name, the supervisor.
+        liaison: only the liaison's."""
+        from clipboard import copy
+        if liaison:
+            copy(self.frame, combo.liaison, f"the liaison email of {combo.name}", self.get_palette())
+            self.info.configure(text=f"Copied the liaison email of {combo.name} ({self.name(combo.liaison)}): paste "
+                                     "with Ctrl+V.")
+            self.last_copied = combo.liaison          # (kept for tests)
+            return
+        people = ([combo.liaison] if combo.liaison else []) + sorted(combo.members - {combo.liaison},
+                                                                     key=lambda e: self.name(e).lower())
+        emails = people + ([combo.professor] if combo.professor and combo.professor not in people else [])
+        what = f"{len(emails)} email{'' if len(emails) == 1 else 's'} of {combo.name}"
+        copy(self.frame, "; ".join(emails), what, self.get_palette())
+        self.info.configure(text=f"Copied {what} (students{' and supervisor' if combo.professor else ''}): paste "
+                                 "with Ctrl+V.")
+        self.last_copied = "; ".join(emails)          # (kept for tests)
 
     def change_store(self, change):
         """Re-reads scheduler_data.json, applies change(store) and saves it. Reading it again first means an edit
@@ -528,7 +558,7 @@ class CombosPanel:
 
     def withdraw(self):
         """Withdraws the selected combo (kept in scheduler_data.json; its number stays reserved). If the schedule is
-        out, its sets become open in Schedule.xlsx (backup first) and Schedule.pdf is rebuilt."""
+        out, its sets become open in the schedule (backup first) and the exports are rebuilt."""
         kind, combo, _ = self.selected()
         if kind in (None, "withdrawn"):
             messagebox.showinfo("Withdraw a combo", "Pick the combo to withdraw (or one of its members).")
@@ -543,7 +573,7 @@ class CombosPanel:
         text = f"Withdraw {combo.name}? It won't be scheduled; its number stays reserved (the numbering keeps a gap)."
         if shows:
             text += ("\n\nIts shows: " + ", ".join(f"{make_label(d)} (set {k})" for d, k in shows) + ". These sets "
-                     "become OPEN in Schedule.xlsx (a backup is kept): volunteers can claim them, or give one to a "
+                     "become OPEN in the schedule (a backup is kept): volunteers can claim them, or give one to a "
                      "combo in the Schedule tab (who could take it).")
         if sup:
             text += ("\n\n\u26a0 " + ", ".join(make_label(d) for d in sup) + (" is a supervised night" if len(sup) == 1
@@ -555,8 +585,7 @@ class CombosPanel:
         backup = None
         if shows:
             try:
-                backup = write_swap(folder / SCHEDULE_XLSX, {s: None for s in shows}, self.data["combos"],
-                                    open_label(settings))
+                backup = save_changes(folder, self.data["combos"], sets={s: None for s in shows})
             except ScheduleFileError as e:
                 messagebox.showerror("Couldn't withdraw", str(e))
                 return
@@ -565,7 +594,7 @@ class CombosPanel:
             return
         if shows and self.after_schedule_change:
             self.after_schedule_change(f"Withdrew {combo.name}: opened " + ", ".join(
-                f"{make_label(d)} set {k}" for d, k in shows) + f". Backup of the old file: {backup}\n")
+                f"{make_label(d)} set {k}" for d, k in shows) + f". Backup of the schedule before: {backup}\n")
 
     def put_back(self):
         kind, combo, _ = self.selected()
@@ -641,6 +670,25 @@ class CombosPanel:
         except PermissionError:
             messagebox.showerror("Combo list", f"Can't write {path.name}: it's open in another program. Close it and "
                                                "try again.")
+            return
+        self.info.configure(text=f"Wrote {path.name}.")
+        if self.open_path:
+            self.open_path(path)
+
+    def export_xlsx(self):
+        """Combos.xlsx: one table per combo (members by instrument, liaison, emails, other combos, supervisor) and a
+        sheet with everyone, then opens it."""
+        if not self.data:
+            messagebox.showinfo("Combo list", "Nothing loaded yet.")
+            return
+        from outputs.combos_xlsx import write_combos_xlsx
+        path = self.get_folder() / COMBOS_XLSX
+        combos = sorted(self.data["combos"].values(), key=lambda c: c.name)
+        try:
+            write_combos_xlsx(path, combos, self.name, self.data["settings"].semester_name, self.data["instruments"],
+                              self.data["shows"])
+        except PermissionError:
+            messagebox.showerror("Combo list", f"Can't write {path.name}: it's open in Excel. Close it and try again.")
             return
         self.info.configure(text=f"Wrote {path.name}.")
         if self.open_path:

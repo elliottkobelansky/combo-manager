@@ -1,6 +1,6 @@
 """Statistics and a rule check for a finished schedule.
 
-Works on a freshly solved schedule or on one read back from Schedule.xlsx after hand edits (swaps), so it
+Works on a freshly solved schedule or on the saved one after swaps (schedule_file.py), so it
 re-checks the hard rules rather than trusting the solver.
 """
 from collections import Counter, defaultdict
@@ -25,7 +25,7 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
                    name_of: Optional[Callable[[str], str]] = None, typed: Optional[Dict] = None
                    ) -> Tuple[List[Tuple[str, List[str]]], List[str]]:
     """Returns (sections, problems). sections = [(title, lines)]; problems = broken hard rules.
-    supervised = nights marked as supervised (None = not known, e.g. an older Schedule.xlsx).
+    supervised = nights marked as supervised (None = not tracked by this schedule).
     typed = {date: {set number: text}}: sets with something other than a combo typed in; they count as taken."""
     typed = typed or {}
     n_typed = sum(len(v) for v in typed.values())
@@ -97,7 +97,7 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
     # ---- supervision
     if settings.every_combo_supervised:
         if supervised is None:
-            sections.append(("Supervision", ["This Schedule.xlsx has no Supervised column, so supervision isn't checked."]))
+            sections.append(("Supervision", ["This schedule doesn't track supervised nights, so supervision isn't checked."]))
         else:
             sup = sorted(d for d in supervised if d in nmap)
             cap = settings.max_supervised_nights

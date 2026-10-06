@@ -156,9 +156,11 @@ def main():
     sets = {d: {k: c for k, c in enumerate(cs, start=1)} for d, cs in result.lineup.items()}
     tried = offered = 0
     bad = []
+    samples = {}                                       # one option of each kind, for the summary check below
     for c in sorted(result.combos)[:6]:
         for d, k in [(d, k) for d, row in sets.items() for k, x in row.items() if x == c][:1]:
             for opt in swap_options(sets, result.nights, result.combos, inp, s, result.supervised, {}, c, d, k):
+                samples.setdefault((opt.kind, opt.same_night), (sets, result, opt, c))
                 new = apply_option(sets, opt)
                 lineup = {dd: [row[kk] for kk in sorted(row) if row[kk]] for dd, row in new.items()}
                 bad += [f"{opt.title}: {b}" for b in check(replace(result, lineup=lineup), inp, s)]
@@ -183,6 +185,7 @@ def main():
             for opt in swap_options(sets, result.nights, result.combos, inp, s, result.supervised, {}, c, d, k):
                 if opt.kind not in ("give", "drop"):
                     continue
+                samples.setdefault((opt.kind, False), (sets, result, opt, c))
                 if c in poor:
                     wrong.append(f"{result.combos[c].name} has only {count[c]} shows but may give one away")
                 new = apply_option(sets, opt)
@@ -199,6 +202,7 @@ def main():
     claims = 0
     for c in sorted(result.combos)[:4]:
         for opt in swap_options(sets, result.nights, result.combos, inp, s, result.supervised, {}, c):
+            samples.setdefault(("claim", False), (sets, result, opt, c))
             new = apply_option(sets, opt)
             lineup = {dd: [row[kk] for kk in sorted(row) if row[kk]] for dd, row in new.items()}
             bad += [f"{opt.title}: {b}" for b in check(replace(result, lineup=lineup), inp, s)
@@ -211,6 +215,119 @@ def main():
         print("      -", b)
     for b in bad[:5]:
         print("      -", b)
+    failures += not ok
+
+    # Swap summaries (the Swaps tab's "Copy swap summary"): both sides of every kind of option, in words.
+    from core.swaps import involved, swap_summary
+    headings = {("trade", False): "trade shows", ("trade", True): "swap set order", ("move", False): "moves to an open",
+                ("move", True): "another set the same night", ("give", False): "gives a show to",
+                ("drop", False): "gives up a show", ("claim", False): "takes an open set"}
+    bad = []
+    for key, (sets_, res, opt, c) in sorted(samples.items()):
+        text = swap_summary(sets_, res.nights, res.combos, opt, c, lambda e: "Name of " + e.split("@")[0])
+        ids = involved(sets_, opt, res.combos, c)
+        if ids[0] != c or len(ids) != (2 if key[0] in ("trade", "give") else 1):
+            bad.append(f"{key}: combos involved {ids}")
+        if headings[key] not in text.splitlines()[0]:
+            bad.append(f"{key}: heading '{text.splitlines()[0]}'")
+        for x in ids:                                   # one line per combo touched: two-way
+            if not any(line.startswith(f"\u2022 {res.combos[x].name} ") for line in text.splitlines()):
+                bad.append(f"{key}: nothing about {res.combos[x].name}")
+            if res.combos[x].liaison and "Name of " + res.combos[x].liaison.split("@")[0] not in text:
+                bad.append(f"{key}: {res.combos[x].name}'s liaison missing")
+        if "@" in text:
+            bad.append(f"{key}: an email in the summary")
+        if (key[0] in ("drop", "move")) != ("becomes an open set" in text):
+            bad.append(f"{key}: open set line wrong")
+    missing = sorted(set(headings) - set(samples))
+    ok = not bad and {("trade", False), ("give", False), ("drop", False), ("claim", False)} <= set(samples)
+    print(f"{'PASS' if ok else 'FAIL'}  swap summaries: {len(samples)} kinds of option, both sides, liaison names (no emails), open sets"
+          + (f" (none found here: {', '.join(k for k, _ in missing)})" if missing else ""))
+    for b_ in bad[:5]:
+        print("      -", b_)
+    failures += not ok
+
+    # The schedule file (App data/schedule.json): saved and read back unchanged, changes with a backup first, text in
+    # a set, a combo that's gone, an old hand-editable Schedule.xlsx converted, the xlsx export, archiving.
+    import schedule_file as sf_
+    from openpyxl import Workbook, load_workbook as open_wb
+    from outputs.excel_schedule import is_old_schedule, write_schedule_xlsx
+    bad = []
+    sdir = tmp / "schedule test"
+    sdir.mkdir()
+    sf_.save_new(sdir, result, s)
+    sch = sf_.load(sdir, result.combos, s)
+    lineup = {d: [row[k] for k in sorted(row) if row[k]] for d, row in sch.sets.items()}
+    if lineup != {d: cs for d, cs in result.lineup.items()} | {d: [] for d in lineup if d not in result.lineup}:
+        bad.append("the saved schedule reads back different sets")
+    if sch.supervised != set(result.supervised) or sch.semester != s.semester_name:
+        bad.append("supervised nights or semester changed on the way")
+    if [(n.date, n.venue, n.n_slots, n.first_set, n.set_length, n.break_minutes) for n in sch.nights] != \
+            [(n.date, n.venue, n.n_slots, n.first_set, n.set_length, n.break_minutes) for n in result.nights]:
+        bad.append("the nights changed on the way")
+    (d1, k1), (d2, k2) = sorted((d, k) for d, row in sch.sets.items() for k, c in row.items() if c)[:2]
+    c1, c2 = sch.sets[d1][k1], sch.sets[d2][k2]
+    open_set = next(((d, k) for d, row in sch.sets.items() for k, c in row.items() if c is None), None)
+    copy = sf_.save_changes(sdir, result.combos, sets={(d1, k1): c2, (d2, k2): c1})
+    sch2 = sf_.load(sdir, result.combos, s)
+    if sch2.sets[d1][k1] != c2 or sch2.sets[d2][k2] != c1 or not copy or not copy.exists():
+        bad.append("a trade wasn't saved, or no backup was made first")
+    if open_set:
+        sf_.save_changes(sdir, result.combos, typed={open_set: "Jam session"})
+        if sf_.load(sdir, result.combos, s).typed.get(open_set[0], {}).get(open_set[1]) != "Jam session":
+            bad.append("text typed into a set wasn't saved")
+        sf_.save_changes(sdir, result.combos, typed={open_set: ""})
+        if sf_.load(sdir, result.combos, s).typed:
+            bad.append("clearing the text didn't open the set again")
+    try:
+        sf_.save_changes(sdir, result.combos, sets={(d1, 99): c1})
+        bad.append("a set that isn't in the schedule was accepted")
+    except sf_.ScheduleFileError:
+        pass
+    fewer = {cid: c for cid, c in result.combos.items() if cid != c1}
+    if not any(c1 in p_ for p_ in sf_.load(sdir, fewer, s).problems):
+        bad.append("a combo that isn't accepted any more isn't reported")
+    try:
+        sf_.load(sdir, result.combos, replace(s, semester_name="Winter 2099"))
+        bad.append("another semester's schedule was loaded")
+    except sf_.ScheduleFileError:
+        pass
+    sch = sf_.load(sdir, result.combos, s)
+    write_schedule_xlsx(sdir / "Schedule.xlsx", sch, result.combos, s, lambda e: e, {})
+    wb = open_wb(sdir / "Schedule.xlsx")
+    if wb.sheetnames[:2] != ["By night", "All sets"] or is_old_schedule(sdir / "Schedule.xlsx") \
+            or sf_.load(sdir, result.combos, s).sets != sch.sets:
+        bad.append(f"the export: sheets {wb.sheetnames}, or it's taken for an old schedule")
+    moved = sf_.archive_semester(sdir, s.semester_name)
+    if sf_.has_schedule(sdir) or not (moved / "schedule.json").exists() or not (moved / "Schedule backups").exists():
+        bad.append("archiving left the schedule behind")
+    # an old, hand-editable Schedule.xlsx: converted once (typed text, supervised nights, a typo reported)
+    old = Workbook()
+    ws = old.active
+    ws.title = "Schedule"
+    ws.append(["Date", "Day", "Venue", "Set", "Combo", "Supervised"])
+    n0 = result.nights[0]
+    names = [result.combos[c].name for c in sorted(result.combos)[:2]]
+    ws.append([n0.date, "", n0.venue, 1, names[0], "Yes"])
+    ws.append([n0.date, "", n0.venue, 2, "Jam session", "Yes"])
+    ws.append([n0.date, "", n0.venue, 3, "Combo 999", "Yes"])
+    old.properties.subject = s.semester_name
+    old.save(sdir / "Schedule.xlsx")
+    sch = sf_.load(sdir, result.combos, s)
+    if not sch.converted or sch.sets[n0.date].get(1) != sorted(result.combos)[0] \
+            or sch.typed.get(n0.date, {}).get(2) != "Jam session" or sch.supervised != {n0.date}:
+        bad.append(f"the old Schedule.xlsx wasn't converted right: {sch.sets.get(n0.date)}, {sch.typed}")
+    if (sdir / "Schedule.xlsx").exists() or not any(sf_.schedule_backups(sdir).glob("Schedule (old*.xlsx")):
+        bad.append("the old Schedule.xlsx wasn't moved into Schedule backups")
+    if not any("Combo 999" in t for _, t in sch.report):
+        bad.append("the old file's typo isn't in the report")
+    if sf_.load(sdir, result.combos, s).converted:
+        bad.append("converted twice")
+    ok = not bad
+    print(f"{'PASS' if ok else 'FAIL'}  schedule file: saved and read back, changes backed up, text in a set, gone "
+          "combos reported, export, archive, old Schedule.xlsx converted")
+    for b_ in bad[:6]:
+        print("      -", b_)
     failures += not ok
 
     # Combo numbers never change: withdraw one combo and add a new one; the others keep their numbers.

@@ -2,8 +2,8 @@
 The numbers match the combo list (Combos.pdf, exported from the app's Combos tab). Needs: pip install reportlab
 
 It draws from `entries` = {date: {set number: ("combo", combo id) or ("text", anything typed)}}; a set that isn't
-there is open. entries_from_result() makes them from a fresh solve; solve.py --stats --pdf makes them from the
-Schedule.xlsx on disk, so hand edits (swaps, text typed into open sets) show up.
+there is open. schedule_file.entries() makes them from the saved schedule, so swaps and text typed into open sets
+show up.
 """
 import calendar
 import re
@@ -72,10 +72,6 @@ def fit(text, max_w, font, size):
     while text and stringWidth(text + "\u2026", font, size) > max_w:
         text = text[:-1]
     return text.rstrip() + "\u2026"
-
-
-def entries_from_result(result):
-    return {d: {k: ("combo", c) for k, c in enumerate(cs, start=1)} for d, cs in result.lineup.items()}
 
 
 def night_cell(d, night, playing, nums, open_word, suffix, inner, supervised=False, notes=None):

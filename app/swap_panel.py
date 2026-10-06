@@ -1,21 +1,23 @@
 """The Swaps tab of scheduler_app.py: pick a combo and one of its shows, see every legal swap (core/swaps.py), and
-collect changes in a pending list. Nothing is written until "Confirm changes": then Schedule.xlsx is written once (a copy
-of the old file goes to 'App data/Schedule backups') and Schedule.pdf is rebuilt in the background. While changes are
+collect changes in a pending list. Nothing is written until "Confirm changes": then the schedule (schedule_file.py) is
+saved once (a copy of the old one goes to 'App data/Schedule backups') and Schedule.pdf / .xlsx are rebuilt in the
+background. While changes are
 pending, the tab shows the schedule as if they were done, so the next swap is checked against them too.
+For a picked option (buttons, or right-click on it): copy the liaisons' emails of the combos it touches, or a summary
+of it in words (core.swaps.swap_summary) to send them.
 """
 import tkinter as tk
 from tkinter import messagebox, ttk
 
 from app_config import input_files
 from core.model import make_label
-from data_folder import SCHEDULE_XLSX, settings_path
-from core.swaps import apply_option, swap_options
+from data_folder import settings_path
+from core.swaps import apply_option, involved, swap_options, swap_summary
 from inputs import InputError, load_input, name_from_email
 from store import Store
-from outputs.excel_schedule import (ScheduleFileError, check_semester, open_label, read_schedule, schedule_nights,
-                                    write_swap)
+from schedule_file import ScheduleFileError, load as load_schedule, save_changes
 from settings_file import SettingsError, load_settings
-from theme import in_background
+from theme import in_background, popup
 
 
 class SwapPanel:
@@ -31,7 +33,7 @@ class SwapPanel:
         top = ttk.Frame(self.frame)
         top.pack(fill="x")
         ttk.Button(top, text="Reload", command=self.load).pack(side="left")
-        self.info = ttk.Label(top, text="Reads Schedule.xlsx as it is now (with any edits), plus the approvals and "
+        self.info = ttk.Label(top, text="Reads the schedule as it is now (with earlier swaps), plus the approvals and "
                                         "Conflicts.", style="Hint.TLabel")
         self.info.pack(side="left", padx=12)
 
@@ -74,12 +76,24 @@ class SwapPanel:
             self.option_list.column(col, width=width, anchor="w", stretch=col != "with")
         self.option_list.pack(side="left", fill="both", expand=True)
         self.option_list.bind("<<TreeviewSelect>>", lambda _: self.describe())
+        for ev in ("<Button-3>", "<Button-2>", "<Control-Button-1>"):        # right-click (Mac: also Ctrl-click)
+            self.option_list.bind(ev, self.option_menu)
         self.details = ttk.Label(right, text="", justify="left", anchor="w", wraplength=560)
         self.details.pack(fill="x", pady=(8, 0))
         right.bind("<Configure>", lambda e: self.details.configure(wraplength=max(e.width - 10, 200)))
-        self.apply_button = ttk.Button(right, text="Add to pending changes", style="Accent.TButton",
+        buttons = ttk.Frame(right)
+        buttons.pack(fill="x", pady=(8, 0))
+        self.apply_button = ttk.Button(buttons, text="Add to pending changes", style="Accent.TButton",
                                        command=self.apply, state="disabled")
-        self.apply_button.pack(anchor="w", pady=(8, 0))
+        self.apply_button.pack(side="left")
+        self.copy_buttons = [ttk.Button(buttons, text="Copy liaison emails", state="disabled",
+                                        command=lambda: self.copy_option("liaisons")),
+                             ttk.Button(buttons, text="Copy swap summary", state="disabled",
+                                        command=lambda: self.copy_option("summary"))]
+        for b in self.copy_buttons:
+            b.pack(side="left", padx=(6, 0))
+        self.copy_status = ttk.Label(buttons, text="", style="Hint.TLabel")
+        self.copy_status.pack(side="left", padx=(12, 0))
 
         # pending changes: collected here, written all at once
         box = ttk.Frame(right, style="Card.TFrame", padding=(12, 10))
@@ -133,10 +147,8 @@ class SwapPanel:
                 sets, supervised, typed = self.state["sets"], self.state["supervised"], self.state["typed"]
                 problems = []
             else:
-                if quiet and not (folder / SCHEDULE_XLSX).exists():
-                    raise ScheduleFileError("No Schedule.xlsx yet: make the schedule first (Run tab, step 2).")
-                check_semester(folder / SCHEDULE_XLSX, settings)
-                sets, problems, supervised, typed = read_schedule(folder / SCHEDULE_XLSX, combos)
+                sched = load_schedule(folder, combos, settings)
+                sets, problems, supervised, typed = sched.sets, sched.problems, sched.supervised, sched.typed
         except (SettingsError, InputError, ScheduleFileError) as e:
             if keep:
                 return
@@ -159,8 +171,7 @@ class SwapPanel:
         if not keep:
             self.base_sets = {d: dict(row) for d, row in sets.items()}
         self.state = dict(settings=settings, inp=inp, combos=combos, sets=sets, supervised=supervised, typed=typed,
-                          nights=schedule_nights(folder / SCHEDULE_XLSX, settings) if not keep else
-                          self.state["nights"], name_of=name_of)
+                          nights=sched.nights if not keep else self.state["nights"], name_of=name_of)
         # "Combo 07 (Ana Ruiz)": the liaison, so the director recognises the combo
         def who(e):                           # the liaison's name, or their email if the name isn't unique
             n = plain.get(e) or name_from_email(e)
@@ -169,7 +180,7 @@ class SwapPanel:
         self.by_name = {c.name: cid for cid, c in combos.items()}
         self.combo.configure(values=[self.labels[cid] for cid in sorted(combos, key=lambda c: combos[c].name)])
         self.info.configure(text=f"Loaded {len(combos)} combos." + (
-            f" Schedule.xlsx has {len(problems)} problem(s) already; swaps that fix one are marked." if problems else ""))
+            f" The schedule has {len(problems)} problem(s) already; swaps that fix one are marked." if problems else ""))
         if self.combo.get() in self.combo.cget("values"):
             self.show_combo()
         else:
@@ -181,7 +192,9 @@ class SwapPanel:
         for t in trees:
             t.delete(*t.get_children())
         self.details.configure(text="")
-        self.apply_button.configure(state="disabled")
+        for b in [self.apply_button] + self.copy_buttons:
+            b.configure(state="disabled")
+        self.copy_status.configure(text="")
 
     def cid(self):
         return next((c for c, label in self.labels.items() if label == self.combo.get()), None)
@@ -280,7 +293,59 @@ class SwapPanel:
         lines = [o.title] + [f"⚠ {w}" for w in o.warnings] + [f"• {n}" for n in o.notes]
         self.details.configure(text="\n".join(lines) if len(lines) > 1 else
                                o.title + "\nNo side effects: every rule and preference still holds.")
-        self.apply_button.configure(state="normal")
+        for b in [self.apply_button] + self.copy_buttons:
+            b.configure(state="normal")
+        self.copy_status.configure(text="")
+
+    def picked_option(self):
+        sel = self.option_list.selection()
+        return self.visible[int(sel[0])] if sel and self.state else None
+
+    def option_menu(self, event):
+        """Right-click on an option: the same as the buttons under the list."""
+        item = self.option_list.identify_row(event.y)
+        if not item:
+            return
+        self.option_list.selection_set(item)
+        o = self.visible[int(item)]
+        names = ", ".join(self.state["combos"][c].name for c in involved(self.state["sets"], o, self.state["combos"],
+                                                                          self.cid()))
+        p = self.get_palette() or {}
+        menu = tk.Menu(self.option_list, tearoff=0, background=p.get("panel"), foreground=p.get("text"),
+                       activebackground=p.get("accent"), activeforeground=p.get("accent_text"))
+        menu.add_command(label="Add to pending changes", command=self.apply)
+        menu.add_separator()
+        menu.add_command(label=f"Copy liaison emails ({names})", command=lambda: self.copy_option("liaisons"))
+        menu.add_command(label="Copy swap summary", command=lambda: self.copy_option("summary"))
+        self.menu = menu                              # (kept for tests)
+        popup(menu, event.x_root, event.y_root)
+
+    def copy_option(self, what):
+        """Copies the picked option's liaison emails (every combo it touches; a combo without a liaison: all its
+        members) or its summary in words."""
+        o, st = self.picked_option(), self.state
+        if not o:
+            return
+        ids = involved(st["sets"], o, st["combos"], self.cid())
+        if what == "liaisons":
+            emails, no_liaison = [], []
+            for c in ids:
+                combo = st["combos"][c]
+                if not combo.liaison:
+                    no_liaison.append(combo.name)
+                for e in [combo.liaison] if combo.liaison else sorted(combo.members):
+                    if e not in emails:
+                        emails.append(e)
+            text = "; ".join(emails)
+            msg = (f"Copied {len(emails)} liaison email{'' if len(emails) == 1 else 's'}"
+                   + (f" (no liaison for {', '.join(no_liaison)}: all its members instead)" if no_liaison else ""))
+        else:
+            text, msg = swap_summary(st["sets"], st["nights"], st["combos"], o, self.cid(), st["name_of"]), \
+                "Copied the summary"
+        from clipboard import copy
+        copy(self.frame, text, msg[len("Copied "):], self.get_palette())
+        self.copy_status.configure(text=msg + ": paste with Ctrl+V.")
+        self.last_copied = text                       # (kept for tests)
 
     def apply(self):
         """Adds the selected option to the pending changes (nothing is written yet)."""
@@ -303,7 +368,7 @@ class SwapPanel:
         self.after_change(message or f"Added: {option.title}")
 
     def changed_cells(self):
-        """(night, set) of every set that differs from Schedule.xlsx because of pending changes."""
+        """(night, set) of every set that differs from the saved schedule because of pending changes."""
         if not self.state or self.base_sets is None:
             return set()
         sets = self.state["sets"]
@@ -355,14 +420,14 @@ class SwapPanel:
 
     def discard_all(self):
         if self.pending and messagebox.askyesno("Discard all?", f"Throw away all {len(self.pending)} pending "
-                                                "change(s)? Schedule.xlsx hasn't been changed."):
+                                                "change(s)? The schedule hasn't been changed."):
             self.pending = []
             self.rebuild_sets()
             self.after_change("All pending changes discarded.")
 
     def save_all(self, then=None):
-        """Writes every pending change into Schedule.xlsx at once, then rebuilds the PDF in the background.
-        (The "Confirm changes" button of both the Swaps and the Schedule tab.) then(code): called after the PDF."""
+        """Saves every pending change into the schedule at once, then rebuilds the PDF and xlsx in the background.
+        (The "Confirm changes" button of both the Swaps and the Schedule tab.) then(code): called after the exports."""
         st = self.state
         if not self.pending:
             return
@@ -374,40 +439,40 @@ class SwapPanel:
             self.after_change("Nothing to save.")
             return
         warns = sum(1 for o in self.pending if o.warnings)
-        if not messagebox.askyesno("Confirm changes?", f"Save {len(self.pending)} change(s) into Schedule.xlsx "
+        if not messagebox.askyesno("Confirm changes?", f"Save {len(self.pending)} change(s) into the schedule "
                                    f"({len(changes)} set(s) change)?" + (f"\n\n{warns} of them have a heads-up (\u26a0)."
                                                                        if warns else "")
-                                   + "\n\nA copy of the current file goes to 'App data/Schedule backups' first."):
+                                   + "\n\nA copy of the schedule as it is goes to 'App data/Schedule backups' first."):
             return
         if not self.same_as_on_disk():
             return
         try:
-            backup = write_swap(self.get_folder() / SCHEDULE_XLSX, changes, st["combos"], open_label(st["settings"]))
+            backup = save_changes(self.get_folder(), st["combos"], sets=changes)
         except ScheduleFileError as e:
             messagebox.showerror("Couldn't save", str(e))
             return
         n = len(self.pending)
         self.pending = []
         self.load(quiet=True)
-        self.save_status.configure(text=f"Saved {n} change(s) to Schedule.xlsx (backup in 'App data/Schedule backups'). "
-                                        "Rebuilding Schedule.pdf...")
-        self.after_apply(f"Saved {n} change(s). Backup of the old file: {backup}\n",
+        self.save_status.configure(text=f"Saved {n} change(s) (backup in 'App data/Schedule backups'). "
+                                        "Rebuilding Schedule.pdf and Schedule.xlsx...")
+        self.after_apply(f"Saved {n} change(s). Backup of the schedule before: {backup}\n",
                          lambda code: (self.pdf_done(code), then and then(code)))
 
     def same_as_on_disk(self):
-        """True when Schedule.xlsx still holds what the pending changes were planned against. Otherwise (another
-        computer saved it and the sync brought it in, or it was edited in Excel) says so, and offers to reload."""
+        """True when the schedule still holds what the pending changes were planned against. Otherwise (another
+        computer saved it and the sync brought it in) says so, and offers to reload."""
         st = self.state
         try:
-            now, _, _, _ = read_schedule(self.get_folder() / SCHEDULE_XLSX, st["combos"])
+            now = load_schedule(self.get_folder(), st["combos"], st["settings"]).sets
         except ScheduleFileError as e:
             messagebox.showerror("Couldn't save", str(e))
             return False
         if now == self.base_sets:
             return True
         if messagebox.askyesno(
-                "Schedule changed elsewhere", "Schedule.xlsx was changed since these changes were planned (on "
-                "another computer, or by hand in Excel), so they might not fit any more. Nothing was saved.\n\n"
+                "Schedule changed elsewhere", "The schedule was changed since these changes were planned (on "
+                "another computer), so they might not fit any more. Nothing was saved.\n\n"
                 f"Reload the schedule as it is now? Your {len(self.pending)} pending change(s) are dropped; "
                 "redo the ones still needed.", icon="warning"):
             self.pending = []
@@ -415,5 +480,5 @@ class SwapPanel:
         return False
 
     def pdf_done(self, code):
-        self.save_status.configure(text="Saved. Schedule.pdf rebuilt; all hard rules hold." if code == 0 else
-                                   "Saved and Schedule.pdf rebuilt, but the rule check found problems: see the Run tab.")
+        self.save_status.configure(text="Saved. Schedule.pdf and .xlsx rebuilt; all hard rules hold." if code == 0 else
+                                   "Saved and the exports rebuilt, but the rule check found problems: see the Run tab.")

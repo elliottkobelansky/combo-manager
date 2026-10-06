@@ -1,16 +1,16 @@
-"""settings.json + Approvals.xlsx + Conflicts.xlsx -> Schedule.xlsx
+"""settings.json + Approvals.xlsx + Conflicts.xlsx -> the schedule (App data/schedule.json, see schedule_file.py)
 
-    python app/solve.py                # build the schedule (asks to confirm first; add -y to skip the question)
-    python app/solve.py --check        # validate the data and print warnings, don't solve
-    python app/solve.py --pdf          # also write Schedule.pdf, a printable calendar (needs: pip install reportlab)
+    python app/solve.py                  # build a new schedule (asks to confirm first; add -y to skip the question)
+    python app/solve.py --export         # ...and write Schedule.pdf and Schedule.xlsx from it (--pdf: the same)
+    python app/solve.py --check          # validate the data and print warnings, don't solve
     python app/solve.py --compare-gaps 14 21 28 35   # try several min_days_between_shows values, write nothing
-    python app/solve.py --stats        # stats + rule check for the Schedule.xlsx on disk (also after hand edits), no solving
-    python app/solve.py --stats --pdf  # ...and rebuild Schedule.pdf from that edited Schedule.xlsx
+    python app/solve.py --stats          # stats + rule check for the schedule as it is (after swaps), no solving
+    python app/solve.py --stats --export # ...and rebuild Schedule.pdf and Schedule.xlsx from it
 
 Works on the data folder picked in the app on this computer; --folder FOLDER for another one.
 Reads the two downloads directly (see inputs.py) and prints their warnings first: combos still Pending, conflict
-form problems. Writes nothing but Schedule.xlsx (and Schedule.pdf).
-Needs: pip install openpyxl ortools
+form problems. Writes nothing but the schedule (and its exports).
+Needs: pip install openpyxl ortools (reportlab for the PDF)
 """
 import argparse
 import sys
@@ -26,9 +26,9 @@ from core.stats import schedule_stats
 from inputs import InputError, load_input, name_from_email
 from store import Store
 from app_config import saved_folder
-from data_folder import SCHEDULE_PDF, SCHEDULE_XLSX, problem, settings_path, usual_inputs
-from outputs.excel_schedule import (ScheduleFileError, archive_semester, check_semester, read_schedule,
-                                    schedule_nights, schedule_semester, write_schedule)
+from data_folder import SCHEDULE_PDF, SCHEDULE_XLSX, problem, schedule_path, settings_path, usual_inputs
+from schedule_file import (ScheduleFileError, archive_semester, check_semester, entries, has_schedule, load,
+                           save_new, semester_of)
 from settings_file import SettingsError, load_settings
 
 
@@ -58,18 +58,44 @@ def compare_gaps(inp, settings, values):
           "Then set it in the app's Settings tab (min_days_between_shows) and run solve.py.")
 
 
-def print_stats(path, inp, settings, names, pdf=None):
+def write_exports(folder, sched, combos, settings, store):
+    """Schedule.pdf and Schedule.xlsx from the schedule. One open in another program is skipped, with a warning:
+    the schedule itself is saved either way."""
+    def name_of(e):
+        return store.names.get(e) or name_from_email(e)
+    try:
+        from outputs.schedule_pdf import write_schedule_pdf
+        write_schedule_pdf(folder / SCHEDULE_PDF, sched.nights, entries(sched), combos, sched.supervised or set(),
+                           settings)
+        print(f"Wrote {folder / SCHEDULE_PDF}")
+    except ImportError:
+        print("Can't write the PDF: run  pip install reportlab")
+    except PermissionError:
+        print(f"  [WARN] {SCHEDULE_PDF} is open in another program, so it wasn't updated (the schedule itself is "
+              "saved). Close it, then Export again (Schedule tab).")
+    from outputs.excel_schedule import write_schedule_xlsx
+    try:
+        write_schedule_xlsx(folder / SCHEDULE_XLSX, sched, combos, settings, name_of,
+                            store.instruments(settings.semester_name))
+        print(f"Wrote {folder / SCHEDULE_XLSX}")
+    except PermissionError:
+        print(f"  [WARN] {SCHEDULE_XLSX} is open in Excel, so it wasn't updated (the schedule itself is saved). "
+              "Close it, then Export again (Schedule tab).")
+
+
+def print_stats(folder, sched, inp, settings, store, export=False):
     combos = {c.id: c for c in inp.combos}
-    sets, file_problems, supervised, typed = read_schedule(path, combos)
-    nights = schedule_nights(path, settings)          # the schedule's own nights, whatever the settings say now
-    sections, problems = schedule_stats(sets, nights, combos, inp, settings, supervised,
-                                        lambda e: names.get(e) or name_from_email(e), typed)
-    print(f"\nStats for {path}")
+    sections, problems = schedule_stats(sched.sets, sched.nights, combos, inp, settings, sched.supervised,
+                                        lambda e: store.names.get(e) or name_from_email(e), sched.typed)
+    if sched.converted:
+        print(f"\nThe old Schedule.xlsx was turned into {schedule_path(folder)} (the schedule is kept there now; the "
+              "old file is in App data/Schedule backups).")
+    print(f"\nStats for the {sched.semester} schedule in {folder}")
     for title, lines in sections:
         print(f"\n{title}")
         for line in lines:
             print(f"  {line}")
-    problems = file_problems + problems
+    problems = sched.problems + problems
     print("\nRule check")
     if problems:
         for p in problems:
@@ -77,30 +103,20 @@ def print_stats(path, inp, settings, names, pdf=None):
     else:
         print("  All hard rules hold (no conflicts played, venue minimums met, no combo twice in a night, "
               "every combo on a supervised night).")
-    if pdf:
-        try:
-            from outputs.schedule_pdf import write_schedule_pdf
-        except ImportError:
-            print("Can't write the PDF: run  pip install reportlab")
-            return 1
-        entries = {d: {k: ("combo", c) for k, c in row.items() if c is not None} for d, row in sets.items()}
-        for d, row in typed.items():
-            for k, t in row.items():
-                entries.setdefault(d, {})[k] = ("text", t)
-        write_schedule_pdf(pdf, nights, entries, combos, supervised or set(), settings)
-        print(f"\nWrote {pdf} from {path}" + (" (the rule check found problems: see above)" if problems else "") + ".")
+    if export:
+        print()
+        write_exports(folder, sched, combos, settings, store)
     return 1 if problems else 0
 
 
-def confirm(outputs):
-    """Ask before building a schedule. Warns about each existing output file that would be overwritten."""
-    existing = [p for p in outputs if p.exists()]
+def confirm(folder):
+    """Ask before building a schedule. Warns when one exists already (it's backed up, but swaps made in it are
+    gone from the new one)."""
     print("\nThis builds a NEW schedule from scratch.")
-    for p in existing:
-        when = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-        print(f"  WARNING: {p} already exists (last saved {when}) and will be overwritten.")
-    if existing:
-        print("  Any swaps recorded in the old schedule will be lost. To keep it, rename or copy it first.\n"
+    if schedule_path(folder).exists():
+        when = datetime.fromtimestamp(schedule_path(folder).stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+        print(f"  WARNING: there is a schedule already (last saved {when}); it will be replaced (a copy goes to "
+              "App data/Schedule backups).\n  Any swaps made in it won't be in the new one.\n"
               "  To just check the existing schedule, use: python app/solve.py --stats")
     if not sys.stdin.isatty():
         print("Not running interactively: add -y to confirm.")
@@ -118,14 +134,14 @@ def main(argv=None):
     ap.add_argument("--approvals", help="default: Approvals.xlsx in the folder")
     ap.add_argument("--conflicts", help="default: Conflicts.xlsx in the folder")
     ap.add_argument("--conflicts-sheet")
-    ap.add_argument("--out", default=SCHEDULE_XLSX)
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--stats", action="store_true",
-                    help="stats and a rule check for the existing Schedule.xlsx (works after hand edits); no solving")
+                    help="stats and a rule check for the schedule as it is (after swaps); no solving")
     ap.add_argument("--compare-gaps", nargs="+", type=int, metavar="DAYS",
                     help="try these min_days_between_shows values and print a comparison; writes nothing")
     ap.add_argument("-y", "--yes", action="store_true", help="don't ask for confirmation before building the schedule")
-    ap.add_argument("--pdf", nargs="?", const=SCHEDULE_PDF, help="also write a printable calendar (default Schedule.pdf)")
+    ap.add_argument("--export", "--pdf", action="store_true", dest="export",
+                    help="also write Schedule.pdf and Schedule.xlsx from the schedule")
     a = ap.parse_args(argv)
     f = Path(a.folder) if a.folder else saved_folder()
     if problem(f):
@@ -134,9 +150,13 @@ def main(argv=None):
     try:
         settings, setting_warnings = load_settings(f / a.settings if a.settings else settings_path(f))
         if a.stats:
-            check_semester(f / a.out, settings)          # another semester's schedule isn't this one's
+            check_semester(f, settings)               # another semester's schedule isn't this one's
+        inp = load_input(f, settings, a.approvals or usual_inputs(f)["approvals"],
+                         a.conflicts or usual_inputs(f)["conflicts"], conflicts_sheet=a.conflicts_sheet)
+        combos = {c.id: c for c in inp.combos}
         # --stats looks at the schedule as it is: its own nights; anything else plans from the settings
-        nights = schedule_nights(f / a.out, settings) if a.stats and (f / a.out).exists() else generate_nights(settings)
+        sched = load(f, combos, settings) if a.stats else None
+        nights = sched.nights if sched else generate_nights(settings)
         days, sets = Counter(n.weekday for n in nights), Counter()
         for n in nights:
             sets[n.weekday] += n.n_slots
@@ -144,8 +164,6 @@ def main(argv=None):
         print(f"\n{settings.semester_name}: {len(nights)} show nights, {sum(sets.values())} sets ({detail})")
         for w in setting_warnings:
             print(f"  [WARN] {w}")
-        inp = load_input(f, settings, a.approvals or usual_inputs(f)["approvals"],
-                         a.conflicts or usual_inputs(f)["conflicts"], conflicts_sheet=a.conflicts_sheet)
         print(f"{len(inp.combos)} combos, {len(inp.blocked)} students with conflicts")
         warnings = [t for lvl, t in inp.notes if lvl in ("pending", "warn")]
         for txt in warnings:
@@ -155,40 +173,33 @@ def main(argv=None):
             print("\nInput report:")
             show([(lvl, t) for lvl, t in inp.notes if lvl == "info"] + report, levels=("warn", "info"))
             return 0
-        inp = replace(inp, notes=[("warn", t) for t in warnings])      # also saved in the Report sheet
+        inp = replace(inp, notes=[("warn", t) for t in warnings])      # also saved in the schedule's report
         if a.stats:
-            return print_stats(f / a.out, inp, settings, Store(f).names, f / a.pdf if a.pdf else None)
+            return print_stats(f, sched, inp, settings, Store(f), a.export)
         if a.compare_gaps:
             compare_gaps(inp, settings, a.compare_gaps)
             return 0
-        if (f / a.out).exists() and schedule_semester(f / a.out, settings) != settings.semester_name:
-            old = schedule_semester(f / a.out)          # recorded in the file, or unknown
+        if has_schedule(f) and semester_of(f, settings) != settings.semester_name:
+            old = semester_of(f)                      # recorded in it, or unknown
             moved = archive_semester(f, old or "Old schedule")
-            print(f"\n{a.out} was for {old or 'another semester'}: moved its files to {moved}.")
-        outputs = [f / a.out] + ([f / a.pdf] if a.pdf else [])
-        if not a.yes and not confirm(outputs):
+            print(f"\nThe schedule was for {old or 'another semester'}: moved its files to {moved}.")
+        if not a.yes and not confirm(f):
             print("Cancelled. Nothing was changed.")
             return 1
         print(f"\nMaking the schedule: the solver is working (up to about {settings.solver_time_limit_sec:g} seconds; "
               "it stops early when it has the best schedule)...", flush=True)
         result = run_schedule(inp, settings)
+        save_new(f, result, settings)
+        sched = load(f, combos, settings)
     except (SettingsError, InputError, ScheduleError, ScheduleFileError) as e:
         print(f"\nCan't continue:\n{e}")
         return 1
-    write_schedule(f / a.out, result, settings)
     print(f"\nSolver: {result.stats['status']}. {result.stats['total_sets'] - result.stats['empty_sets']}"
           f"/{result.stats['total_sets']} sets filled.")
     show(result.report)
-    print(f"\nWrote {f / a.out}. For details: python app/solve.py --stats")
-    if a.pdf:
-        try:
-            from outputs.schedule_pdf import entries_from_result, write_schedule_pdf
-        except ImportError:
-            print("Can't write the PDF: run  pip install reportlab")
-            return 1
-        write_schedule_pdf(f / a.pdf, result.nights, entries_from_result(result), result.combos, result.supervised,
-                           settings)
-        print(f"Wrote {f / a.pdf}")
+    print(f"\nSaved the schedule ({schedule_path(f)}). For details: python app/solve.py --stats")
+    if a.export:
+        write_exports(f, sched, combos, settings, Store(f))
     return 0
 
 

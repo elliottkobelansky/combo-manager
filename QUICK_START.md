@@ -24,7 +24,7 @@ The Combo Scheduler makes the combo show calendar from the sign-up and conflict 
 ## During the semester
 
 - **A combo can't make a show:** **Swaps** tab, pick the combo and the show, pick an option from the list, click **Add to pending changes**, then **Confirm changes**. The calendar PDF updates itself.
-- **Emails for a night:** **Schedule** tab, right-click the night, **Copy student emails**, then paste into Outlook.
+- **Emails for a night:** **Schedule** tab, right-click the night, **Copy combo emails**, then paste into Outlook.
 - **Don't click Step 2 again** once the schedule is out: it makes a brand-new schedule. **Step 3: Check** is always safe.
 
 ## If something goes wrong

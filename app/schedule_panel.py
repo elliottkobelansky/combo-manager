@@ -1,22 +1,23 @@
 """The Schedule tab of scheduler_app.py: every show night and its sets, including changes still pending in the
-Swaps tab (highlighted), with shortcuts into the Swaps tab and an Export PDF button (exports, then opens it).
+Swaps tab (highlighted), with shortcuts into the Swaps tab and Export PDF / Export Excel buttons (export, then open).
 
-It shows the Swaps tab's schedule (Schedule.xlsx plus pending changes), so the two tabs always agree, and it never
-writes anything by itself: adding a claim only adds a pending change, and Export PDF asks what to do with unsaved
-changes first.
+It shows the Swaps tab's schedule (the saved schedule plus pending changes), so the two tabs always agree. Adding a
+claim only adds a pending change, and the exports ask what to do with unsaved changes first. The one thing saved
+straight away: text typed into an open set (e.g. "Jam session"), or clearing it.
 """
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, simpledialog, ttk
 
 from core.model import make_label
 from core.swaps import claimers
-from data_folder import CONTACTS_XLSX
+from data_folder import CONTACTS_XLSX, SCHEDULE_PDF, SCHEDULE_XLSX
 from theme import in_background, popup, scrolled_tree
 
 
 class SchedulePanel:
-    def __init__(self, parent, swaps, goto_swaps, export, open_pdf, get_palette=lambda: {}, open_file=None):
-        self.swaps, self.goto_swaps, self.export, self.open_pdf = swaps, goto_swaps, export, open_pdf
+    def __init__(self, parent, swaps, goto_swaps, export, open_export, get_palette=lambda: {}, open_file=None):
+        """export(done): rebuilds Schedule.pdf and .xlsx, then done(code); open_export(name) opens one of them."""
+        self.swaps, self.goto_swaps, self.export, self.open_export = swaps, goto_swaps, export, open_export
         self.open_file = open_file or (lambda path: None)
         self.get_palette = get_palette
         self.rows = {}                                    # tree item -> (night, set number)
@@ -46,8 +47,8 @@ class SchedulePanel:
         self.pending_anchor.pack(fill="x")
 
         hint = ttk.Label(self.frame, text="Double-click a combo's set to find swaps for it; double-click an open set to "
-                                          "see who could take it; right-click a night to copy its emails or a summary. Changes not saved yet are "
-                                          "highlighted.", style="Hint.TLabel", justify="left")
+                                          "see who could take it; right-click a night to copy its emails or a summary, or an open set to type text "
+                                          "in it (e.g. Jam session). Changes not saved yet are highlighted.", style="Hint.TLabel", justify="left")
         hint.pack(anchor="w", fill="x", pady=(8, 0))
         self.frame.bind("<Configure>", lambda e: hint.configure(wraplength=max(e.width - 20, 200)), add="+")
 
@@ -59,7 +60,10 @@ class SchedulePanel:
 
         bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
-        ttk.Button(bottom, text="Export PDF", style="Accent.TButton", command=self.export_pdf).pack(side="right")
+        ttk.Button(bottom, text="Export Excel", style="Accent.TButton",
+                   command=lambda: self.export_file(SCHEDULE_XLSX)).pack(side="right")
+        ttk.Button(bottom, text="Export PDF", style="Accent.TButton",
+                   command=lambda: self.export_file(SCHEDULE_PDF)).pack(side="right", padx=(0, 6))
         ttk.Button(bottom, text="Expand all", command=lambda: self.expand(True)).pack(side="left")
         ttk.Button(bottom, text="Collapse all", command=lambda: self.expand(False)).pack(side="left", padx=6)
         ttk.Button(bottom, text="Export contact lists", command=self.export_contacts).pack(side="left", padx=(12, 0))
@@ -127,7 +131,7 @@ class SchedulePanel:
                 tags = [shade] + (["pending"] if (n.date, k) in changed else ["open"] if kind == "open" else [])
                 item = self.tree.insert(night, "end", text=f"    Set {k}", tags=tuple(tags),
                                         values=(n.set_range(k), who, "unsaved" if (n.date, k) in changed else
-                                                "typed in by hand" if kind == "text" else ""))
+                                                "text, not a combo" if kind == "text" else ""))
                 self.rows[item] = (n.date, k)
             shown += 1
         pending = len(self.swaps.pending)
@@ -168,8 +172,9 @@ class SchedulePanel:
             return
         menu = self.menu()
         label = make_label(night)
-        menu.add_command(label=f"Copy student emails ({label})", command=lambda: self.copy(night, "students"))
-        menu.add_command(label=f"Copy supervisor emails ({label})", command=lambda: self.copy(night, "supervisors"))
+        menu.add_command(label=f"Copy liaison emails ({label})", command=lambda: self.copy(night, "liaisons"))
+        menu.add_command(label=f"Copy combo emails ({label}: students and supervisors)",
+                         command=lambda: self.copy(night, "everyone"))
         menu.add_command(label=f"Copy night summary ({label})", command=lambda: self.copy(night, "summary"))
         if not slot:
             popup(menu, event.x_root, event.y_root)
@@ -181,76 +186,103 @@ class SchedulePanel:
         if c:
             menu.add_command(label="Find swaps / moves...", command=lambda: self.goto_swaps(c, d, k, "swap"))
             menu.add_command(label="Give it away...", command=lambda: self.goto_swaps(c, d, k, "give"))
-        elif k not in st["typed"].get(d, {}):
-            menu.add_command(label="Who could take this set?", command=lambda: self.show_claimers(item, d, k))
         else:
-            menu.add_command(label="(Typed in by hand: change it in Schedule.xlsx)", state="disabled")
+            text = st["typed"].get(d, {}).get(k)
+            if not text:
+                menu.add_command(label="Who could take this set?", command=lambda: self.show_claimers(item, d, k))
+            if (self.swaps.base_sets or {}).get(d, {}).get(k) is not None:   # opened by a change not saved yet
+                menu.add_command(label="(Confirm the pending changes first to type text in this set)",
+                                 state="disabled")
+            elif text:
+                menu.add_command(label="Change the text in this set...", command=lambda: self.edit_text(d, k))
+                menu.add_command(label="Clear the text (the set is open again)",
+                                 command=lambda: self.edit_text(d, k, clear=True))
+            else:
+                menu.add_command(label="Type text in this set (e.g. Jam session)...",
+                                 command=lambda: self.edit_text(d, k))
         popup(menu, event.x_root, event.y_root)
+
+    def edit_text(self, d, k, clear=False):
+        """Types text into an open set (it's shown on the calendar and the set counts as taken), changes it, or
+        clears it. Saved straight away (a backup first), then the exports are rebuilt."""
+        from schedule_file import ScheduleFileError, save_changes
+        st = self.swaps.state
+        current = st["typed"].get(d, {}).get(k, "")
+        if clear:
+            text = ""
+        else:
+            text = simpledialog.askstring(
+                "Text in a set", f"{make_label(d)}, set {k}: the text to show instead of a combo (e.g. Jam session). "
+                "The set then counts as taken. Leave it empty to open the set again.", initialvalue=current,
+                parent=self.frame)
+            if text is None or text.strip() == current:
+                return
+        try:
+            save_changes(self.swaps.get_folder(), st["combos"], typed={(d, k): text})
+        except ScheduleFileError as e:
+            messagebox.showerror("Couldn't save", str(e))
+            return
+        if text.strip():
+            st["typed"].setdefault(d, {})[k] = text.strip()
+        else:
+            st["typed"].get(d, {}).pop(k, None)
+        self.refresh()
+        self.status.configure(text=(f"Saved: {make_label(d)} set {k} says '{text.strip()}'." if text.strip() else
+                                    f"Saved: {make_label(d)} set {k} is open again.") + " Rebuilding the exports...")
+        self.export(lambda code: self.status.configure(text=self.status.cget("text").replace(
+            " Rebuilding the exports...", " Exports rebuilt.")))
 
     # contact lists
     def night_info(self, d):
-        """Who plays on night d (as shown, with unsaved changes): sets, student and supervisor emails."""
+        """Who plays on night d (as shown, with unsaved changes): sets, student, liaison and supervisor emails (a combo
+        without a liaison: its members as liaisons, named in no_liaison)."""
         st = self.swaps.state
         n = next(x for x in st["nights"] if x.date == d)
         row, combos, name_of = st["sets"].get(d, {}), st["combos"], st["name_of"]
-        sets, students, supervisors = [], [], []
+        sets, students, supervisors, liaisons, no_liaison = [], [], [], [], []
         for k in range(1, n.n_slots + 1):
             c = row.get(k)
             if c:
                 combo = combos[c]
-                people = [combo.liaison] + sorted(combo.members - {combo.liaison}, key=lambda e: name_of(e).lower())
+                people = ([combo.liaison] if combo.liaison else []) + sorted(combo.members - {combo.liaison},
+                                                                             key=lambda e: name_of(e).lower())
                 sets.append((k, n.set_range(k), combo.name, [name_of(e) for e in people]))
                 students += [e for e in people if e not in students]
+                if not combo.liaison:
+                    no_liaison.append(combo.name)
+                liaisons += [e for e in ([combo.liaison] if combo.liaison else people) if e not in liaisons]
                 if combo.professor and combo.professor not in supervisors:
                     supervisors.append(combo.professor)
             else:
                 text = st["typed"].get(d, {}).get(k)
                 sets.append((k, n.set_range(k), text or "open", []))
-        return dict(night=n, sets=sets, students=students, supervisors=supervisors,
+        return dict(night=n, sets=sets, students=students, supervisors=supervisors, liaisons=liaisons,
+                    no_liaison=no_liaison,
                     supervised=bool(st["supervised"] and d in st["supervised"]))
 
     def copy(self, d, what):
         info = self.night_info(d)
         def count(n, word):
             return f"{n} {word} email{'' if n == 1 else 's'}"
-        if what == "students":
-            text, msg = "; ".join(info["students"]), count(len(info["students"]), "student")
-        elif what == "supervisors":
-            text, msg = "; ".join(info["supervisors"]), count(len(info["supervisors"]), "supervisor")
+        if what == "everyone":                        # the students (in set order), then the supervisors
+            emails = info["students"] + [e for e in info["supervisors"] if e not in info["students"]]
+            text, msg = "; ".join(emails), count(len(emails), "combo")
+        elif what == "liaisons":
+            text, msg = "; ".join(info["liaisons"]), count(len(info["liaisons"]), "liaison") + (
+                f" (no liaison for {', '.join(info['no_liaison'])}: all its members instead)" if info["no_liaison"]
+                else "")
         else:
             n = info["night"]
             lines = [f"{make_label(d)}, {n.venue}" + (" (a professor attends)" if info["supervised"] else "")]
             for k, when, who, names in info["sets"]:
                 lines.append(f"  {when or f'Set {k}'}  {who}" + (f": {', '.join(names)}" if names else ""))
-            lines += ["", "Students: " + "; ".join(info["students"])]
-            if info["supervisors"]:
-                lines.append("Supervisors: " + "; ".join(info["supervisors"]))
             text, msg = "\n".join(lines), "the night summary"
-        from clipboard import copy_text
-        if not copy_text(self.frame, text):
-            self.show_text(f"{msg} for {make_label(d)}", text)
+        from clipboard import copy
+        copy(self.frame, text, f"{msg} for {make_label(d)}", self.get_palette())
         unsaved = any((d, k) in self.swaps.changed_cells() for k, _, _, _ in info["sets"])
         self.status.configure(text=f"Copied {msg} for {make_label(d)}: paste with Ctrl+V."
                                    + (" (Includes unsaved changes.)" if unsaved else ""))
         self.last_copied = text                       # (kept for tests)
-
-    def show_text(self, title, text):
-        """Fallback when the system clipboard can't keep the text: show it, selected, to copy by hand."""
-        win = tk.Toplevel(self.frame)
-        win.title("Copied: " + title)
-        win.transient(self.frame.winfo_toplevel())
-        box = ttk.Frame(win, padding=14)
-        box.pack(fill="both", expand=True)
-        ttk.Label(box, text="Copied. If pasting doesn't work, select the text below (it's already selected) and press "
-                            "Ctrl+C (Cmd+C on a Mac).", wraplength=520, justify="left").pack(anchor="w")
-        p = self.get_palette() or {}
-        txt = tk.Text(box, wrap="word", height=min(18, max(4, text.count("\n") + 2)), width=80, relief="flat",
-                      background=p.get("panel", "white"), foreground=p.get("text", "black"), padx=8, pady=6)
-        txt.insert("1.0", text)
-        txt.tag_add("sel", "1.0", "end")
-        txt.pack(fill="both", expand=True, pady=10)
-        txt.focus_set()
-        ttk.Button(box, text="Close", style="Accent.TButton", command=win.destroy).pack(anchor="e")
 
     def export_contacts(self):
         """Contact lists.xlsx: one row per night with everyone's emails, for printing or sharing."""
@@ -315,21 +347,22 @@ class SchedulePanel:
         x, y, w, h = self.tree.bbox(item, "who") or (0, 0, 0, 0)
         popup(menu, self.tree.winfo_rootx() + x, self.tree.winfo_rooty() + y + h)
 
-    def export_pdf(self):
+    def export_file(self, name):
+        """Rebuilds Schedule.pdf and Schedule.xlsx, then opens `name` (one of them)."""
         if self.swaps.pending:
             answer = messagebox.askyesnocancel(
                 "Unsaved changes", f"There are {len(self.swaps.pending)} unsaved change(s).\n\n"
-                "Yes: save them into Schedule.xlsx first, then export.\nNo: export the saved schedule only (your "
+                "Yes: save them into the schedule first, then export.\nNo: export the saved schedule only (your "
                 "changes stay pending).\nCancel: do nothing.")
             if answer is None:
                 return
             if answer:
-                self.swaps.save_all(then=lambda code: self.open_pdf())   # saving also exports the PDF
+                self.swaps.save_all(then=lambda code: self.open_export(name))   # saving also exports
                 return
-        self.status.configure(text="Exporting Schedule.pdf...")
+        self.status.configure(text="Exporting Schedule.pdf and Schedule.xlsx...")
 
         def done(code):
-            self.status.configure(text="Schedule.pdf exported; all hard rules hold." if code == 0 else
-                                  "Schedule.pdf exported, but the rule check found problems: see the Run tab.")
-            self.open_pdf()
+            self.status.configure(text="Exported; all hard rules hold." if code == 0 else
+                                  "Exported, but the rule check found problems: see the Run tab.")
+            self.open_export(name)
         self.export(done)

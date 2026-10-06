@@ -194,3 +194,73 @@ def apply_option(sets: Sets, option: SwapOption) -> Sets:
     for (dd, kk), c in option.changes.items():
         new.setdefault(dd, {})[kk] = c
     return new
+
+
+def involved(sets: Sets, option: SwapOption, combos: Dict[str, Combo], first: Optional[str] = None) -> List[str]:
+    """The combos whose shows the option changes: `first` (the combo it was found for) first, then by name."""
+    ids = {c for (d, k), new in option.changes.items() for c in (sets.get(d, {}).get(k), new) if c}
+    return sorted(ids, key=lambda c: (c != first, combos[c].name))
+
+
+def swap_summary(sets: Sets, nights: List[Night], combos: Dict[str, Combo], option: SwapOption,
+                 first: Optional[str] = None, name_of=lambda e: e) -> str:
+    """The option in plain words, for the combos it touches: a heading, then what changes for each of them (both
+    sides of a trade or a give-away), sets that become open, heads-ups, and the liaisons' names (no emails: those are
+    copied separately). sets: before the option."""
+    nmap = {n.date: n for n in nights}
+
+    def where(cell, near=None):
+        """'Fri Oct 16, set 2 (8:00–8:30 pm), Clara'; just 'set 2 (8:00–8:30 pm)' when on the same night as near."""
+        d, k = cell
+        n = nmap.get(d)
+        when = f"set {k}" + (f" ({n.set_range(k)})" if n and n.set_range(k) else "")
+        return when if near and near[0] == d else f"{make_label(d)}, {when}" + (f", {n.venue}" if n else "")
+
+    old = {cell: sets.get(cell[0], {}).get(cell[1]) for cell in option.changes}
+    after = apply_option(sets, option)
+    ids = involved(sets, option, combos, first)
+    names = [combos[c].name for c in ids]
+    moves = {}
+    for c in ids:
+        lost = [cell for cell, was in sorted(old.items()) if was == c and option.changes[cell] != c]
+        gained = [cell for cell, now in sorted(option.changes.items()) if now == c and old[cell] != c]
+        moves[c] = (lost[0] if lost else None, gained[0] if gained else None)
+
+    a = names[0]
+    givers = [c for c in ids if moves[c][0] and not moves[c][1]]
+    takers = [c for c in ids if moves[c][1] and not moves[c][0]]
+    if len(ids) == 2 and option.same_night:
+        heading = f"{a} and {names[1]} swap set order on {make_label(next(iter(option.changes))[0])}"
+    elif len(ids) == 2 and not givers:
+        heading = f"{a} and {names[1]} trade shows"
+    elif len(ids) == 2:
+        heading = f"{combos[givers[0]].name} gives a show to {combos[takers[0]].name}"
+    elif givers:
+        heading = f"{a} gives up a show (the set becomes open)"
+    elif takers:
+        heading = f"{a} takes an open set"
+    else:
+        heading = f"{a} moves to " + ("another set the same night" if option.same_night else "an open set")
+    lines = [heading, ""]
+
+    def count(c, s):
+        return sum(1 for row in s.values() for x in row.values() if x == c)
+    for c in ids:
+        lost, gained = moves[c]
+        name, shows = combos[c].name, f"({count(c, sets)} → {count(c, after)} shows)"
+        was_open = ", an open set until now" if gained and old[gained] is None else ""
+        if lost and gained:
+            lines.append(f"• {name} now plays {where(gained)}{was_open}, instead of {where(lost, gained)}.")
+        elif gained:
+            lines.append(f"• {name} now also plays {where(gained)}{was_open} {shows}.")
+        elif lost:
+            lines.append(f"• {name} no longer plays {where(lost)} {shows}.")
+    lines += [f"• {where(cell)} becomes an open set." for cell, now in sorted(option.changes.items())
+              if now is None and old[cell] is not None]
+    if option.warnings:
+        lines += [""] + [f"Heads-up: {w}." for w in option.warnings]
+    contacts = [f"{combos[c].name}: {name_of(combos[c].liaison)}" for c in ids
+                if combos[c].liaison]
+    if contacts:
+        lines += ["", ("Liaison: " if len(contacts) == 1 else "Liaisons: ") + "; ".join(contacts)]
+    return "\n".join(lines)

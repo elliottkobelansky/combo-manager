@@ -11,7 +11,7 @@ from tkinter import messagebox, ttk
 
 from core import generate_nights
 from core.model import WEEKDAYS, make_label
-from data_folder import SCHEDULE_XLSX, SETTINGS_FILE, settings_path
+from data_folder import SETTINGS_FILE, settings_path
 from settings_file import DEFAULTS, HELP, SettingsError, read_data, save_data, validate
 from shared_folder import fingerprint
 from util import to_date
@@ -454,19 +454,20 @@ class SettingsPanel:
             return None
         if old.semester_name == new.semester_name:
             return None
-        from outputs.excel_schedule import record_semester, schedule_semester, semester_paths
+        from schedule_file import ScheduleFileError, semester_of, semester_paths
         folder = self.get_folder()
         if not semester_paths(folder):
             return None
-        on_file = schedule_semester(folder / SCHEDULE_XLSX, old) if (folder / SCHEDULE_XLSX).exists() else None
+        try:
+            on_file = semester_of(folder, old)
+        except ScheduleFileError:
+            on_file = None
         if on_file == new.semester_name:              # the schedule is already the new semester's
             return None
-        if on_file == old.semester_name:              # an older file that only matched by its dates: say so in it,
-            record_semester(folder / SCHEDULE_XLSX, on_file)   # or it would pass for the new semester's
         self.old_semester = on_file or old.semester_name
         answer = messagebox.askyesnocancel(
             "New semester", f"The semester changes from {old.semester_name} to {new.semester_name}.\n\n"
-            f"Move {self.old_semester}'s files (Schedule.xlsx, the PDFs, contact lists, schedule backups) into "
+            f"Move {self.old_semester}'s files (the schedule, Schedule.xlsx, the PDFs, contact lists, schedule backups) into "
             f"'Archive/{self.old_semester}' in the data folder?\n\nYes: move them (recommended).\nNo: leave them (the "
             f"app ignores a schedule from another semester; making the {new.semester_name} schedule moves them "
             "then).\nCancel: don't save.")
@@ -474,8 +475,9 @@ class SettingsPanel:
 
     def nights_ok(self, new):
         """When a schedule already exists and these settings change the nights, says that they only apply to the
-        next schedule made: the current one keeps its own nights (the app reads them from Schedule.xlsx)."""
-        if not (self.get_folder() / SCHEDULE_XLSX).exists() or not self.path.exists():
+        next schedule made: the current one keeps its own nights (they're saved with it)."""
+        from schedule_file import has_schedule
+        if not has_schedule(self.get_folder()) or not self.path.exists():
             return True
         try:
             old, _ = validate(read_data(self.path))
@@ -498,7 +500,7 @@ class SettingsPanel:
         return messagebox.askyesno(
             "For the next schedule", "These changes affect the show nights:\n\n" + "\n".join(lines)
             + "\n\nThey apply to the next schedule you make (Run tab, step 2). The current schedule keeps its own "
-            "nights, shows and times: the app, the check and the PDF all follow Schedule.xlsx.\n\nSave?",
+            "nights, shows and times: the app, the check and the exports all follow it.\n\nSave?",
             icon="info", default="yes")
 
     def ask_to_save(self):
@@ -542,7 +544,7 @@ class SettingsPanel:
         save_data(self.path, data)
         self.read_as = fingerprint(self.path)
         if archive:
-            from outputs.excel_schedule import archive_semester
+            from schedule_file import archive_semester
             moved = archive_semester(self.get_folder(), self.old_semester)
             warnings = [f"{self.old_semester}'s files moved to 'Archive/{moved.name}'."] + warnings
         self.saved = self.snapshot()

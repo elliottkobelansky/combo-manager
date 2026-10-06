@@ -125,6 +125,7 @@ def shorten(text, room):
 class App:
     def __init__(self, root):
         self.root, self.folder, self.queue, self.busy = root, load_folder(), queue.Queue(), False
+        self.exported = set()                         # folders whose missing exports were made (autoload)
         import theme
         self.theme = theme
         self.mode = load_config().get("theme", "light")
@@ -270,16 +271,16 @@ class App:
                                   on_change=lambda: self.swaps and self.swaps.load(quiet=True),
                                   get_swaps=lambda: self.swaps,
                                   after_schedule_change=lambda message: self.run(
-                                      ["--stats", "--pdf"], "Checking the rules and rebuilding Schedule.pdf...",
+                                      ["--stats", "--export"], "Checking the rules and rebuilding the PDF and xlsx...",
                                       intro=message))
         self.tabs.add(self.combos.frame, text="Combos")
         self.swaps = SwapPanel(self.tabs, lambda: self.folder, self.after_swap, lambda: self.palette)
         self.tabs.add(self.swaps.frame, text="Swaps")
         from schedule_panel import SchedulePanel
         self.schedule = SchedulePanel(self.tabs, self.swaps, self.goto_swaps,
-                                      lambda done: self.run(["--stats", "--pdf"], "Exporting Schedule.pdf...",
-                                                            on_done=done),
-                                      lambda: self.open_file(SCHEDULE_PDF), lambda: self.palette, open_path)
+                                      lambda done: self.run(["--stats", "--export"],
+                                                            "Exporting Schedule.pdf and Schedule.xlsx...", on_done=done),
+                                      self.open_file, lambda: self.palette, open_path)
         self.tabs.insert(1, self.schedule.frame, text="Schedule")
         self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette, on_save=self.autoload,
                                       on_dirty=lambda dirty: self.settings and self.tabs.tab(
@@ -310,11 +311,11 @@ class App:
         for col, (num, title, hint, label, cmd) in enumerate([
             ("1", "Check inputs", "", "Check",             # hint: the input files' names (show_sources)
              lambda: self.run(["--check"], "Checking the inputs...")),
-            ("2", "Make schedule", "Builds a new Schedule.xlsx and Schedule.pdf. Once per semester.",
+            ("2", "Make schedule", "Makes a new schedule (and Schedule.pdf and Schedule.xlsx). Once per semester.",
              "Make schedule", self.make_schedule),
-            ("3", "Check the schedule", "Rule check and stats for Schedule.xlsx as it is now (after swaps or edits "
-             "in Excel). Export the PDF from the Schedule tab.", "Check",
-             lambda: self.run(["--stats"], "Checking Schedule.xlsx...")),
+            ("3", "Check the schedule", "Rule check and stats for the schedule as it is now (after swaps). "
+             "Export the PDF or xlsx from the Schedule tab.", "Check",
+             lambda: self.run(["--stats"], "Checking the schedule...")),
         ]):
             card = ttk.Frame(cards, style="Card.TFrame", padding=(16, 14))
             card.grid(row=0, column=col, sticky="nsew", padx=(0 if col == 0 else 6, 0 if col == 2 else 6))
@@ -464,7 +465,7 @@ class App:
             self.tabs.select(self.settings.frame)
             return
         if self.swaps and self.swaps.pending and not messagebox.askyesno(
-                "Unsaved swaps", f"{len(self.swaps.pending)} swap change(s) haven't been saved to Schedule.xlsx. "
+                "Unsaved swaps", f"{len(self.swaps.pending)} swap change(s) haven't been saved. "
                 "Close anyway and lose them?", icon="warning"):
             return
         if self.folder and self.settings:
@@ -472,10 +473,16 @@ class App:
         self.root.destroy()
 
     def autoload(self):
-        """Loads the Combos and Swaps tabs from the data folder (at start, after a folder change, after a run)."""
+        """Loads the Combos and Swaps tabs from the data folder (at start, after a folder change, after a run). When
+        the schedule's exports aren't there (an old Schedule.xlsx was just converted, or they were deleted), makes them
+        (once per folder)."""
         for panel in (self.combos, self.swaps):
             if panel:
                 panel.load(quiet=True)
+        if (self.swaps and self.swaps.state and self.folder not in self.exported
+                and not all((self.folder / n).exists() for n in (SCHEDULE_PDF, SCHEDULE_XLSX))):
+            self.exported.add(self.folder)
+            self.run(["--stats", "--export"], "Making Schedule.pdf and Schedule.xlsx...")
 
     def about_tab(self):
         tab = ttk.Frame(self.tabs, padding=(28, 28))
@@ -604,7 +611,7 @@ class App:
                 for line in item.splitlines(keepends=True):
                     tag = ("bad" if ("PROBLEM" in line or "Can't continue" in line or "went wrong" in line) else
                            "warn" if ("WARN" in line) else
-                           "good" if ("All hard rules hold" in line or line.startswith("Wrote")) else None)
+                           "good" if ("All hard rules hold" in line or line.startswith(("Wrote", "Saved the schedule"))) else None)
                     self.out.insert("end", line, tag)
                 self.out.see("end")
                 self.out.configure(state="disabled")
@@ -716,52 +723,54 @@ class App:
                                     "The folder used before is still there, unchanged.")
 
     def open_file(self, name):
+        """Opens a file in the data folder. Schedule.pdf / .xlsx that aren't there but can be made: made first."""
         path = self.folder / name
         if path.exists():
             open_path(path)
+        elif name in (SCHEDULE_PDF, SCHEDULE_XLSX) and self.swaps and self.swaps.state:
+            self.run(["--stats", "--export"], f"Making {name}...",
+                     on_done=lambda code: path.exists() and open_path(path))
         else:
             messagebox.showinfo("Not there yet", f"There is no {name} in the data folder yet.")
 
     def make_schedule(self):
-        existing = [n for n in (SCHEDULE_XLSX, SCHEDULE_PDF) if (self.folder / n).exists()]
+        from schedule_file import has_schedule
         other = self.other_semester()
         if other is not None:                         # last semester's files: filed away, nothing is lost
             if not messagebox.askyesno(
-                    "New semester", f"Schedule.xlsx is {('for ' + other) if other else 'from another semester'}. "
+                    "New semester", f"The schedule is {('for ' + other) if other else 'from another semester'}. "
                     f"Its files (schedule, PDFs, contact lists, backups) will be moved into "
                     f"'Archive/{other or 'Old schedule'}' in the data folder, then a new schedule is made.\n\nGo ahead?"):
                 return
-        elif existing and not messagebox.askyesno(
+        elif has_schedule(self.folder) and not messagebox.askyesno(
                 "Replace the schedule?",
-                f"{' and '.join(existing)} already exist and will be REPLACED by a brand-new schedule.\n\n"
-                "Any swaps or edits recorded in the old Schedule.xlsx will be lost. To keep it, cancel and rename "
-                "or copy it first.\n\nAfter the schedule is published, use button 3 instead.\n\nMake a new schedule?",
-                icon="warning", default="no"):
+                "There is a schedule already. It will be REPLACED by a brand-new one, and any swaps or text made in "
+                "it won't be in the new one (a copy goes to 'App data/Schedule backups').\n\nAfter the schedule is "
+                "published, use button 3 instead.\n\nMake a new schedule?", icon="warning", default="no"):
             return
-        self.run(["-y", "--pdf"], "Making the schedule (this can take up to a minute)...", ticker=True)
+        self.run(["-y", "--export"], "Making the schedule (this can take up to a minute)...", ticker=True)
 
     def other_semester(self):
-        """None when there's no Schedule.xlsx or it's for the settings' semester; otherwise the semester it's for
+        """None when there's no schedule or it's for the settings' semester; otherwise the semester it's for
         ('' when unknown)."""
-        path = self.folder / SCHEDULE_XLSX
-        if not path.exists():
-            return None
         try:
-            from outputs.excel_schedule import schedule_semester
+            from schedule_file import ScheduleFileError, has_schedule, semester_of
             from settings_file import SettingsError, load_settings
+            if not has_schedule(self.folder):
+                return None
             settings, _ = load_settings(settings_path(self.folder))
-        except (ImportError, SettingsError):
+            sem = semester_of(self.folder, settings)
+        except (ImportError, SettingsError, ScheduleFileError):
             return None
-        sem = schedule_semester(path, settings)
-        return None if sem == settings.semester_name else (schedule_semester(path) or "")
+        return None if sem == settings.semester_name else (sem or "")
 
     def goto_swaps(self, cid, d, k, mode="swap"):
         self.tabs.select(self.swaps.frame)
         self.swaps.preselect(cid, d, k, mode)
 
     def after_swap(self, message, on_done=None):
-        """After the Swaps tab saved: check and rebuild the PDF in the background, staying on the Swaps tab."""
-        self.run(["--stats", "--pdf"], "Checking the rules and rebuilding Schedule.pdf...", intro=message,
+        """After the Swaps tab saved: check and rebuild the exports in the background, staying on the Swaps tab."""
+        self.run(["--stats", "--export"], "Checking the rules and rebuilding the PDF and xlsx...", intro=message,
                  on_done=on_done)
 
     def run(self, args, message, intro="", on_done=None, ticker=False):

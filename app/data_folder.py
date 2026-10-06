@@ -5,12 +5,15 @@ counts (and backup.py zips it).
 
     Approvals.xlsx, Conflicts.xlsx          the inputs (Microsoft Forms / Power Automate fill them; the Run tab can
                                             pick other files, under any name, anywhere)
-    Schedule.xlsx, Schedule.pdf             this semester's schedule (the PDF is rebuilt from the xlsx)
-    Combos.pdf, Contact lists.xlsx          exported from the app (rebuilt any time)
+    Schedule.xlsx, Schedule.pdf             this semester's schedule to read and print: exports of
+                                            App data/schedule.json, rebuilt after every change, never read back
+    Combos.pdf, Combos.xlsx                 the combo list, exported from the Combos tab (rebuilt any time)
+    Contact lists.xlsx                      exported from the Schedule tab (rebuilt any time)
     Archive/<semester>/                     past semesters' files
     App data/settings.json                  the settings (Settings tab), with settings.json.bak
     App data/scheduler_data.json            combo numbers, corrected names and emails, ... (store.py), with .bak
-    App data/Schedule backups/              Schedule.xlsx as it was before each swap or withdrawal
+    App data/schedule.json                  the schedule itself: who plays which set (schedule_file.py)
+    App data/Schedule backups/              schedule.json as it was before each change
     App data/In use.json                    which computer has the folder open (shared_folder.py)
 
 Every path into the data folder is made here. Standard library only: the app uses this before checking that the
@@ -23,15 +26,17 @@ from pathlib import Path
 APPROVALS_FILE, CONFLICTS_FILE = "Approvals.xlsx", "Conflicts.xlsx"
 OLD_APPROVALS_FILE = "Combo Approvals.xlsx"     # the usual name before 2026-10-06: still read when it's the only one
 SCHEDULE_XLSX, SCHEDULE_PDF = "Schedule.xlsx", "Schedule.pdf"
-COMBOS_PDF, CONTACTS_XLSX = "Combos.pdf", "Contact lists.xlsx"
+COMBOS_PDF, COMBOS_XLSX, CONTACTS_XLSX = "Combos.pdf", "Combos.xlsx", "Contact lists.xlsx"
 ARCHIVE = "Archive"
 # The program's own files live in a subfolder, so the top shows only what people open.
 APP_DATA = "App data"
 SETTINGS_FILE, STORE_FILE, LOCK_FILE = "settings.json", "scheduler_data.json", "In use.json"
+SCHEDULE_FILE = "schedule.json"
 SCHEDULE_BACKUPS = "Schedule backups"
 
-TOP_FILES = [APPROVALS_FILE, OLD_APPROVALS_FILE, CONFLICTS_FILE, SCHEDULE_XLSX, SCHEDULE_PDF, COMBOS_PDF, CONTACTS_XLSX]
-APP_DATA_FILES = [SETTINGS_FILE, STORE_FILE]
+TOP_FILES = [APPROVALS_FILE, OLD_APPROVALS_FILE, CONFLICTS_FILE, SCHEDULE_XLSX, SCHEDULE_PDF, COMBOS_PDF, COMBOS_XLSX,
+             CONTACTS_XLSX]
+APP_DATA_FILES = [SETTINGS_FILE, STORE_FILE, SCHEDULE_FILE]
 _MOVED_IN = (SETTINGS_FILE, SETTINGS_FILE + ".bak", STORE_FILE, STORE_FILE + ".bak", SCHEDULE_BACKUPS)
 
 
@@ -64,6 +69,10 @@ def settings_path(folder):
 
 def store_path(folder):
     return app_data(folder) / STORE_FILE
+
+
+def schedule_path(folder):
+    return app_data(folder) / SCHEDULE_FILE
 
 
 def lock_path(folder):

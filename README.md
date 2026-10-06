@@ -14,7 +14,7 @@ Double-click **`Make Schedule.bat`** (Windows), **`Make Schedule.command`** (Mac
 tab, see [swaps](#during-the-semester-swaps)):
 
 1. **Check inputs** = `solve.py --check`
-2. **Make schedule** = `solve.py --pdf` (asks before replacing an existing schedule)
+2. **Make schedule** = `solve.py --export` (asks before replacing an existing schedule)
 3. **Check the schedule** = `solve.py --stats` (rule check and stats; the PDF is exported from the Schedule tab)
 
 plus buttons to open the folder, `Schedule.pdf` and `Schedule.xlsx`, a **Settings** tab (below), a dark
@@ -29,9 +29,9 @@ everything that matters. It can be any folder: one on this computer, or one kept
 Dropbox or a network drive when several computers use the scheduler; the app treats them all the same and never
 needs a Microsoft login. At the top, what people open: `Approvals.xlsx` and `Conflicts.xlsx` (point both
 flows at it, or pick them under any name, anywhere on the Run tab; a folder with the older name
-`Combo Approvals.xlsx` still works), `Schedule.xlsx`, the PDFs, `Contact lists.xlsx`, and `Archive/`
-with past semesters. In **`App data/`**, what the program manages: `settings.json`, `scheduler_data.json` (each with
-a `.bak` copy) and `Schedule backups/` (a data folder from before is moved into this layout the first time it's
+`Combo Approvals.xlsx` still works), `Schedule.xlsx` and the PDFs (exports to read and print), `Contact
+lists.xlsx`, and `Archive/` with past semesters. In **`App data/`**, what the program manages: `settings.json`,
+`scheduler_data.json` (each with a `.bak` copy), `schedule.json` (the schedule itself) and `Schedule backups/` (a data folder from before is moved into this layout the first time it's
 opened). The layout, and every path into it, is in `app/data_folder.py`. On first run the app asks where the data
 folder is (choose one, make a new one, or restore a backup); a folder that can't be found later is asked for
 again, never silently swapped. Per-computer preferences (the folder, text size, dark mode, input files picked
@@ -49,8 +49,8 @@ writes `App data/In use.json` (computer, user, since when; updated every 3 minut
 update); a second computer is told who has it open and can open it anyway, and the first is then told once. Saves
 never overwrite what another computer saved meanwhile: `scheduler_data.json` and `settings.json` are compared with
 what was read (combo edits: "try again"; settings: keep yours / load theirs / cancel), and pending swaps are only
-saved if `Schedule.xlsx` still holds the schedule they were planned on (otherwise reload and redo them). The JSON
-files, `Schedule.xlsx` and backups are written to a temp file and renamed (never half a file). Sync apps' conflict
+saved if the schedule still holds what they were planned on (otherwise reload and redo them). The JSON
+files, the exports and backups are written to a temp file and renamed (never half a file). Sync apps' conflict
 copies (`Schedule-OFFICE-PC.xlsx`, `settings (1).json`, Dropbox's `... (conflicted copy ...)`) are pointed out when
 the app opens the folder. All of this works the same on a folder only one computer uses. The program folder never
 holds data (to try things, make a demo data folder: see [Testing without real data](#testing-without-real-data)).
@@ -94,7 +94,7 @@ writes `FOLDER/App data/settings.json` with example values (plain text, YYYY-MM-
 
 **Set times.** For each show day, **first set starts** (e.g. `19:00` or `7:00 PM`), **set length** and
 **break** (minutes) give every set its start and end time: 19:00, 45, 15 gives 7:00–7:45, 8:00–8:45, 9:00–9:45, ...
-The times appear on the calendar PDF and in `Schedule.xlsx` (Start and End columns). Leave all three blank to
+The times appear on the calendar PDF and in `Schedule.xlsx`. Leave all three blank to
 show set numbers instead.
 
 `semester_name` must match exactly what students choose in the form's Semester question (e.g. `Winter 2027`).
@@ -122,7 +122,8 @@ that computer for that data folder, and **Use data folder** goes back to the usu
 
 The combo form's own responses aren't needed: the approvals workbook already has everything the scheduler uses.
 **After this download, nothing else touches Microsoft:** the Python scripts read these two files as they are and
-write only `Schedule.xlsx`, the PDFs and `scheduler_data.json`.
+write only the schedule (`App data/schedule.json`), its exports (`Schedule.pdf`, `Schedule.xlsx`) and
+`scheduler_data.json`.
 
 Combo numbers (Combo 01, 02, ...) are given in submission order the first time a combo is read, and **never
 change**: they're kept in `scheduler_data.json` in the data folder (with corrected names and instruments), so keep
@@ -142,35 +143,42 @@ semesters it found.
 
 **4. Solve.**
 
-    python app/solve.py --pdf
+    python app/solve.py --export
 
-It asks you to confirm first, and warns if `Schedule.xlsx` / `Schedule.pdf` already exist and would be
-overwritten (add `-y` to skip the question). It prints the same warnings as `--check`, including a **WARNING** for
-any combo still Pending. Writes `Schedule.xlsx` and `Schedule.pdf` (printable calendar). Print `Schedule.pdf` with
-`Combos.pdf` (made by the flow): the combo numbers on the calendar match the list.
+It asks you to confirm first, and warns if there is a schedule already (it's backed up, but swaps made in it aren't
+in the new one; add `-y` to skip the question). It prints the same warnings as `--check`, including a **WARNING**
+for any combo still Pending.
+
+**The schedule itself is `App data/schedule.json`** (`app/schedule_file.py`): who plays which set, text typed into
+sets, the supervised nights and the nights' dates, venues and times. Only the app (and `solve.py`) change it: a new
+schedule, swaps, give-aways and claims, text in a set (Schedule tab), withdrawn combos. Every change backs it up first
+into `App data/Schedule backups`. `Schedule.pdf` and `Schedule.xlsx` are **exports**, rebuilt after every change
+(and with **Export PDF** / **Export Excel**, Schedule tab) and never read back: editing them changes nothing. One
+open in Excel when it's rebuilt is skipped with a warning (the schedule is saved anyway); close it and export again.
+Print `Schedule.pdf` with `Combos.pdf` (Combos tab): the combo numbers on the calendar match the list.
 
 `Schedule.xlsx` sheets:
-- **Schedule**: every set of every night (with its start time, if set times are filled in). **This is the sheet
-  you edit** (swaps, text in open sets); the PDF can be rebuilt from it (see swaps below).
-- **Supervision**: the supervised nights (a professor needs to attend), with a column to fill in which professor
-  comes.
-- **Report**: warnings and stats from when the schedule was made. Read the WARN lines.
+- **By night**: one table per show night (supervised nights marked): set, time, combo, each member (liaison
+  marked) with their instrument, in the Combos tab's order, and the supervisor; lines between the columns and under
+  each set. Open sets and text in a set too.
+- **All sets**: one row per set (date, venue, set, start, end, combo, supervised), for sorting and filtering.
+- **Supervision**: the supervised nights and the combos playing them.
+- **Report**: warnings from when the schedule was made.
 
-The old ByCombo and OpenSlots sheets are gone: they went out of date after the first edit. `python app/solve.py --stats`
-reads the file as it is now (shows per combo, open sets nobody can take, and the rule check).
+A data folder from before 2026-10-06 has the old, hand-editable `Schedule.xlsx` instead: the app turns it into
+`schedule.json` the first time it loads it (swaps, text in sets and supervised nights included) and moves the old
+file into `App data/Schedule backups`.
 
-**A new semester:** `Schedule.xlsx` records the semester it was made for. Change the semester name in Settings and
-Save: the app offers to move last semester's files (`Schedule.xlsx`, the PDFs, `Contact lists.xlsx`, `Schedule
-backups`) into `Archive/<semester>` in the data folder. A schedule from another semester is never shown or
+**A new semester:** the schedule records the semester it was made for. Change the semester name in Settings and
+Save: the app offers to move last semester's files (the schedule, its exports, `Combos.pdf` / `.xlsx`, `Contact lists.xlsx`,
+`Schedule backups`) into `Archive/<semester>` in the data folder. A schedule from another semester is never shown or
 checked as this one's, and step 2 moves it away first if it's still there. Combo numbers, member edits and
 instruments are kept per semester in `scheduler_data.json`, so the new semester starts at Combo 01.
 
-Once `Schedule.xlsx` exists, **it decides which nights there are** (dates, venues, sets, times): the app, the check
-and the rebuilt PDF read them from the file. Changing dates, show days, skip or extra dates in Settings only
-affects the next schedule made (Save settings says so).
-
-The **Schedule** sheet's last column, **Supervised**, says Yes on every set of a supervised night. To move
-supervision to another night, change those Yes cells; `--stats` re-checks that every combo is still covered.
+Once a schedule exists, **it decides which nights there are** (dates, venues, sets, times): the app, the check
+and the exports use the schedule's own. Changing dates, show days, skip or extra dates in Settings only
+affects the next schedule made (Save settings says so). Moving a supervised night, or changing a published night's
+times or venue, isn't possible in the app yet (TODO).
 
 The same input always gives the same schedule.
 
@@ -178,7 +186,7 @@ The same input always gives the same schedule.
 
     python app/solve.py --stats
 
-Reads the `Schedule.xlsx` on disk (no solving) and prints:
+Reads the schedule as it is (after swaps; no solving) and prints:
 - **Overview:** sets filled and open, per venue.
 - **Shows per combo** and **shows per student.**
 - **Spacing:** the closest gaps between a combo's shows, and the closest pairs.
@@ -197,31 +205,40 @@ trades with another combo's show (both play each other's slot), moves to an open
 within the same night. An option is only listed if it breaks no hard rule; soft side effects are shown in orange
 (a student playing twice in a night, shows close together, a first-year combo before the first-year date), and
 an option that fixes an existing problem is marked in green. Combos are shown with their liaison
-("Combo 07 (Ana Ruiz)"), and a person whose name isn't unique is shown with their email. **Add to pending changes** collects it without touching any file: the tab then shows the
+("Combo 07 (Ana Ruiz)"), and a person whose name isn't unique is shown with their email. For a picked option
+(buttons under the list, or right-click on it), **Copy liaison emails** copies the liaisons of every combo it touches
+(both sides of a trade or a give-away; just the one combo for an open set), and **Copy swap summary** copies it in
+words to send them: what changes for each combo, sets that become open, heads-ups and the liaisons' names (no emails).
+**Add to pending changes** collects it without touching any file: the tab then shows the
 schedule as if it were done, so you can make several swaps in a row (each checked against the earlier ones), with
-**Undo last** and **Discard all**. **Confirm changes** writes them all into `Schedule.xlsx` at once (a copy of
-the old file goes to `App data/Schedule backups`) and rebuilds the PDF in the background; you stay on the Swaps
-tab, and it says when the PDF is done. Closing the app or clicking Reload with unsaved changes asks first.
-A swap that would take a combo off its only supervised night isn't offered, and three-way swaps aren't tried:
-for those, edit by hand as below.
+**Undo last** and **Discard all**. **Confirm changes** saves them all into the schedule at once (a copy of
+it as it was goes to `App data/Schedule backups`) and rebuilds the PDF and xlsx in the background; you stay on the
+Swaps tab, and it says when they're done. Closing the app or clicking Reload with unsaved changes asks first.
+A swap that would take a combo off its only supervised night isn't offered, and three-way swaps aren't tried
+(do them as two swaps in a row).
 
 The Combos and Swaps tabs load the data folder's files by themselves (at start, after **Change folder...**, and after
 each step or swap); **Reload** picks up files that changed while the app was open (e.g. synced in from another computer).
 
 **Schedule tab:** every show night (PROF = supervised) with its sets, including swap changes not saved yet
 (highlighted, with their nights opened), a search box and "only nights with open sets". While changes are
-unsaved, a bar at the top offers **Confirm changes** (save them into `Schedule.xlsx` and export the PDF), **Undo
+unsaved, a bar at the top offers **Confirm changes** (save them into the schedule and rebuild the exports), **Undo
 last** and **Discard all**. Double-click a combo's set to jump to the Swaps tab
 with that show picked (right-click: also "Give it away"); double-click an open set to see **every combo that could
 take it** and add one as a pending change. **Right-click a night** to copy, ready to paste into Outlook: the
-students' emails (separated by `;`), the supervisors' emails (for Cc), or a short summary of the night (sets, times,
-combos, members' names, then the emails). **Export contact lists** writes `Contact lists.xlsx`: one row per night
+liaisons' emails, the combo emails (every student playing, then the supervisors; separated by `;`), or a short
+summary of the night (sets, times, combos, members' names; no emails). **Right-click an open set** to type text into
+it instead of a combo (e.g. `Jam session`, `Guest: Trio X`): it's shown on the calendar in italics (cut to about 10
+characters there, printed in full under the month) and the set counts as taken; change or clear it the same way.
+Saved straight away (backup first), unlike swaps. **Export contact lists** writes `Contact lists.xlsx`: one row per night
 with its sets and everyone's emails, for printing or sharing. Both use the schedule as shown, including unsaved
-changes. **Export PDF** rebuilds `Schedule.pdf` from `Schedule.xlsx` and opens it (the same
-as Run's step 3); with unsaved changes it asks: save them first, export the saved schedule only, or cancel.
-Nothing in this tab writes a file by itself.
+changes. **Export PDF** / **Export Excel** rebuild `Schedule.pdf` and `Schedule.xlsx`
+from the schedule and open one; with unsaved changes they ask: save them first, export the saved schedule only, or
+cancel.
 
-**Changing a combo's members** (Combos tab: pick a combo or a person, then **Actions ▾** below the list, or right-click; the menu shows what fits the row picked): **Add a member** finds someone the scheduler
+**Changing a combo's members** (Combos tab: pick a combo or a person, then **Actions ▾** below the list, or right-click; the menu shows what fits the row picked): **Copy liaison email** copies the liaison's email, and **Copy emails** the combo's students (liaison
+first) and supervisor, ready to paste into Outlook. (Schedule tab, right-click a night: **Copy liaison emails** and
+**Copy combo emails**, everyone playing that night with the supervisors.) **Add a member** finds someone the scheduler
 already knows (type part of a name or email) or takes a new email, guesses the name from it (change it if needed) and
 optionally sets the instrument; it warns if they're in another combo or, once a schedule exists, have a conflict or a
 second show on one of this combo's nights. **Remove** takes someone out; removing the liaison first asks who takes
@@ -234,8 +251,8 @@ count from then on.
 
 **Withdrawing a combo** (Combos tab: Actions > **Withdraw**): the combo stops being scheduled and its
 number stays reserved, so the numbering keeps a gap and no other combo's number changes (like setting Status to
-Withdrawn in the approvals, without opening Excel). If the schedule is out, its sets become OPEN in `Schedule.xlsx`
-right away (a backup goes to `App data/Schedule backups`) and `Schedule.pdf` is rebuilt; nothing is given to another combo
+Withdrawn in the approvals, without opening Excel). If the schedule is out, its sets become OPEN in the schedule
+right away (a backup goes to `App data/Schedule backups`) and the exports are rebuilt; nothing is given to another combo
 automatically. Volunteers can claim the open sets, or give one to a combo from the Schedule tab ("who could take
 it"). A set on a **supervised night** must be filled (supervised nights are full): the confirmation says so and the
 rule check flags it until it is. Withdrawing waits until pending swaps are confirmed or discarded. Withdrawn combos
@@ -259,7 +276,9 @@ yet; alphabetical within one instrument. The liaison is marked, not moved to the
 (other combos), Conflicts (dates submitted), Email; with a search box. **Click an Instrument cell** to pick one
 (Saxophone, Trumpet, Trombone, Guitar, Piano, Bass, Drums, or Other: type anything); it's per person per combo and
 kept in `scheduler_data.json`. **Export PDF** writes `Combos.pdf` (every combo with its supervisor and
-members, instruments when set; numbered like the calendar). Double-click a person
+members, instruments when set; numbered like the calendar); **Export Excel** writes `Combos.xlsx` (one table per
+combo, like the schedule's: each member with instrument, liaison, email and other combos, then the supervisor; plus
+an Everyone sheet to sort and filter). Double-click a person
 (or Actions > **Change name**) to correct their name, or double-click their email (or Actions > **Change email**) to fix a typo'd
 address: the spreadsheets aren't changed, the fix is applied whenever they're read, to the combos *and* the
 conflicts, so a member whose conflicts didn't count because of a typo is matched again (corrected emails show ✎;
@@ -273,23 +292,12 @@ The Swaps tab has three modes, switched at the top:
 - **Claim an open set:** a combo volunteers for an open set; the list shows every open set it can legally take
   (no show needs to be picked).
 
-To record a swap by hand instead, edit the Combo column of the Schedule sheet in `Schedule.xlsx`, then run
-
-    python app/solve.py --stats --pdf
-
-It checks the edited file and **rebuilds `Schedule.pdf` from it** (no re-solving). What you can type in a set:
-- **a combo name** (exactly, e.g. `Combo 05`): that combo plays;
-- **`OPEN`** or nothing: open for volunteers;
-- **anything else** (e.g. `Jam session`, `Guest: Trio X`): shown on the PDF as written, in italics, and the set
-  counts as taken. A cell only fits about 10 characters next to the time, so longer text is cut there and printed
-  in full under that month. `--stats` lists these entries; text that looks like a mistyped combo name
-  (`Combo 5`) is flagged instead of printed.
-
-The rule check catches a swap that puts a combo on a night one of its members marked as a conflict, a combo
-playing twice in one night, a mistyped combo name, a combo left without its required show at a venue, a combo
-left without a supervised night, and an open set on a supervised night.
-Don't re-run `solve.py` without `--stats` after the schedule is published: it builds a fresh schedule and
-overwrites your edits.
+`python app/solve.py --stats --export` (Run tab, step 3, plus the exports) re-checks the schedule as it is: it
+catches a combo on a night one of its members marked as a conflict (conflicts can arrive after the schedule is
+out), a combo playing twice in one night, a combo that isn't accepted any more, a combo left without its required
+show at a venue or without a supervised night, and an open set on a supervised night. Don't re-run `solve.py`
+without `--stats` after the schedule is published: it builds a fresh schedule (the old one is backed up, but the
+swaps made in it are gone from the new one).
 
 ## What the solver does
 
@@ -348,7 +356,7 @@ nights but needs 1").
 | `extra_slot_policy` | **Leftover sets** in the app. `open` = Leave open (recommended): each combo gets its shows; the sets left over stay open for volunteers, or you fill them by hand (Schedule or Swaps tab). `auto` = Fill every set: the solver fills every set, so some combos get extra shows. |
 | `min_shows_per_combo` | Every combo gets at least this many shows in total, at any venues, as long as each venue's "Min per combo" is met. In `open` mode: exactly this many. Required. |
 | `max_shows_per_combo` | Cap on total shows per combo. Blank = no cap. |
-| `every_combo_supervised` | The **Supervised nights** switch. On: every combo plays at least one supervised night (a professor attends). Off: no supervised nights at all; `max_supervised_nights` and the show days' "Supervised nights preferred here" are ignored, and `Schedule.xlsx` has no Supervised column. Missing = On. |
+| `every_combo_supervised` | The **Supervised nights** switch. On: every combo plays at least one supervised night (a professor attends). Off: no supervised nights at all; `max_supervised_nights` and the show days' "Supervised nights preferred here" are ignored, and the exports show no supervised nights. Missing = On. |
 | `max_supervised_nights` | **Max supervised nights (all profs)**: the total for the whole semester, counting all professors together, not per professor (one supervised night covers every combo playing it). At most this many supervised nights. Blank = no limit (still as few as possible). Each night fits its number of sets, so 33 combos at 4 sets a night need at least 9. |
 | `supervision_timing` | **Supervised nights preferred**: `none` (Any time), `early` (Earlier in the semester) or `late` (Later in the semester). A light preference (goal 8): each supervised night costs a little more the further it is from the preferred end. `--stats` says how many fell in the preferred half. Missing = none. |
 | `solver_time_limit_sec` | How long the solver searches (roughly seconds). 90 is plenty (it stops as soon as it has proven the best schedule), unless the Report says FEASIBLE instead of OPTIMAL. |
@@ -385,7 +393,7 @@ This solves once per value, writes nothing, and prints:
 - *< 14 days*: how many combos have shows less than two weeks apart.
 
 **Pick the smallest value where *closest* stops improving and the solver still says OPTIMAL**
-(28 above, Fall 2026 test data), then set it in the Settings tab and run `solve.py --pdf`.
+(28 above, Fall 2026 test data), then set it in the Settings tab and run `solve.py --export`.
 
 ### `solver_time_limit_sec`
 
@@ -416,7 +424,8 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 | File | Job |
 |---|---|
 | `app/inputs.py` | The ONLY file that knows what `Approvals.xlsx` and `Conflicts.xlsx` look like (and the approval rules). Reads them into the solver's input; writes nothing. |
-| `app/solve.py` | Reads `settings.json` + the two downloads, runs the solver, writes `Schedule.xlsx` (+ `Schedule.pdf`). |
+| `app/solve.py` | Reads `settings.json` + the two downloads, runs the solver, saves the schedule (+ `Schedule.pdf` and `Schedule.xlsx`). |
+| `app/schedule_file.py` | The schedule (`App data/schedule.json`): load, save changes (backup first), archive; turns an old `Schedule.xlsx` into it once. |
 | `app/scheduler_app.py` + `Make Schedule.bat` / `.command` / `make-schedule.sh` | The one-click window around `solve.py`, and its launchers. |
 | `app/schedule_panel.py` | The app's Schedule tab (nights and sets, who could take an open set, Export PDF). |
 | `app/store.py` | `scheduler_data.json`: combo numbers, corrected names and emails, instruments. |
@@ -424,7 +433,7 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 | `app/app_config.py` | This computer's own choices (`~/.combo_scheduler.json`): which data folder, text size, dark mode. |
 | `app/shared_folder.py` | Several computers on one data folder: lock file, crash-safe writes, changed-on-disk checks, conflict copies. |
 | `app/backup.py` | Back up... / Restore...: the data folder as one zip, and back into a new folder. |
-| `app/outputs/combos_pdf.py` | Writes `Combos.pdf` (the Combos tab's Export button). |
+| `app/outputs/combos_pdf.py`, `combos_xlsx.py` | Write `Combos.pdf` and `Combos.xlsx` (the Combos tab's Export buttons). |
 | `app/combos_panel.py` | The app's Combos tab (all combos and people; names, emails, instruments, members, liaison). |
 | `app/swap_panel.py`, `app/core/swaps.py` | The app's Swaps tab, and the swap finder behind it (pure, tested in `test_rules.py`). |
 | `app/theme.py` | The app's look (Sun Valley theme, light and dark). The About tab (author and contact) is in `scheduler_app.py`. |
@@ -432,7 +441,7 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 | `app/settings_panel.py` | The app's Settings tab. |
 | `app/core/stats.py` | Stats and the rule check behind `solve.py --stats`. |
 | `app/core/` | The scheduling logic. Plain Python objects only: no Excel, no Forms. `model.py` is the contract. |
-| `app/outputs/excel_schedule.py` | Writes `Schedule.xlsx`. |
+| `app/outputs/excel_schedule.py` | Writes the `Schedule.xlsx` export (and reads an old hand-editable one, once). |
 | `app/outputs/schedule_pdf.py` | Writes `Schedule.pdf`, numbered to match `Combos.pdf` (Combo 05 -> 05). |
 | `dev/make_fake_forms.py`, `dev/test_rules.py` | Fake data and an independent rule checker. |
 

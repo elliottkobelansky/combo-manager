@@ -43,8 +43,8 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 ### 3. Hand-over: program local, data in one data folder (decided 2026-10-05; any folder since 2026-10-06)
 - **The data folder, e.g. `Combo Scheduler data`:** any folder; shared through OneDrive / SharePoint when several
   computers use it, but the app doesn't care (`app/data_folder.py`). At the top `Approvals.xlsx` and
-  `Conflicts.xlsx` (the flows write there), `Schedule.xlsx`, the PDFs and contact lists, `Archive/` (past
-  semesters); in `App data/` the program's own files: `settings.json`, `scheduler_data.json`, `Schedule backups/`.
+  `Conflicts.xlsx` (the flows write there), `Schedule.xlsx` and the PDFs (exports), contact lists, `Archive/` (past
+  semesters); in `App data/` the program's own files: `settings.json`, `scheduler_data.json`, `schedule.json`, `Schedule backups/`.
 - **Local (each computer):** the program (unzipped folder now, the packaged app later), `~/.combo-scheduler-python`
   (rebuilt if missing), `~/.combo_scheduler.json` (which data folder, text size, dark mode: per computer on purpose).
 - [x] First run with no data folder chosen asks for it (choose / make a new one / restore a backup); the
@@ -63,15 +63,29 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [x] Backed up: private GitHub repo `elliottkobelansky/combo-scheduler` (2026-10-05; no data in it).
 - [ ] Pin package versions (`requirements.txt`, used by the Install button).
 - [x] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `settings.json` and swap saves of
-  `Schedule.xlsx` (2026-10-05); a brand-new schedule and backups too (2026-10-06). The PDFs and contact lists (rebuilt
+  the schedule (2026-10-05); a brand-new schedule, `schedule.json` and backups too (2026-10-06). The PDFs and contact lists (rebuilt
   any time) still save directly.
 - [ ] A log file in the data folder, for "send this to whoever maintains it".
 - [x] **Several computers on one shared data folder** (2026-10-05, `app/shared_folder.py`): lock file
   `App data/In use.json` (told who has it open, open anyway = take over, the other is told once; stale after 15
   min); saves refused when the file changed on disk since it was read (combo edits, settings: yours / theirs /
-  cancel; pending swaps checked against `Schedule.xlsx` as it is now); sync apps' conflict copies pointed out at
+  cancel; pending swaps checked against the schedule as it is now); sync apps' conflict copies pointed out at
   start (OneDrive / SharePoint, Dropbox). Not done: a real read-only mode for the second computer (it's warned instead). Try it with two real
   computers on OneDrive.
+
+### 5. The schedule in the app only (since 2026-10-06: `App data/schedule.json`; `Schedule.xlsx` is an export)
+- [ ] **Move supervised nights** without making the whole schedule again: mark a night supervised / not, with
+  the rule check (every combo still on one, supervised nights full, the cap), like a swap. Was possible by hand in
+  the old `Schedule.xlsx` (the Supervised column); not in the app yet.
+- [ ] Maybe: change a published night's set times or venue in the app (also only possible in the old
+  `Schedule.xlsx`). Rare.
+
+### 6. Wording
+- [ ] **Decide on the summary wording** for the night and swap summaries (Schedule tab "Copy night summary", Swaps
+  tab "Copy swap summary"): what to call the person at a supervised night and what they do there: professor vs
+  combo cop vs supervisor vs "supervised" vs feedback, etc. Today: the night summary says "(a professor attends)";
+  the app elsewhere says "supervisor" (Combos tab, "Copy supervisor emails") and "prof" (Swaps tab show list). Then
+  use the same words everywhere, the PDFs included.
 
 ---
 
@@ -85,8 +99,8 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   settings by group. Open questions: count all of a student's combos or only those on that instrument? Voice and
   Other: what limit?
 - **Ready-to-send emails** after the schedule is final (per combo: its dates, the swap policy, contacts; per
-  supervisor), as To / Cc / Subject / Body rows, from `Schedule.xlsx` so they follow swaps.
-- **Swap history:** a Swaps sheet in `Schedule.xlsx` (date, combos, from -> to, reason) for "your show moved"
+  supervisor), as To / Cc / Subject / Body rows, from the schedule so they follow swaps.
+- **Swap history:** kept with the schedule and shown as a Swaps sheet in the `Schedule.xlsx` export (date, combos, from -> to, reason) for "your show moved"
   emails; maybe a swap-request form shown as an inbox in the Swaps tab.
 - **Supervisors:** which professor attends each supervised night, their availability, a names sheet.
 - **Messy member entries** on the combo form: report text that isn't an email ("TBD", a name alone), unknown
@@ -117,8 +131,10 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   withdraw / put back; pending combos in grey; members by instrument), Swaps (trades, moves, give-aways, claims;
   pending changes, one backup per save; searches in the background), Settings (sections, switches, unsaved-changes
   warning, year check), About. Setup screen on first run, text size, dark mode, horizontal scrollbars.
-- **Schedule file:** `Schedule.xlsx` is hand-editable, records its semester, and decides the nights once it
-  exists; a new semester files the old files into `Archive/<semester>`.
+- **Schedule file:** the schedule is `App data/schedule.json`, changed only in the app (2026-10-06; before, a
+  hand-editable `Schedule.xlsx`, converted once). `Schedule.xlsx` / `.pdf` are exports, rebuilt after every change,
+  never read back. It records its semester and decides the nights once it exists; a new semester files the old files
+  into `Archive/<semester>`.
 - **Project:** git + private GitHub repo, `app/` `dev/` layout (data in the chosen data folder), launchers that find a Python with tkinter, the Mac zip,
   realistic fake data (instruments, supervisors), `Quick Start.pdf`.
 
