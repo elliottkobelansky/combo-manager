@@ -1,0 +1,55 @@
+# Builds the Windows app on every push to main (and on demand: Actions tab > Build the Windows app > Run workflow):
+# runs the tests on Windows, builds "Combo Scheduler.exe" with dev/build_exe.py, checks the built app loads every part
+# it needs (--selftest), and keeps the result for 30 days: open the run, then Artifacts > Combo-Scheduler-windows.
+# A tag like v1.0 also puts the zip on a GitHub Release, a lasting download link to hand out.
+name: Build the Windows app
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write          # only used to attach the zip to a Release (tags)
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install the packages (the pinned versions) and PyInstaller
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Tests (on Windows)
+        run: python dev/test_rules.py
+
+      - name: Build
+        run: python dev/build_exe.py
+
+      - name: The built app loads every part it needs
+        shell: pwsh
+        run: |
+          $out = Join-Path $PWD "selftest.txt"
+          $p = Start-Process -FilePath "dist\Combo Scheduler\Combo Scheduler.exe" -ArgumentList "--selftest", "`"$out`"" -Wait -PassThru
+          Get-Content $out
+          if ($p.ExitCode -ne 0) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Combo-Scheduler-windows
+          path: dist/Combo Scheduler/
+          retention-days: 30
+
+      - name: Attach to a Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Combo-Scheduler-windows.zip

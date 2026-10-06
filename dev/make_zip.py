@@ -34,7 +34,7 @@ def main():
     ap.add_argument("--out", default=str(ROOT.parent / "combo-scheduler.zip"))
     a = ap.parse_args()
     files = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split("\n")
-    files = [f for f in files if f and not (a.mac and f.endswith(".bat"))]
+    files = [f for f in files if f and not (a.mac and f.endswith(".bat")) and not f.startswith(".github/")]
     out = Path(a.out)
     with zipfile.ZipFile(out, "w") as zf:
         for f in files:

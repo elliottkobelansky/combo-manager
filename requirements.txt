@@ -1,0 +1,8 @@
+# The scheduler's packages, at the versions it's tested with: the app's Install button, the build
+# (dev/build_exe.py) and GitHub Actions all use these. Change a version here, then run dev/test_rules.py.
+openpyxl==3.1.5
+ortools==9.15.6755
+reportlab==5.0.1
+tkcalendar==1.6.1
+babel==2.18.0
+sv-ttk==2.6.1

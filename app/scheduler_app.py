@@ -3,6 +3,9 @@ tab), and change the settings (Settings tab, saved in settings.json).
 
     Double-click "Make Schedule.bat" (Windows), "Make Schedule.command" (Mac) or "make-schedule.sh" (Linux),
     or run:  python app/scheduler_app.py
+    Packaged (dev/build_exe.py): "Combo Scheduler.exe", with everything included (no Setup screen).
+    python app/scheduler_app.py --selftest FILE   loads every part the app needs, writes what it found to FILE,
+                                                  exit code 0 = all there (used to check a build)
 
 It runs solve.py inside this window, on the data folder shown at the top: any folder, on this computer or kept in
 sync (OneDrive, SharePoint, a network drive), picked on first run and remembered on this computer ("Change folder..."
@@ -23,6 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+FROZEN = getattr(sys, "frozen", False)                # the packaged app (PyInstaller): every package is included
 sys.path.insert(0, str(HERE))
 # these three are standard library only: safe before the packages are installed
 from app_config import input_files, is_picked, load_config, pick_input_file, save_config, saved_folder  # noqa: E402
@@ -46,6 +50,8 @@ except ImportError:                                   # e.g. Homebrew Python on 
 # ---------------------------------------------------------------- work that doesn't need the window (testable)
 
 def missing_packages(include_optional=False):
+    if FROZEN:
+        return []
     importlib.invalidate_caches()                     # so packages installed a moment ago are seen
     missing = []
     for mod, pip_name in list(PACKAGES.items()) + (list(OPTIONAL.items()) if include_optional else []):
@@ -79,8 +85,19 @@ def run_solve(args, folder, write):
             return 1
 
 
+def pinned(names):
+    """pip names -> 'name==version' from requirements.txt (the versions the scheduler is tested with)."""
+    try:
+        lines = (HERE.parent / "requirements.txt").read_text().splitlines()
+    except OSError:
+        return names
+    pins = {l.split("==")[0].strip().lower().replace("_", "-"): l.strip() for l in lines if "==" in l
+            and not l.lstrip().startswith("#")}
+    return [pins.get(n.lower().replace("_", "-"), n) for n in names]
+
+
 def install_packages(names, write):
-    cmd = [sys.executable, "-m", "pip", "install"] + ([] if sys.prefix != sys.base_prefix else ["--user"]) + names
+    cmd = [sys.executable, "-m", "pip", "install"] + ([] if sys.prefix != sys.base_prefix else ["--user"]) + pinned(names)
     write("$ " + " ".join(cmd) + "\n")
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))   # no console flashing on Windows
@@ -449,7 +466,7 @@ class App:
         """Opens a fresh copy of the app, which can use the new packages, and closes this one."""
         if self.folder:
             shared_folder.release(self.folder)
-        subprocess.Popen([sys.executable, str(HERE / "scheduler_app.py")])
+        subprocess.Popen([sys.executable] if FROZEN else [sys.executable, str(HERE / "scheduler_app.py")])
         self.root.destroy()
 
     def skip_setup(self):
@@ -876,7 +893,69 @@ def bring_to_front(root):
     root.focus_force()
 
 
+def selftest(out):
+    """Loads every part the app needs (its modules, the solver, the PDF and Excel writers, the look, the pop-up
+    calendar) and writes what happened to the file `out`. -> 0 when everything works. For checking a build: a
+    missing piece shows up here instead of on the director's computer."""
+    lines, failed = [], 0
+
+    def step(what, fn):
+        nonlocal failed
+        try:
+            fn()
+            lines.append(f"ok    {what}")
+        except Exception as e:                        # noqa: BLE001  (report everything)
+            failed += 1
+            lines.append(f"FAIL  {what}: {type(e).__name__}: {e}")
+    import tempfile
+    tmp = Path(tempfile.mkdtemp())
+    for mod in ("solve", "inputs", "settings_file", "schedule_file", "backup", "app_log", "clipboard", "theme",
+                "settings_panel", "swap_panel", "combos_panel", "schedule_panel", "outputs.excel_schedule",
+                "outputs.schedule_pdf", "outputs.combos_pdf", "outputs.combos_xlsx", "core.solver", "core.swaps"):
+        step(f"import {mod}", lambda m=mod: importlib.import_module(m))
+
+    def solver():
+        from ortools.sat.python import cp_model
+        m = cp_model.CpModel()
+        x = m.new_int_var(0, 10, "x")
+        m.add(x >= 3)
+        m.minimize(x)
+        s = cp_model.CpSolver()
+        assert s.solve(m) == cp_model.OPTIMAL and s.value(x) == 3
+    step("the solver (ortools)", solver)
+
+    def pdf():
+        from reportlab.pdfgen import canvas
+        c = canvas.Canvas(str(tmp / "t.pdf"))
+        c.drawString(72, 720, "Combo Scheduler")
+        c.save()
+    step("a PDF (reportlab)", pdf)
+
+    def xlsx():
+        from openpyxl import Workbook
+        from shared_folder import save_workbook
+        wb = Workbook()
+        wb.active["A1"] = "Combo Scheduler"
+        save_workbook(wb, tmp / "t.xlsx")
+    step("an Excel file (openpyxl)", xlsx)
+
+    def window():
+        root = tk.Tk()
+        import sv_ttk
+        sv_ttk.set_theme("light")
+        from tkcalendar import Calendar
+        Calendar(root, locale="en_US").pack()
+        root.update()
+        root.destroy()
+    step("the window, its look and the pop-up calendar (tkinter, sv-ttk, tkcalendar)", window)
+    lines.append("ALL OK" if not failed else f"{failed} FAILED")
+    Path(out).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return 1 if failed else 0
+
+
 def main():
+    if sys.argv[1:2] == ["--selftest"]:
+        sys.exit(selftest(sys.argv[2] if len(sys.argv) > 2 else "selftest.txt"))
     root = tk.Tk()
     app = App(root)
     if getattr(app, "closed", False):               # quit at the "pick the data folder" question

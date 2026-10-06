@@ -70,6 +70,20 @@ PATH"). The launcher then sets up a private Python environment in the user's hom
 and the window shows a one-time **Setup** screen: click **Install** (needs internet, about a minute) and the app reopens by itself. On a Mac, if double-clicking
 is blocked ("unidentified developer" / "could not verify"), open System Settings > Privacy & Security and click Open Anyway (on older macOS: right-click the file > Open). Install Python from python.org: Homebrew's Python has no tkinter (the launcher skips a Python without it, and rebuilds the scheduler's private Python if it was made from one). On Linux you may need `sudo apt install python3-venv python3-tk`.
 
+## The packaged app (Windows)
+
+GitHub builds a Windows version on every push to `main` (`.github/workflows/build.yml`): it runs the tests on
+Windows, builds `Combo Scheduler.exe` with PyInstaller (`dev/build_exe.py`), and checks the built app can load every
+part it needs (`--selftest`). Download it from the repo's **Actions** tab: the latest "Build the Windows app" run >
+**Artifacts** > `Combo-Scheduler-windows` (kept 30 days). Pushing a tag like `v1.0` also attaches the zip to a GitHub
+**Release**, a lasting download link. Unzip it anywhere and double-click `Combo Scheduler.exe`: no Python, no Setup
+screen. The first time, Windows may say "Windows protected your PC" (the app isn't signed): **More info > Run
+anyway**. The data folder is chosen as usual and isn't inside the program, so a newer version just replaces the
+folder. About 330 MB unzipped (mostly the solver). To build one yourself, on Windows: `pip install -r
+requirements.txt pyinstaller`, then `python dev/build_exe.py` (the result is in `dist/`).
+
+The package versions are pinned in `requirements.txt`: the app's Install button, the build and GitHub use them.
+
 ## Setup (once)
 
     pip install openpyxl ortools reportlab tkcalendar sv-ttk

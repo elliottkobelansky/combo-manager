@@ -61,7 +61,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 
 ### 4. Safety (small, worth doing)
 - [x] Backed up: private GitHub repo `elliottkobelansky/combo-scheduler` (2026-10-05; no data in it).
-- [ ] Pin package versions (`requirements.txt`, used by the Install button).
+- [x] Pin package versions (`requirements.txt`, used by the Install button and the build; 2026-10-06).
 - [x] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `settings.json` and swap saves of
   the schedule (2026-10-05); a brand-new schedule, `schedule.json` and backups too (2026-10-06). The PDFs and contact lists (rebuilt
   any time) still save directly.
@@ -92,9 +92,9 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 
 ## Later (optional)
 
-- **A real app** (PyInstaller): `Combo Scheduler.app` / `.exe`, no Python install. Built on GitHub Actions (or
-  the Mac app on a Mac); data folder chosen on first run as now; ~150-250 MB; unsigned = "Open Anyway"
-  once (signing needs an Apple Developer account).
+- **A real app** (PyInstaller): the Windows `.exe` is built on GitHub Actions since 2026-10-06 (try it on a
+  real Windows computer); a Mac `.app` the same way later (unsigned = "Open Anyway" once; signing needs an Apple
+  Developer account).
 - **Per-instrument limits** on combos per student (asked 2026-10-05): horn players in at most 1 combo, rhythm
   section (piano, guitar, bass, drums) in at most 2. A warning in Check, the Combos tab and Add member, set in the
   settings by group. Open questions: count all of a student's combos or only those on that instrument? Voice and
