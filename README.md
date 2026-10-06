@@ -202,20 +202,26 @@ Reads the schedule as it is (after swaps; no solving) and prints:
 Students arrange swaps between themselves. The easiest way to record one is the app's **Swaps** tab (it
 loads the current schedule by itself): pick the combo and the show it can't make, and the app lists **every legal option, best first**:
 trades with another combo's show (both play each other's slot), moves to an open set, and (last) reordering
-within the same night. An option is only listed if it breaks no hard rule; soft side effects are shown in orange
+within the same night. Options that keep every hard rule come first; soft side effects are shown in orange
 (a student playing twice in a night, shows close together, a first-year combo before the first-year date), and
-an option that fixes an existing problem is marked in green. Combos are shown with their liaison
+an option that fixes an existing problem is marked in green. **Options that break a hard rule are listed
+too, last and in red**, saying which rule ("✖ Breaks a rule: Combo 05 plays Tue Oct 13, when Ana Ruiz has a
+conflict"): a manual override for when it's agreed (the student can make it after all, a combo gives up a show it
+needs, ...). Adding one asks first, the pending list marks it ✖, and the rule check
+(step 3) keeps flagging it. The same goes for "who could take this set" (Schedule tab). Combos are shown with their liaison
 ("Combo 07 (Ana Ruiz)"), and a person whose name isn't unique is shown with their email. For a picked option
 (buttons under the list, or right-click on it), **Copy liaison emails** copies the liaisons of every combo it touches
 (both sides of a trade or a give-away; just the one combo for an open set), and **Copy swap summary** copies it in
-words to send them: what changes for each combo, sets that become open, heads-ups and the liaisons' names (no emails).
+words, ready to email the liaisons: what changes for each combo (new set, new number of shows), heads-ups about
+their own members (playing twice that night, or on a night they'd marked as a conflict) and the liaisons' names; no
+rule names, settings or emails.
 **Add to pending changes** collects it without touching any file: the tab then shows the
 schedule as if it were done, so you can make several swaps in a row (each checked against the earlier ones), with
 **Undo last** and **Discard all**. **Confirm changes** saves them all into the schedule at once (a copy of
 it as it was goes to `App data/Schedule backups`) and rebuilds the PDF and xlsx in the background; you stay on the
 Swaps tab, and it says when they're done. Closing the app or clicking Reload with unsaved changes asks first.
-A swap that would take a combo off its only supervised night isn't offered, and three-way swaps aren't tried
-(do them as two swaps in a row).
+A swap that would take a combo off its only supervised night is one of the red ones. Three-way swaps aren't
+tried (do them as two swaps in a row).
 
 The Combos and Swaps tabs load the data folder's files by themselves (at start, after **Change folder...**, and after
 each step or swap); **Reload** picks up files that changed while the app was open (e.g. synced in from another computer).
@@ -235,6 +241,13 @@ with its sets and everyone's emails, for printing or sharing. Both use the sched
 changes. **Export PDF** / **Export Excel** rebuild `Schedule.pdf` and `Schedule.xlsx`
 from the schedule and open one; with unsaved changes they ask: save them first, export the saved schedule only, or
 cancel.
+
+**Unsaved changes in the Combos tab:** every edit there (names, emails, instruments, members, liaison, first-year
+tag, withdraw / put back) waits until it's confirmed, and the tab shows it as if done (the combo is marked "● unsaved
+changes"); a bar under the table says how many there are. **Confirm changes** saves them all at once into `scheduler_data.json`
+(read again first, so nothing saved meanwhile on another computer is lost); **Undo last** and **Discard all** as in
+the Swaps tab. Closing the app, changing folder or exporting with unsaved changes asks first. The other tabs see the
+changes once they're confirmed.
 
 **Changing a combo's members** (Combos tab: pick a combo or a person, then **Actions ▾** below the list, or right-click; the menu shows what fits the row picked): **Copy liaison email** copies the liaison's email, and **Copy emails** the combo's students (liaison
 first) and supervisor, ready to paste into Outlook. (Schedule tab, right-click a night: **Copy liaison emails** and
@@ -287,7 +300,7 @@ Swaps tab).
 The Swaps tab has three modes, switched at the top:
 - **Can't make it:** trade or move (above).
 - **Give it away:** a combo hands one of its shows to another combo (which gains a show) or leaves it open.
-  Only offered when the combo doesn't need that show (its minimum shows, a venue minimum, its supervised night).
+  When the combo needs that show (its minimum shows, a venue minimum, its supervised night), these are red ones.
 - **Claim an open set:** a combo volunteers for an open set; the list shows every open set it can legally take
   (no show needs to be picked).
 

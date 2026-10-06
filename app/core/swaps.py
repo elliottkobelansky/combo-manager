@@ -6,9 +6,11 @@ Works on the schedule as it is on disk (after earlier swaps and hand edits), lik
   - a move to every open set (blank / OPEN; not sets with something typed in);
   - giving the show away: to every combo not playing that night (A has one show fewer, B one more), or leaving
     it open. Only possible when A doesn't need it (venue minimum, min_shows_per_combo, supervision);
-and keeps the options that break no hard rule the schedule didn't already break (the same rule check as --stats:
-conflicts, twice in a night, venue minimums, total shows, supervision). Soft rules are reported, not blocked:
-a student playing twice in one night, shows closer together, a first-year combo before the first-year date.
+and checks each against the hard rules (the same rule check as --stats: conflicts, twice in a night, venue minimums,
+total shows, supervision). An option that breaks one the schedule didn't already break is still listed, after all
+the others, with `breaks` saying which (a manual override: the app asks before adding it, and the rule check keeps
+flagging it). Soft rules are reported, not blocked: a student playing twice in one night, shows closer together, a
+first-year combo before the first-year date.
 Three-way swaps aren't tried.
 """
 from dataclasses import dataclass, field
@@ -33,6 +35,7 @@ class SwapOption:
     partner: str = ""                          # who it swaps with: a combo name, or "open set"
     place: str = ""                            # where the chosen combo plays instead
     same_night: bool = False                   # only the running order changes
+    breaks: List[str] = field(default_factory=list)   # hard rules it breaks (listed last; added only when confirmed)
 
 
 def shows_of(sets: Sets, cid: str) -> List[Tuple[date, int]]:
@@ -78,8 +81,6 @@ def swap_options(sets: Sets, nights: List[Night], combos: Dict[str, Combo], inp:
     candidates = []                            # (kind, changes, title, partner, place, same_night)
     if d is None:                              # claim: take an open set without giving anything up
         for d2 in sorted(nmap):
-            if cid in sets.get(d2, {}).values():
-                continue
             for k2 in range(1, nmap[d2].n_slots + 1):
                 if slot and (d2, k2) != slot:
                     continue
@@ -104,10 +105,9 @@ def swap_options(sets: Sets, nights: List[Night], combos: Dict[str, Combo], inp:
                 title = (f"Swap set order with {name} (set {k} \u2194 set {k2}, same night)" if d2 == d else
                          f"Trade with {name}: {me} plays {label(d2, k2)}; {name} plays {label(d, k)}")
                 candidates.append(("trade", changes, title, name, place(d2, k2), d2 == d))
-    # give the show away: to a combo not playing that night, or leave the set open
-    playing = {c for c in sets.get(d, {}).values() if c}
+    # give the show away: to another combo (one playing that night already breaks a rule), or leave the set open
     for other in sorted(combos, key=lambda c: combos[c].name) if d is not None else []:
-        if other not in playing:
+        if other != cid:
             candidates.append(("give", {(d, k): other}, f"Give it to {combos[other].name}: they play {label(d, k)}; "
                                f"{me} has one show fewer", combos[other].name, place(d, k), False))
     if d is not None:
@@ -130,9 +130,8 @@ def swap_options(sets: Sets, nights: List[Night], combos: Dict[str, Combo], inp:
         for (dd, kk), c in changes.items():
             new.setdefault(dd, {})[kk] = c
         after = problems(new)
-        if after - before:
-            continue                                         # breaks a hard rule: not offered
-        opt = SwapOption(kind, title, changes, partner=partner, place=where, same_night=same)
+        opt = SwapOption(kind, title, changes, partner=partner, place=where, same_night=same,
+                         breaks=sorted(after - before))     # a hard rule broken: listed last, as an override
         for fixed in sorted(before - after):
             opt.notes.insert(0, f"Fixes: {fixed}")
             opt.score -= 20
@@ -177,16 +176,17 @@ def swap_options(sets: Sets, nights: List[Night], combos: Dict[str, Combo], inp:
             opt.notes.append(f"{label(d, k)} becomes open")
         opt.score += 10 * len(opt.warnings) + 0.5 * len(opt.notes) + {"trade": 0, "move": 0.2}.get(kind, 0)
         options.append(opt)
-    return sorted(options, key=lambda o: (o.same_night, o.score, o.title))   # other nights first
+    # legal ones first (other nights before reorders), then those breaking a rule (fewest broken first)
+    return sorted(options, key=lambda o: (len(o.breaks) > 0, len(o.breaks), o.same_night, o.score, o.title))
 
 
 def claimers(sets: Sets, nights: List[Night], combos: Dict[str, Combo], inp: ScheduleInput, settings: Settings,
              supervised: Optional[Set[date]], typed: Dict, d: date, k: int, name_of=lambda e: e) -> List[SwapOption]:
-    """Every combo that could legally take the open set (d, k), best first."""
+    """Every combo that could take the open set (d, k), best first; those breaking a hard rule last."""
     out = []
     for cid in sorted(combos, key=lambda c: combos[c].name):
         out += swap_options(sets, nights, combos, inp, settings, supervised, typed, cid, name_of=name_of, slot=(d, k))
-    return sorted(out, key=lambda o: (o.score, o.title))
+    return sorted(out, key=lambda o: (len(o.breaks) > 0, len(o.breaks), o.score, o.title))
 
 
 def apply_option(sets: Sets, option: SwapOption) -> Sets:
@@ -203,10 +203,12 @@ def involved(sets: Sets, option: SwapOption, combos: Dict[str, Combo], first: Op
 
 
 def swap_summary(sets: Sets, nights: List[Night], combos: Dict[str, Combo], option: SwapOption,
-                 first: Optional[str] = None, name_of=lambda e: e) -> str:
-    """The option in plain words, for the combos it touches: a heading, then what changes for each of them (both
-    sides of a trade or a give-away), sets that become open, heads-ups, and the liaisons' names (no emails: those are
-    copied separately). sets: before the option."""
+                 first: Optional[str] = None, name_of=lambda e: e, blocked: Optional[Dict[str, Set[date]]] = None
+                 ) -> str:
+    """The option in plain words, to email the liaisons of the combos it touches: a heading, what changes for each
+    combo (both sides of a trade or a give-away), heads-ups about their own members (playing twice that night, or on a
+    night they marked as a conflict; blocked = {email: dates}), and the liaisons' names. Only what affects the
+    combos: no rule names, settings or emails. sets: before the option."""
     nmap = {n.date: n for n in nights}
 
     def where(cell, near=None):
@@ -236,7 +238,7 @@ def swap_summary(sets: Sets, nights: List[Night], combos: Dict[str, Combo], opti
     elif len(ids) == 2:
         heading = f"{combos[givers[0]].name} gives a show to {combos[takers[0]].name}"
     elif givers:
-        heading = f"{a} gives up a show (the set becomes open)"
+        heading = f"{a} gives up a show"
     elif takers:
         heading = f"{a} takes an open set"
     else:
@@ -247,18 +249,30 @@ def swap_summary(sets: Sets, nights: List[Night], combos: Dict[str, Combo], opti
         return sum(1 for row in s.values() for x in row.values() if x == c)
     for c in ids:
         lost, gained = moves[c]
-        name, shows = combos[c].name, f"({count(c, sets)} → {count(c, after)} shows)"
-        was_open = ", an open set until now" if gained and old[gained] is None else ""
+        name, shows = combos[c].name, f"(now {count(c, after)} shows instead of {count(c, sets)})"
         if lost and gained:
-            lines.append(f"• {name} now plays {where(gained)}{was_open}, instead of {where(lost, gained)}.")
+            lines.append(f"• {name} now plays {where(gained)}, instead of {where(lost, gained)}.")
         elif gained:
-            lines.append(f"• {name} now also plays {where(gained)}{was_open} {shows}.")
+            lines.append(f"• {name} now also plays {where(gained)} {shows}.")
         elif lost:
             lines.append(f"• {name} no longer plays {where(lost)} {shows}.")
-    lines += [f"• {where(cell)} becomes an open set." for cell, now in sorted(option.changes.items())
-              if now is None and old[cell] is not None]
-    if option.warnings:
-        lines += [""] + [f"Heads-up: {w}." for w in option.warnings]
+    heads_up = []
+    for c in ids:                                     # the combos' own members, on the night each now plays
+        if not moves[c][1]:
+            continue
+        d = moves[c][1][0]
+        if sum(1 for x in after.get(d, {}).values() if x == c) > 1:
+            heads_up.append(f"{combos[c].name} plays twice on {make_label(d)}.")
+        for m in sorted(combos[c].members, key=lambda e: name_of(e).lower()):
+            if blocked and d in blocked.get(m, ()):
+                heads_up.append(f"{name_of(m)} ({combos[c].name}) had marked {make_label(d)} as a conflict.")
+            others = [combos[x].name for _, x in sorted(after.get(d, {}).items())
+                      if x and x != c and m in combos[x].members]
+            if others:
+                heads_up.append(f"{name_of(m)} ({combos[c].name}) also plays with {', '.join(others)} on "
+                                f"{make_label(d)}.")
+    if heads_up:
+        lines += [""] + [f"Heads-up: {h}" for h in dict.fromkeys(heads_up)]
     contacts = [f"{combos[c].name}: {name_of(combos[c].liaison)}" for c in ids
                 if combos[c].liaison]
     if contacts:

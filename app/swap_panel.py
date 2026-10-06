@@ -121,6 +121,7 @@ class SwapPanel:
         if p:
             self.option_list.tag_configure("warn", foreground=p["warn"])
             self.option_list.tag_configure("fix", foreground=p["good"])
+            self.option_list.tag_configure("breaks", foreground=p["bad"])
 
     # loading
     def load(self, quiet=False):
@@ -269,28 +270,33 @@ class SwapPanel:
         self.option_list.heading("place", text="The show" if give else f"{self.short()} plays instead"
                                  if not claim else f"{self.short()} also plays")
         for i, o in enumerate(options):
-            tag = "fix" if any(n.startswith("Fixes:") for n in o.notes) else "warn" if o.warnings else ""
-            effects = "⚠ " + o.warnings[0] if o.warnings else o.notes[0] if o.notes else "none"
-            more = len(o.warnings) + len(o.notes) - 1
+            tag = ("breaks" if o.breaks else "fix" if any(n.startswith("Fixes:") for n in o.notes) else
+                   "warn" if o.warnings else "")
+            effects = ("✖ Breaks a rule: " + o.breaks[0] if o.breaks else "⚠ " + o.warnings[0] if o.warnings
+                       else o.notes[0] if o.notes else "none")
+            more = len(o.breaks) + len(o.warnings) + len(o.notes) - 1
             if more > 0:
                 effects += f"  (+{more} more)"
             partner = self.labels.get(self.by_name.get(o.partner), o.partner) + (" (reorder)" if o.same_night else "")
             self.option_list.insert("", "end", iid=str(i), values=(partner, o.place, effects), tags=(tag,))
         if not self.option_list.get_children():
+            self.details.configure(text="Nothing to list here." if claim else "Nothing to list for this show.")
+        elif options[0].breaks:                       # sorted: when the first breaks a rule, they all do
             self.details.configure(text=(
-                f"No open set {self.short()} can take: every one is on a night a member can't make, the night "
-                "it already plays, or would break another rule." if claim else
-                f"{self.short()} can't give this show away: it needs it (its minimum shows, a venue minimum or "
-                "its supervised night), or no combo can take it." if give else
-                "No legal swap for this show: every other place would break a rule (a member's conflict, "
-                "supervision, venue minimum, ...)."))
+                f"No open set {self.short()} can take without breaking a rule." if claim else
+                f"{self.short()} can't give this show away without breaking a rule (it needs it for its minimum "
+                "shows, a venue minimum or its supervised night)." if give else
+                "No swap for this show keeps every rule.")
+                + " The options in red break one (it's named): pick one only when it's agreed, e.g. the student "
+                  "can make it after all. The app asks first, and the rule check keeps flagging it.")
 
     def describe(self):
         sel = self.option_list.selection()
         if not sel:
             return
         o = self.visible[int(sel[0])]
-        lines = [o.title] + [f"⚠ {w}" for w in o.warnings] + [f"• {n}" for n in o.notes]
+        lines = ([o.title] + [f"✖ Breaks a rule: {b}" for b in o.breaks] + [f"⚠ {w}" for w in o.warnings]
+                 + [f"• {n}" for n in o.notes])
         self.details.configure(text="\n".join(lines) if len(lines) > 1 else
                                o.title + "\nNo side effects: every rule and preference still holds.")
         for b in [self.apply_button] + self.copy_buttons:
@@ -340,7 +346,8 @@ class SwapPanel:
             msg = (f"Copied {len(emails)} liaison email{'' if len(emails) == 1 else 's'}"
                    + (f" (no liaison for {', '.join(no_liaison)}: all its members instead)" if no_liaison else ""))
         else:
-            text, msg = swap_summary(st["sets"], st["nights"], st["combos"], o, self.cid(), st["name_of"]), \
+            text, msg = swap_summary(st["sets"], st["nights"], st["combos"], o, self.cid(), st["name_of"],
+                                     st["inp"].blocked), \
                 "Copied the summary"
         from clipboard import copy
         copy(self.frame, text, msg[len("Copied "):], self.get_palette())
@@ -353,9 +360,22 @@ class SwapPanel:
         if not sel:
             return
         o, st = self.visible[int(sel[0])], self.state
+        if not self.override_ok(o):
+            return
         self.pending.append(o)
         st["sets"] = apply_option(st["sets"], o)
         self.after_change(f"Added: {o.title}")
+
+    def override_ok(self, option):
+        """An option that breaks a hard rule: says which, and asks. True = go ahead (or it breaks none)."""
+        if not option.breaks:
+            return True
+        return messagebox.askyesno(
+            "Break a rule?", f"{option.title}\n\nThis breaks " + ("a hard rule" if len(option.breaks) == 1 else
+                                                                  f"{len(option.breaks)} hard rules") + ":\n"
+            + "\n".join(f"\u2716 {b}" for b in option.breaks)
+            + "\n\nOnly do this when it's agreed (e.g. the student can make it after all). The rule check (Run tab, "
+            "step 3) keeps flagging it.\n\nAdd it anyway?", icon="warning", default="no")
 
     def notify(self):
         for f in self.listeners:
@@ -363,6 +383,8 @@ class SwapPanel:
 
     def add_pending(self, option, message=None):
         """Adds an option found elsewhere (e.g. the Schedule tab) to the pending changes."""
+        if not self.override_ok(option):
+            return
         self.pending.append(option)
         self.state["sets"] = apply_option(self.state["sets"], option)
         self.after_change(message or f"Added: {option.title}")
@@ -399,7 +421,8 @@ class SwapPanel:
     def refresh_pending(self):
         self.pending_list.delete(*self.pending_list.get_children())
         for i, o in enumerate(self.pending, start=1):
-            self.pending_list.insert("", "end", values=(f"{i}. " + ("\u26a0 " if o.warnings else "") + o.title,))
+            mark = "\u2716 " if o.breaks else "\u26a0 " if o.warnings else ""
+            self.pending_list.insert("", "end", values=(f"{i}. {mark}{o.title}",))
         n = len(self.pending)
         self.pending_title.configure(text=f"Pending changes ({n})" if n else "Pending changes (none)")
         self.pending_list.configure(height=min(max(n, 2), 6))
@@ -439,9 +462,11 @@ class SwapPanel:
             self.after_change("Nothing to save.")
             return
         warns = sum(1 for o in self.pending if o.warnings)
+        breaks = sum(1 for o in self.pending if o.breaks)
         if not messagebox.askyesno("Confirm changes?", f"Save {len(self.pending)} change(s) into the schedule "
                                    f"({len(changes)} set(s) change)?" + (f"\n\n{warns} of them have a heads-up (\u26a0)."
                                                                        if warns else "")
+                                   + (f"\n\n\u2716 {breaks} of them break a hard rule (agreed)." if breaks else "")
                                    + "\n\nA copy of the schedule as it is goes to 'App data/Schedule backups' first."):
             return
         if not self.same_as_on_disk():

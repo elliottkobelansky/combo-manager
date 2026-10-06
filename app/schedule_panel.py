@@ -338,11 +338,14 @@ class SchedulePanel:
         self.frame.configure(cursor="")
         menu = self.menu()
         if not options:
-            menu.add_command(label="No combo can take this set (conflicts or rules)", state="disabled")
-        for o in options[:25]:
+            menu.add_command(label="No combo can take this set", state="disabled")
+        legal = [o for o in options if not o.breaks]
+        for o in legal[:25] + [o for o in options if o.breaks][:max(0, 25 - len(legal))]:
             cid = o.changes[(d, k)]
-            label = self.swaps.labels.get(cid, cid) + (f"   ⚠ {o.warnings[0]}" if o.warnings else "")
-            menu.add_command(label=label, command=lambda o=o: self.swaps.add_pending(o))
+            label = self.swaps.labels.get(cid, cid) + (f"   \u2716 breaks a rule: {o.breaks[0]}" if o.breaks else
+                                                      f"   ⚠ {o.warnings[0]}" if o.warnings else "")
+            menu.add_command(label=label, command=lambda o=o: self.swaps.add_pending(o),
+                             foreground=(self.get_palette() or {}).get("bad") if o.breaks else None)
         self.claim_menu = menu                         # (kept for tests)
         x, y, w, h = self.tree.bbox(item, "who") or (0, 0, 0, 0)
         popup(menu, self.tree.winfo_rootx() + x, self.tree.winfo_rooty() + y + h)

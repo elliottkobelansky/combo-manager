@@ -210,6 +210,20 @@ def save_changes(folder, combos, sets=None, typed=None):
     return copy
 
 
+def open_sets_of(folder, name):
+    """Every set combo `name` plays becomes open (it was withdrawn), going by the schedule as saved now. A backup first.
+    -> (the sets [(date, set)], the backup), or ([], None) when it plays none."""
+    data = _read(folder)
+    cells = sorted((date.fromisoformat(d), int(k)) for d, row in (data or {}).get("sets", {}).items()
+                   for k, n in row.items() if n == name)
+    if not cells:
+        return [], None
+    copy = backup(folder)
+    data["sets"] = {d: kept for d, row in data["sets"].items() if (kept := {k: n for k, n in row.items() if n != name})}
+    _write(folder, data)
+    return cells, copy
+
+
 # ---------------------------------------------------------------- archive, and the old Schedule.xlsx
 
 def semester_paths(folder):

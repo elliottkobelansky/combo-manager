@@ -2,6 +2,7 @@
 
     python dev/test_rules.py
 """
+import re
 import sys
 import tempfile
 from collections import defaultdict
@@ -154,20 +155,32 @@ def main():
     s = replace(base, extra_slot_policy="open")
     result = run_schedule(inp, s)
     sets = {d: {k: c for k, c in enumerate(cs, start=1)} for d, cs in result.lineup.items()}
-    tried = offered = 0
+    tried = offered = overrides = 0
     bad = []
     samples = {}                                       # one option of each kind, for the summary check below
+    breaking = []                                      # options that break a rule (for the summary check too)
     for c in sorted(result.combos)[:6]:
         for d, k in [(d, k) for d, row in sets.items() for k, x in row.items() if x == c][:1]:
-            for opt in swap_options(sets, result.nights, result.combos, inp, s, result.supervised, {}, c, d, k):
-                samples.setdefault((opt.kind, opt.same_night), (sets, result, opt, c))
+            opts = swap_options(sets, result.nights, result.combos, inp, s, result.supervised, {}, c, d, k)
+            if any(a.breaks and not b.breaks for a, b in zip(opts, opts[1:])):
+                bad.append(f"{result.combos[c].name}: an option breaking a rule is listed before a legal one")
+            for opt in opts:
                 new = apply_option(sets, opt)
                 lineup = {dd: [row[kk] for kk in sorted(row) if row[kk]] for dd, row in new.items()}
-                bad += [f"{opt.title}: {b}" for b in check(replace(result, lineup=lineup), inp, s)]
+                found = check(replace(result, lineup=lineup), inp, s)
+                if opt.breaks:                      # a manual override: it must really break something
+                    overrides += 1
+                    breaking.append((sets, result, opt, c))
+                    if not found and not any("twice" in b or "supervis" in b for b in opt.breaks):
+                        bad.append(f"{opt.title}: marked as breaking '{opt.breaks[0]}', but the check finds nothing")
+                    continue
+                samples.setdefault((opt.kind, opt.same_night), (sets, result, opt, c))
+                bad += [f"{opt.title}: {b}" for b in found]
                 offered += 1
             tried += 1
-    ok = not bad and offered > 0
-    print(f"{'PASS' if ok else 'FAIL'}  swap finder: {offered} options for {tried} shows, all keep the hard rules")
+    ok = not bad and offered > 0 and overrides > 0
+    print(f"{'PASS' if ok else 'FAIL'}  swap finder: {offered} options for {tried} shows keep the hard rules; "
+          f"{overrides} more break one, listed last and named")
     for b in bad[:5]:
         print("      -", b)
     failures += not ok
@@ -183,7 +196,7 @@ def main():
     for c in rich + poor:
         for d, k in [(d, k) for d, row in sets.items() for k, x in row.items() if x == c]:
             for opt in swap_options(sets, result.nights, result.combos, inp, s, result.supervised, {}, c, d, k):
-                if opt.kind not in ("give", "drop"):
+                if opt.kind not in ("give", "drop") or opt.breaks:
                     continue
                 samples.setdefault((opt.kind, False), (sets, result, opt, c))
                 if c in poor:
@@ -202,6 +215,8 @@ def main():
     claims = 0
     for c in sorted(result.combos)[:4]:
         for opt in swap_options(sets, result.nights, result.combos, inp, s, result.supervised, {}, c):
+            if opt.breaks:
+                continue
             samples.setdefault(("claim", False), (sets, result, opt, c))
             new = apply_option(sets, opt)
             lineup = {dd: [row[kk] for kk in sorted(row) if row[kk]] for dd, row in new.items()}
@@ -237,11 +252,22 @@ def main():
                 bad.append(f"{key}: {res.combos[x].name}'s liaison missing")
         if "@" in text:
             bad.append(f"{key}: an email in the summary")
-        if (key[0] in ("drop", "move")) != ("becomes an open set" in text):
-            bad.append(f"{key}: open set line wrong")
+        if re.search(r"\b[a-z]+_[a-z_]+\b", text):
+            bad.append(f"{key}: a setting's name in the summary")
+    # a conflict overridden: the summary names the student, not the rule
+    conflict = next(((sets_, res, o, c) for sets_, res, o, c in breaking if any("conflict" in b for b in o.breaks)),
+                    None)
+    if conflict:
+        sets_, res, o, c = conflict
+        text = swap_summary(sets_, res.nights, res.combos, o, c, lambda e: "Name of " + e.split("@")[0],
+                            inp.blocked)
+        if "had marked" not in text or "conflict" in text.split("Heads-up")[0] or "Breaks" in text:
+            bad.append(f"a conflict override isn't explained for the combo: {text}")
+    else:
+        bad.append("no option breaking a conflict to check the summary with")
     missing = sorted(set(headings) - set(samples))
     ok = not bad and {("trade", False), ("give", False), ("drop", False), ("claim", False)} <= set(samples)
-    print(f"{'PASS' if ok else 'FAIL'}  swap summaries: {len(samples)} kinds of option, both sides, liaison names (no emails), open sets"
+    print(f"{'PASS' if ok else 'FAIL'}  swap summaries: {len(samples)} kinds of option, both sides, liaison names, no emails or settings, a conflict named"
           + (f" (none found here: {', '.join(k for k, _ in missing)})" if missing else ""))
     for b_ in bad[:5]:
         print("      -", b_)

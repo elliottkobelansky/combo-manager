@@ -13,7 +13,7 @@ from app_config import input_files
 from core.model import make_label
 from data_folder import COMBOS_PDF, COMBOS_XLSX, settings_path
 from inputs import EMAIL_RE, EmailRules, InputError, load_input, name_from_email
-from schedule_file import ScheduleFileError, has_schedule, load as load_schedule, save_changes
+from schedule_file import ScheduleFileError, has_schedule, load as load_schedule, open_sets_of
 from settings_file import SettingsError, load_settings
 from store import Store
 from theme import popup, scrolled_tree
@@ -33,11 +33,12 @@ class CombosPanel:
         self.combo_items = {}                             # tree item id -> combo name
         self.withdrawn_items = {}                         # tree item id -> Combo withdrawn in the app
         self.pending_items = {}                           # tree item id -> Combo waiting for a decision
+        self.pending = []                                 # edits not saved yet (queue): shown as if done
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
 
         top = ttk.Frame(self.frame)
         top.pack(fill="x")
-        ttk.Button(top, text="Reload", command=self.load).pack(side="left")
+        ttk.Button(top, text="Reload", command=self.reload).pack(side="left")
         ttk.Label(top, text="Search").pack(side="left", padx=(16, 6))
         self.search = tk.StringVar()
         self.search.trace_add("write", lambda *_: self.fill())
@@ -45,11 +46,9 @@ class CombosPanel:
         self.info = ttk.Label(top, text="", style="Hint.TLabel")
         self.info.pack(side="left", padx=12)
 
-        hint = ttk.Label(self.frame, text="Click an Instrument cell (\u25be) to pick one; double-click a name to correct "
-                                          "it, or an email to fix it (\u270e = corrected). Pick a combo or a person, then "
-                                          "Actions (or right-click): add or remove members, change the liaison, "
-                                          "withdraw a combo. All kept in scheduler_data.json in the data folder; the "
-                                          "approvals spreadsheet isn't changed.",
+        hint = ttk.Label(self.frame, text="Click an instrument to change it; double-click a name or email to fix it. "
+                                          "Right-click (or Actions) for everything else. Nothing is saved until "
+                                          "Confirm changes.",
                          style="Hint.TLabel", justify="left")
         hint.pack(anchor="w", fill="x", pady=(8, 0))
         self.frame.bind("<Configure>", lambda e: hint.configure(wraplength=max(e.width - 20, 200)), add="+")
@@ -64,6 +63,15 @@ class CombosPanel:
 
         bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
+        # unsaved changes: a bar shown only while there are some (like the Schedule tab's), saved all at once
+        self.pending_box = ttk.Frame(self.frame, style="Card.TFrame", padding=(12, 8))
+        self.pending_title = ttk.Label(self.pending_box, text="", style="CardTitle.TLabel")
+        self.pending_title.pack(side="left")
+        ttk.Button(self.pending_box, text="Discard all", command=self.discard_all).pack(side="right")
+        ttk.Button(self.pending_box, text="Undo last", command=self.undo_last).pack(side="right", padx=6)
+        ttk.Button(self.pending_box, text="Confirm changes", style="Accent.TButton",
+                   command=self.confirm).pack(side="right")
+        self.bottom = bottom
         ttk.Button(bottom, text="Expand all", command=lambda: self.expand(True)).pack(side="left")
         ttk.Button(bottom, text="Collapse all", command=lambda: self.expand(False)).pack(side="left", padx=6)
         self.actions = ttk.Button(bottom, text="Actions \u25be", command=self.actions_menu)   # = the right-click menu
@@ -80,13 +88,19 @@ class CombosPanel:
         self.recolor()
 
     def load(self, quiet=False):
-        """quiet: when loading by itself (app start, folder change), a problem is shown in the tab, not a pop-up."""
+        """quiet: when loading by itself (app start, folder change), a problem is shown in the tab, not a pop-up.
+        Pending edits are applied on top of what's saved (a preview: nothing is written)."""
         folder = self.get_folder()
         try:
             settings, _ = load_settings(settings_path(folder))
             files = input_files(folder)
-            inp = load_input(folder, settings, files["approvals"], files["conflicts"])
-            self.store = Store(folder)
+            store = Store(folder)
+            if self.pending:
+                for p in self.pending:
+                    p["change"](store)
+                store.save = lambda: None                 # a preview: Confirm changes saves
+            inp = load_input(folder, settings, files["approvals"], files["conflicts"], store=store)
+            self.store = store
         except (SettingsError, InputError, ValueError) as e:
             if not quiet:
                 messagebox.showerror("Can't load the combos", str(e))
@@ -133,6 +147,7 @@ class CombosPanel:
         sem, few = self.data["settings"].semester_name, self.data["settings"].min_members_per_combo
         q = self.search.get().strip().lower()
         combos = self.data["combos"]
+        touched = {n for p in self.pending for n in p["combos"]}   # combos with changes not saved yet
         member_of = {}
         for c in combos.values():
             for e in c.members:
@@ -153,6 +168,8 @@ class CombosPanel:
             shade = f"band{band}"
             item = self.tree.insert("", "end", text=label, values=(shows, "", "", "", ""),
                                     open=bool(q) or self.tree_key(label) in open_items, tags=("combo", shade))
+            if c.name in touched:
+                self.mark(item)
             self.combo_items[item] = cid
             changes = self.store.member_changes(sem, c.ref)
             for e in people:
@@ -187,7 +204,8 @@ class CombosPanel:
                                        tags=("removed",))
                 self.pending_items[pid] = c
         for c in sorted(self.data["withdrawn"].values(), key=lambda c: c.name):
-            label = (f"{c.name} ({self.name(c.liaison)})" if c.liaison else c.name) + "  \u00b7 withdrawn"
+            label = (f"{c.name} ({self.name(c.liaison)})" if c.liaison else c.name) + "  \u00b7 withdrawn" + (
+                self.UNSAVED if c.name in touched else "")
             if q and q not in (label + " " + " ".join(c.members)).lower():
                 continue
             item = self.tree.insert("", "end", text=label, values=("Actions: put back", "", "", "", ""),
@@ -204,6 +222,14 @@ class CombosPanel:
                 pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (supervisor)",
                                        values=("", "", "", "", c.professor), tags=("removed",))
                 self.withdrawn_items[pid] = c
+
+    UNSAVED = "   \u25cf unsaved changes"
+
+    def mark(self, item):
+        """Marks a combo's row: it has changes not saved yet."""
+        text = self.tree.item(item, "text")
+        if not text.endswith(self.UNSAVED):
+            self.tree.item(item, text=text + self.UNSAVED, tags=tuple(self.tree.item(item, "tags")) + ("pending",))
 
     def member_order(self, c):
         """The combo's members, by instrument (see util.INSTRUMENTS)."""
@@ -233,6 +259,7 @@ class CombosPanel:
         size_columns(self.tree)
         self.tree.tag_configure("combo", font=(ui_font(), size(10), "bold"))
         self.tree.tag_configure("removed", foreground=p["muted"], font=(ui_font(), size(10), "italic"))
+        self.tree.tag_configure("pending", foreground=p["accent"])
 
     def expand(self, yes):
         for i in self.tree.get_children():
@@ -270,13 +297,10 @@ class CombosPanel:
             return
         if new == email:
             return
-        if not self.change_store(lambda s: s.set_email(email, new)):
-            return
-        self.load()
-        if self.on_change:
-            self.on_change()
-        self.info.configure(text=f"Saved: {email} is now {new}" + (" (back to the original)" if new not in
-                                                                   self.store.emails.values() else "") + ".")
+        back = new in self.store.emails and self.store.emails.get(new) == email   # typing an original back
+        self.queue(lambda s: s.set_email(email, new), f"{email} becomes {new}" + (" (back to the original)" if back
+                                                                                  else "") + ".",
+                   combo=self.combos_of(email))
 
     def edit_instrument(self, item=None):
         """Opens the instrument menu at the person's Instrument cell; picking an item saves it straight away."""
@@ -320,12 +344,9 @@ class CombosPanel:
         combo, email = self.people[item]
         if value == self.data["instruments"].get((combo, email), ""):
             return
-        if not self.change_store(lambda s: s.set_instrument(self.data["settings"].semester_name, combo, email, value)):
-            return
-        if value:
-            self.data["instruments"][(combo, email)] = value
-        else:
-            self.data["instruments"].pop((combo, email), None)
+        sem = self.data["settings"].semester_name
+        self.queue(lambda s: s.set_instrument(sem, combo, email, value),
+                   f"{self.name(email)} plays {value or 'no instrument'} in {combo}.", combo=combo, view="none")
         self.tree.set(item, "instrument", self.cell(value))
 
     def rename(self):
@@ -338,11 +359,14 @@ class CombosPanel:
                                      parent=self.frame)
         if not new or not new.strip() or new.strip() == self.name(email):
             return
-        if not self.change_store(lambda s: s.set_name(email, new.strip())):
-            return
-        self.fill()
-        self.info.configure(text=f"Saved: {email} is now '{new.strip()}'. Export the combo list PDF again to "
-                                 "update it.")
+        old = self.name(email)
+        self.queue(lambda s: s.set_name(email, new.strip()), f"{old} is now called '{new.strip()}'.", view="fill",
+                   combo=self.combos_of(email))
+
+    def combos_of(self, email):
+        """The names of the combos email is in (or supervises), withdrawn ones too."""
+        every = list(self.data["combos"].values()) + list(self.data["withdrawn"].values())
+        return [c.name for c in every if email in c.members or email == c.professor]
 
     # ------------------------------------------------------------ members and liaison
     def selected(self):
@@ -466,30 +490,113 @@ class CombosPanel:
                                  "with Ctrl+V.")
         self.last_copied = "; ".join(emails)          # (kept for tests)
 
-    def change_store(self, change):
-        """Re-reads scheduler_data.json, applies change(store) and saves it. Reading it again first means an edit
-        here never overwrites what was saved since this tab loaded (e.g. numbers for combos approved meanwhile,
-        given out by a check or the Swaps tab)."""
-        try:
-            store = Store(self.get_folder())
-            change(store)
-            store.save()
-        except (OSError, ValueError) as e:
-            messagebox.showerror("Couldn't save", str(e))
+    # ------------------------------------------------------------ pending changes
+    def queue(self, change, message, combo=None, view="load", withdraw=None):
+        """Adds an edit to the pending changes (nothing is saved until Confirm changes) and shows the tab as if it
+        were done. change(store) applies it to scheduler_data.json; combo: the name(s) of the combo(s) it touches,
+        marked while pending; view: 'load' (members change: read everything again), 'fill' (only names /
+        instruments) or 'none' (the caller updates the cell; the combo's row is marked here); withdraw: (name, ref)
+        of a combo withdrawn (its sets open on Confirm)."""
+        names = [combo] if isinstance(combo, str) else list(combo or [])
+        self.pending.append(dict(change=change, text=message, combos=names, withdraw=withdraw))
+        if view == "load":
+            self.load(quiet=True)
+        else:
+            change(self.store)
+            self.data["names"] = self.store.names
+            self.data["instruments"] = self.store.instruments(self.data["settings"].semester_name)
+            if view == "fill":
+                self.fill()
+            else:
+                for item, cid in self.combo_items.items():
+                    if self.data["combos"][cid].name in names:
+                        self.mark(item)
+        self.refresh_pending()
+        self.info.configure(text=f"Not saved yet: {message} (Confirm changes, below)")
+
+    def refresh_pending(self):
+        n = len(self.pending)
+        if n:
+            self.pending_title.configure(text=f"{n} unsaved change{'s' if n > 1 else ''} (marked \u25cf above)")
+            self.pending_box.pack(fill="x", pady=(10, 0), before=self.bottom)
+        else:
+            self.pending_box.pack_forget()
+
+    def undo_last(self):
+        if self.pending:
+            p = self.pending.pop()
+            self.load(quiet=True)
+            self.refresh_pending()
+            self.info.configure(text=f"Undone: {p['text']}")
+
+    def discard_all(self, ask=True):
+        if self.pending and (not ask or messagebox.askyesno(
+                "Discard all?", f"Throw away all {len(self.pending)} pending change(s)? Nothing has been saved.")):
+            self.pending = []
+            self.load(quiet=True)
+            self.refresh_pending()
+            self.info.configure(text="Pending changes discarded.")
+
+    def reload(self):
+        """The Reload button: reads what's saved again; pending changes stay pending, on top of it."""
+        self.load()
+
+    def ask_to_save(self):
+        """For closing the app or changing folder with pending changes: save, discard, or stay. True = go ahead."""
+        if not self.pending:
+            return True
+        answer = messagebox.askyesnocancel(
+            "Unsaved combo changes", f"{len(self.pending)} change(s) in the Combos tab haven't been saved.\n\n"
+            "Yes: save them now.\nNo: throw them away.\nCancel: go back.", icon="warning")
+        if answer is None:
             return False
-        self.store = store
-        if self.data:
-            self.data["names"] = store.names              # names are shown from here
+        if answer:
+            return self.confirm()
+        self.discard_all(ask=False)
         return True
 
-    def save_changes(self, change, message):
-        """Applies change(store) to scheduler_data.json, reloads this tab and the others, and says what changed."""
-        if not self.change_store(change):
+    def confirm(self):
+        """Saves every pending change at once (scheduler_data.json, read again first so nothing saved meanwhile is
+        lost); a withdrawn combo's sets become open in the schedule (backup first) and the exports are rebuilt.
+        True = saved."""
+        if not self.pending:
+            return True
+        sem, folder = self.data["settings"].semester_name, self.get_folder()
+        withdrawals = [p["withdraw"] for p in self.pending if p["withdraw"]]
+        swaps = self.get_swaps()
+        if withdrawals and swaps and swaps.pending:
+            messagebox.showinfo("Confirm changes", f"A combo is withdrawn, and there are {len(swaps.pending)} unsaved "
+                                "swap change(s). Confirm or discard those first (Swaps tab), then confirm here.")
             return False
-        self.load()
+        try:
+            store = Store(folder)
+            for p in self.pending:
+                p["change"](store)
+            store.save()
+        except (OSError, ValueError) as e:
+            messagebox.showerror("Couldn't save", f"{e}\n\nThe changes are still pending.")
+            return False
+        opened, backup = [], None
+        for name, ref in dict.fromkeys(withdrawals):  # once each; not one that was put back again
+            if store.member_changes(sem, ref)["withdrawn"]:
+                try:
+                    cells, copy = open_sets_of(folder, name)
+                except (OSError, ScheduleFileError) as e:
+                    messagebox.showerror("Couldn't open the sets", f"{name} is withdrawn, but its sets couldn't be "
+                                         f"opened in the schedule: {e}\nThe rule check (Run tab, step 3) shows them.")
+                    continue
+                opened += [(name, d, k) for d, k in cells]
+                backup = backup or copy
+        n = len(self.pending)
+        self.pending = []
+        self.load(quiet=True)
+        self.refresh_pending()
         if self.on_change:
             self.on_change()
-        self.info.configure(text=message)
+        self.info.configure(text=f"Saved {n} change(s)." + (f" {len(opened)} set(s) opened." if opened else ""))
+        if opened and self.after_schedule_change:
+            self.after_schedule_change("Opened " + ", ".join(f"{make_label(d)} set {k} ({name})" for name, d, k in
+                                                              opened) + f". Backup of the schedule before: {backup}\n")
         return True
 
     def add_member(self):
@@ -523,15 +630,15 @@ class CombosPanel:
             s.remove_member(sem, combo.ref, email)
             if new_liaison:
                 s.set_liaison(sem, combo.ref, new_liaison)
-        self.save_changes(change, f"Removed {self.name(email)} from {combo.name}"
-                          + (f"; {self.name(new_liaison)} is the liaison now" if new_liaison else "") + ".")
+        self.queue(change, f"Remove {self.name(email)} from {combo.name}"
+                   + (f"; {self.name(new_liaison)} becomes the liaison" if new_liaison else "") + ".", combo=combo.name)
 
     def restore_member(self):
         kind, combo, email = self.selected()
         if kind != "removed":
             return
-        self.save_changes(lambda s: s.add_member(self.data["settings"].semester_name, combo.ref, email),
-                          f"{self.name(email)} is back in {combo.name}.")
+        self.queue(lambda s: s.add_member(self.data["settings"].semester_name, combo.ref, email),
+                   f"Put {self.name(email)} back in {combo.name}.", combo=combo.name)
 
     def make_liaison(self):
         kind, combo, email = self.selected()
@@ -542,23 +649,23 @@ class CombosPanel:
             return
         if not email or email == combo.liaison:
             return
-        self.save_changes(lambda s: s.set_liaison(self.data["settings"].semester_name, combo.ref, email),
-                          f"{self.name(email)} is now the liaison of {combo.name}.")
+        self.queue(lambda s: s.set_liaison(self.data["settings"].semester_name, combo.ref, email),
+                   f"{self.name(email)} becomes the liaison of {combo.name}.", combo=combo.name)
 
     def set_first_year(self, combo, value):
         """Tags or untags a first-year combo (kept in scheduler_data.json; wins over the approvals' First year)."""
         settings = self.data["settings"]
-        msg = f"{combo.name} is {'now' if value else 'no longer'} a first-year combo."
+        msg = f"{combo.name} {'becomes' if value else 'is no longer'} a first-year combo."
         if self.data["sets"]:
             early = [d for d, row in self.data["sets"].items() if combo.id in row.values()
                      and value and settings.first_year_earliest_date and d < settings.first_year_earliest_date]
             msg += (" The schedule isn't made again" + (": it plays " + ", ".join(make_label(d) for d in sorted(early))
                     + ", before the first-year date (swap it in the Swaps tab)." if early else "."))
-        self.save_changes(lambda s: s.set_first_year(settings.semester_name, combo.ref, value), msg)
+        self.queue(lambda s: s.set_first_year(settings.semester_name, combo.ref, value), msg, combo=combo.name)
 
     def withdraw(self):
-        """Withdraws the selected combo (kept in scheduler_data.json; its number stays reserved). If the schedule is
-        out, its sets become open in the schedule (backup first) and the exports are rebuilt."""
+        """Withdraws the selected combo (a pending change; kept in scheduler_data.json, its number stays reserved).
+        On Confirm, if the schedule is out, its sets become open (backup first) and the exports are rebuilt."""
         kind, combo, _ = self.selected()
         if kind in (None, "withdrawn"):
             messagebox.showinfo("Withdraw a combo", "Pick the combo to withdraw (or one of its members).")
@@ -572,8 +679,8 @@ class CombosPanel:
         sup = [d for d, _ in shows if d in self.data["supervised"]]
         text = f"Withdraw {combo.name}? It won't be scheduled; its number stays reserved (the numbering keeps a gap)."
         if shows:
-            text += ("\n\nIts shows: " + ", ".join(f"{make_label(d)} (set {k})" for d, k in shows) + ". These sets "
-                     "become OPEN in the schedule (a backup is kept): volunteers can claim them, or give one to a "
+            text += ("\n\nIts shows: " + ", ".join(f"{make_label(d)} (set {k})" for d, k in shows) + ". When you "
+                     "confirm, these sets become OPEN in the schedule (a backup is kept): volunteers can claim them, or give one to a "
                      "combo in the Schedule tab (who could take it).")
         if sup:
             text += ("\n\n\u26a0 " + ", ".join(make_label(d) for d in sup) + (" is a supervised night" if len(sup) == 1
@@ -581,20 +688,10 @@ class CombosPanel:
         text += "\n\nThe approvals spreadsheet isn't changed; you can put the combo back here."
         if not messagebox.askyesno("Withdraw a combo", text, icon="warning"):
             return
-        folder, settings = self.get_folder(), self.data["settings"]
-        backup = None
-        if shows:
-            try:
-                backup = save_changes(folder, self.data["combos"], sets={s: None for s in shows})
-            except ScheduleFileError as e:
-                messagebox.showerror("Couldn't withdraw", str(e))
-                return
-        if not self.save_changes(lambda s: s.set_withdrawn(settings.semester_name, combo.ref, True),
-                                 f"Withdrew {combo.name}." + (f" {len(shows)} set(s) opened." if shows else "")):
-            return
-        if shows and self.after_schedule_change:
-            self.after_schedule_change(f"Withdrew {combo.name}: opened " + ", ".join(
-                f"{make_label(d)} set {k}" for d, k in shows) + f". Backup of the schedule before: {backup}\n")
+        settings = self.data["settings"]
+        self.queue(lambda s: s.set_withdrawn(settings.semester_name, combo.ref, True),
+                   f"Withdraw {combo.name}" + (f" ({len(shows)} set(s) become open)." if shows else "."),
+                   combo=combo.name, withdraw=(combo.name, combo.ref))
 
     def put_back(self):
         kind, combo, _ = self.selected()
@@ -606,9 +703,9 @@ class CombosPanel:
                 f"{combo.name} will have no shows. It can then claim open sets (Swaps tab), or you can give it sets "
                 "(Schedule tab).", icon="warning"):
             return
-        self.save_changes(lambda s: s.set_withdrawn(self.data["settings"].semester_name, combo.ref, False),
-                          f"{combo.name} is back" + (" with no shows yet: it can claim open sets in the Swaps tab."
-                                                     if self.data["sets"] else "."))
+        self.queue(lambda s: s.set_withdrawn(self.data["settings"].semester_name, combo.ref, False),
+                   f"Put {combo.name} back" + (" (no shows yet: it can claim open sets in the Swaps tab)."
+                                               if self.data["sets"] else "."), combo=combo.name)
 
     def choose_liaison(self, combo, emails, question, current=None):
         """A small window listing the members; returns the chosen email, or None when cancelled."""
@@ -654,9 +751,17 @@ class CombosPanel:
                 out.append(f"Would play twice on {make_label(d)} (also with {', '.join(twice)}).")
         return out
 
+    def saved_first(self):
+        """Before an export with pending changes: save them first? True = saved, go ahead."""
+        return messagebox.askokcancel(
+            "Unsaved changes", f"{len(self.pending)} change(s) here aren't saved yet. Save them first, then export?"
+        ) and self.confirm()
+
     def export_pdf(self):
         if not self.data:
             messagebox.showinfo("Combo list", "Nothing loaded yet.")
+            return
+        if self.pending and not self.saved_first():
             return
         try:
             from outputs.combos_pdf import write_combos_pdf
@@ -680,6 +785,8 @@ class CombosPanel:
         then opens it."""
         if not self.data:
             messagebox.showinfo("Combo list", "Nothing loaded yet.")
+            return
+        if self.pending and not self.saved_first():
             return
         from outputs.combos_xlsx import write_combos_xlsx
         path = self.get_folder() / COMBOS_XLSX
@@ -794,5 +901,5 @@ class AddMemberDialog:
                 store.set_instrument(sem, self.combo.name, e, instrument)
         clashes = panel.warnings_for(self.combo, e)
         self.win.destroy()
-        panel.save_changes(change, f"Added {name or panel.name(e)} to {self.combo.name}."
-                           + (f" Note: {' '.join(clashes)}" if clashes else ""))
+        panel.queue(change, f"Add {name or panel.name(e)} to {self.combo.name}."
+                    + (f" Note: {' '.join(clashes)}" if clashes else ""), combo=self.combo.name)

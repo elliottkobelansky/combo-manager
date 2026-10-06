@@ -464,6 +464,9 @@ class App:
         if self.settings and not self.settings.ask_to_save():
             self.tabs.select(self.settings.frame)
             return
+        if self.combos and not self.combos.ask_to_save():
+            self.tabs.select(self.combos.frame)
+            return
         if self.swaps and self.swaps.pending and not messagebox.askyesno(
                 "Unsaved swaps", f"{len(self.swaps.pending)} swap change(s) haven't been saved. "
                 "Close anyway and lose them?", icon="warning"):
@@ -624,6 +627,9 @@ class App:
         if self.settings and not self.settings.ask_to_save():
             self.tabs.select(self.settings.frame)
             return
+        if self.combos and not self.combos.ask_to_save():
+            self.tabs.select(self.combos.frame)
+            return
         picked = filedialog.askdirectory(initialdir=str(self.folder), title="The Combo Scheduler data folder")
         if picked:
             self.switch_folder(Path(picked))
@@ -714,6 +720,9 @@ class App:
     def restore_and_switch(self):
         if self.settings and not self.settings.ask_to_save():
             self.tabs.select(self.settings.frame)
+            return
+        if self.combos and not self.combos.ask_to_save():
+            self.tabs.select(self.combos.frame)
             return
         folder = self.restore()
         if folder:
