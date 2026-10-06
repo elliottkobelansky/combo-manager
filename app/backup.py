@@ -1,10 +1,12 @@
 """Backups of the data folder: one zip with everything in it (the spreadsheets, App data with the settings, combo
 numbers, .bak copies and Schedule backups, and Archive), plus backup-info.json saying when and where it was made.
-For when the computer, or the data folder, is lost: install the program again and restore the zip into a new folder.
 
-    create_backup   the data folder -> a zip, written through a temp file renamed at the end (all or nothing)
-    read_backup     checks a zip is one of ours and whole; -> its backup-info
-    restore_backup  a zip -> a new folder (never into a folder that has things in it: nothing is overwritten)
+    create_backup     the data folder -> a zip, written through a temp file renamed at the end (all or nothing)
+    read_backup       checks a zip is one of ours and whole; -> its backup-info and what it holds
+    restore_in_place  a zip -> the data folder in use (the usual case: something went wrong, go back): it's backed up
+                      first (App data/Before restore), and the input spreadsheets the forms write are kept, so the
+                      same folder stays in use by every computer and by the flows
+    restore_backup    a zip -> a new folder (when the data folder itself is lost; never into one with things in it)
 
 Standard library only.
 """
@@ -17,10 +19,14 @@ import zipfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from data_folder import APP_DATA, APPROVALS_FILE, CONFLICTS_FILE, LOCK_FILE, app_data, usual_inputs
+from data_folder import (APP_DATA, APPROVALS_FILE, CONFLICTS_FILE, LOCK_FILE, OLD_APPROVALS_FILE, app_data,
+                         usual_inputs)
 
 INFO = "backup-info.json"
 PREFIX = "Combo Scheduler backup"
+BEFORE_RESTORE = "Before restore"                     # in App data: the folder as it was before each in-place restore
+INPUTS = (APPROVALS_FILE, OLD_APPROVALS_FILE, CONFLICTS_FILE)   # written by the forms' flows: kept by default
+KEPT_HERE = (LOCK_FILE, "Logs", BEFORE_RESTORE)       # in App data: this folder's own, never taken from a backup
 
 
 class BackupError(ValueError):
@@ -133,3 +139,45 @@ def restore_backup(path, dest):
     finally:
         shutil.rmtree(work, ignore_errors=True)
     return dest
+
+
+def restore_in_place(path, folder, keep_inputs=True):
+    """Puts the backup's files into the data folder in use, replacing the scheduler's own (settings, combo edits, the
+    schedule and its history and backups, Archive, the exports). First the folder as it is now is backed up into App
+    data/Before restore (restoring that zip undoes this). Kept: the input spreadsheets (unless keep_inputs is False:
+    an old copy would lose sign-ups the forms added since), the lock, the logs, and backup zips saved in the folder.
+    The backup is unpacked beside it first, so a damaged zip changes nothing. -> the safety backup's path."""
+    read_backup(path)
+    folder = Path(folder)
+    app = app_data(folder)
+    stem, n = backup_name().replace(".zip", " (before restoring)"), 2
+    safety = app / BEFORE_RESTORE / f"{stem}.zip"
+    while safety.exists() or safety == Path(path):     # never over an earlier one (or the zip being restored)
+        safety, n = app / BEFORE_RESTORE / f"{stem} {n}.zip", n + 1
+    create_backup(folder, safety)
+    work = app / f".restoring.{os.getpid()}"
+    shutil.rmtree(work, ignore_errors=True)
+
+    def ours(p):
+        """Stays as it is: hidden, a backup zip, the lock / logs / safety backups, the inputs (when kept)."""
+        return (p.name.startswith(".") or (p.name.startswith(PREFIX) and p.name.endswith(".zip"))
+                or (p.parent == app and p.name in KEPT_HERE) or (keep_inputs and p.parent == folder
+                                                                 and p.name in INPUTS))
+    try:
+        with zipfile.ZipFile(path) as zf:
+            zf.extractall(work, [n for n in zf.namelist() if n != INFO])
+        for p in list(folder.iterdir()) + list(app.iterdir()):
+            if p == app or ours(p):
+                continue
+            shutil.rmtree(p) if p.is_dir() else p.unlink()
+        new_app = work / APP_DATA
+        for p in list(work.iterdir()) + (list(new_app.iterdir()) if new_app.is_dir() else []):
+            if p == new_app:
+                continue
+            dest = (app if p.parent == new_app else folder) / p.name
+            if ours(dest) and (dest.exists() or dest.name not in INPUTS):   # an input the folder lacks: taken
+                continue
+            shutil.move(str(p), str(dest))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return safety

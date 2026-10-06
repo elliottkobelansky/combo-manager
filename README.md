@@ -40,9 +40,14 @@ elsewhere, where backups go) are in `~/.combo_scheduler.json`.
 **Backups** (`app/backup.py`): **Backup...** zips the whole data folder (spreadsheets, `App data` with the `.bak`
 copies and schedule backups, `Archive`; an input file picked from elsewhere goes in under its usual name) into
 `Combo Scheduler backup 2026-10-06 1405.zip`, wherever you choose: keep it off this computer when the data folder
-is local. **Restore...** (also on the first-run screen) opens a window that shows what's in a backup (when and
-where it was made, its semester, schedule and past semesters) and where it will go: a *new* folder (next to the
-current one unless you change it), which the scheduler then switches to; the current folder is never overwritten. After a dead computer: install the program, then pick the surviving data
+is local. **Restore...** opens a window that shows what's in a backup (when and where it was made, its semester,
+schedule and past semesters) and where it goes:
+- **Into this data folder** (the usual case: go back to an earlier state): every computer and the forms keep using
+  the same folder. What's in it is first saved to `App data/Before restore` (restoring that undoes it), and the
+  current `Approvals.xlsx` / `Conflicts.xlsx` are kept by default (the forms keep adding to them). Another computer
+  with the folder open is pointed out first.
+- **Into a new folder** (the data folder itself is lost; the only choice on the first-run screen): this computer
+  switches to it; other computers and the flows have to be pointed at it. After a dead computer: install the program, then pick the surviving data
 folder, or restore the latest backup.
 
 **Several computers on one data folder** (`app/shared_folder.py`): best one at a time, but it's guarded. The app

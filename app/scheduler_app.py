@@ -243,7 +243,8 @@ class App:
             self.root.destroy()
         ttk.Button(row, text="Choose existing folder...", style="Accent.TButton", command=existing).pack(side="left")
         ttk.Button(row, text="Make a new folder...", command=new).pack(side="left", padx=(8, 0))
-        ttk.Button(row, text="Restore from a backup...", command=lambda: use(self.restore())).pack(side="left",
+        ttk.Button(row, text="Restore from a backup...",
+                   command=lambda: use((self.restore() or (None, None))[1])).pack(side="left",
                                                                                               padx=(8, 0))
         ttk.Button(row, text="Quit", command=quit_).pack(side="left", padx=(24, 0))
 
@@ -729,36 +730,66 @@ class App:
         in_background(self.root, work, done)
 
     def restore(self):
-        """The Restore window: pick a backup (what's in it is shown) and where its new folder goes, then unpack it
-        there. -> that folder, or None. The current data folder is never touched."""
-        from backup import BackupError, new_folder, read_backup, restore_backup
+        """The Restore window: pick a backup (what's in it is shown), then restore it into this data folder (the
+        usual case: it's backed up first, the forms' spreadsheets are kept, every computer and flow keeps the same
+        folder) or into a new folder (when the data folder is lost; the only choice before one is chosen).
+        -> ("here", the safety backup) or ("new", the new folder), or None when cancelled."""
+        from backup import BEFORE_RESTORE, BackupError, new_folder, read_backup, restore_backup, restore_in_place
         win = tk.Toplevel(self.root)
         win.title("Restore a backup")
         win.transient(self.root)
         box = ttk.Frame(win, padding=20)
         box.pack(fill="both", expand=True)
+        wrap = 600
         ttk.Label(box, text="Restore a backup", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=3,
                                                                              sticky="w")
-        ttk.Label(box, text="The backup's files are copied into a NEW folder, and the scheduler switches to it. "
-                            "Nothing is overwritten or deleted: the data folder you use now stays exactly as it is, "
-                            "and Change folder... goes back to it any time.", wraplength=560, justify="left").grid(
-            row=1, column=0, columnspan=3, sticky="w", pady=(6, 16))
         picked, dest_parent, result = {}, [Path(self.folder).parent if self.folder else default_parent()], []
-        ttk.Label(box, text="1. The backup", style="Step.TLabel").grid(row=2, column=0, sticky="w")
+        mode = tk.StringVar(value="here" if self.folder else "new")
+        keep_inputs = tk.BooleanVar(value=True)
+        ttk.Label(box, text="1. The backup", style="Step.TLabel").grid(row=1, column=0, sticky="w", pady=(12, 0))
         name = ttk.Label(box, text="(none chosen yet)", style="Hint.TLabel")
-        name.grid(row=3, column=0, columnspan=2, sticky="w")
-        about = ttk.Label(box, text="", wraplength=440, justify="left")
-        about.grid(row=4, column=0, columnspan=3, sticky="w", pady=(4, 0))
-        ttk.Label(box, text="2. Restore it into this new folder", style="Step.TLabel").grid(row=5, column=0,
-                                                                                           sticky="w", pady=(16, 0))
-        where = ttk.Label(box, text="", style="Hint.TLabel", wraplength=440, justify="left")
-        where.grid(row=6, column=0, columnspan=2, sticky="w")
+        name.grid(row=2, column=0, columnspan=2, sticky="w")
+        about = ttk.Label(box, text="", wraplength=wrap - 140, justify="left")
+        about.grid(row=3, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        ttk.Label(box, text="2. Where to restore it", style="Step.TLabel").grid(row=4, column=0, sticky="w",
+                                                                               pady=(16, 4))
+        here = ttk.Frame(box)
+        here.grid(row=5, column=0, columnspan=3, sticky="w")
+        if self.folder:
+            ttk.Radiobutton(here, text="Into this data folder (usually the right choice)", value="here",
+                            variable=mode, command=lambda: update()).pack(anchor="w")
+            ttk.Label(here, text="Everyone keeps using the same folder, and the forms keep writing to it. What's in "
+                                 f"it now is saved first (App data > {BEFORE_RESTORE}), so this can be undone by "
+                                 "restoring that.", style="Hint.TLabel", wraplength=wrap, justify="left").pack(
+                anchor="w", padx=(26, 0))
+            keep = ttk.Checkbutton(here, text="Keep the current Approvals.xlsx and Conflicts.xlsx (recommended: "
+                                              "the forms keep adding to them)",
+                                   variable=keep_inputs)
+            keep.pack(anchor="w", padx=(26, 0), pady=(4, 10))
+            ttk.Radiobutton(here, text="Into a new folder", value="new", variable=mode,
+                            command=lambda: update()).pack(anchor="w")
+            ttk.Label(here, text="For when the data folder itself is lost or damaged. This computer switches to the "
+                                 "new folder; other computers and the forms don't: each has to be pointed at it.",
+                      style="Hint.TLabel", wraplength=wrap, justify="left").pack(anchor="w", padx=(26, 0))
+        else:
+            ttk.Label(here, text="Into a new folder (nothing is overwritten), which becomes the data folder.",
+                      wraplength=wrap, justify="left").pack(anchor="w")
+        where = ttk.Label(box, text="", style="Hint.TLabel", wraplength=wrap - 140, justify="left")
+        where.grid(row=6, column=0, columnspan=2, sticky="w", padx=(26, 0), pady=(4, 0))
+        change = ttk.Button(box, text="Change...", command=lambda: change_place())
+        change.grid(row=6, column=2, sticky="ne", pady=(4, 0))
 
         def target():
             return new_folder(dest_parent[0], f"Combo Scheduler data (restored {datetime.now():%Y-%m-%d})")
 
-        def show_target():
-            where.configure(text=str(target()) + "\n(Several computers? Put it in the shared folder they all use.)")
+        def update():
+            new = mode.get() == "new"
+            where.configure(text=f"The new folder: {target()}" if new else "")
+            change.grid() if new else change.grid_remove()
+            if self.folder:
+                keep.configure(state="disabled" if new else "normal")
+            go.configure(text="Restore and switch to it" if new else "Restore into this folder",
+                         state="normal" if picked else "disabled")
 
         def choose():
             start = Path(load_config().get("backup_dir") or default_parent())
@@ -782,36 +813,46 @@ class App:
                      f"\u2022 {info['files']} files"]
             name.configure(text=Path(path).name)
             about.configure(text="\n".join(l for l in lines if l))
-            go.configure(state="normal")
+            update()
 
         def change_place():
             path = filedialog.askdirectory(parent=win, title="Where to put the restored data folder",
                                            initialdir=str(dest_parent[0]))
             if path:
                 dest_parent[0] = Path(path)
-                show_target()
+                update()
 
         def restore():
-            dest = target()
             try:
-                restore_backup(picked["path"], dest)
+                if mode.get() == "here":
+                    other = shared_folder.holder(self.folder)
+                    if other and not messagebox.askyesno(
+                            "Restore", f"This data folder is also open on {shared_folder.describe(other)}. Restoring "
+                            "changes it for them too, and anything they save meanwhile may be lost.\n\nRestore "
+                            "anyway?", icon="warning", default="no", parent=win):
+                        return
+                    safety = restore_in_place(picked["path"], self.folder, keep_inputs.get())
+                    app_log.write(f"Restored {picked['path']} into this folder (kept the input spreadsheets: "
+                                  f"{keep_inputs.get()}); what was here is in {safety}")
+                    result.append(("here", safety))
+                else:
+                    dest = target()
+                    restore_backup(picked["path"], dest)
+                    app_log.set_folder(dest)
+                    app_log.write(f"Restored {picked['path']} into this new folder")
+                    result.append(("new", dest))
             except (BackupError, OSError) as e:
                 messagebox.showerror("Restore", f"Couldn't restore the backup:\n{e}", parent=win)
                 return
-            app_log.set_folder(dest)
-            app_log.write(f"Restored {picked['path']} into this folder")
-            result.append(dest)
             win.destroy()
-        ttk.Button(box, text="Choose a backup...", command=choose).grid(row=3, column=2, sticky="e")
-        ttk.Button(box, text="Change...", command=change_place).grid(row=6, column=2, sticky="ne")
+        ttk.Button(box, text="Choose a backup...", command=choose).grid(row=2, column=2, sticky="e")
         bar = ttk.Frame(box)
         bar.grid(row=7, column=0, columnspan=3, sticky="e", pady=(20, 0))
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
-        go = ttk.Button(bar, text="Restore and switch to it", style="Accent.TButton", state="disabled",
-                        command=restore)
+        go = ttk.Button(bar, text="", style="Accent.TButton", command=restore)
         go.pack(side="right", padx=(0, 6))
         box.columnconfigure(1, weight=1)
-        show_target()
+        update()
         win.grab_set()
         self.root.wait_window(win)
         return result[0] if result else None
@@ -823,14 +864,33 @@ class App:
         if self.combos and not self.combos.ask_to_save():
             self.tabs.select(self.combos.frame)
             return
+        if self.swaps and self.swaps.pending and not messagebox.askyesno(
+                "Unsaved swaps", f"{len(self.swaps.pending)} swap change(s) haven't been saved: restoring throws "
+                "them away. Go on?", icon="warning"):
+            return
         before = self.folder
-        folder = self.restore()
-        if folder:
-            self.switch_folder(folder)
-            if self.folder == folder:
-                messagebox.showinfo("Restored", f"Restored into:\n{folder}\n\nThe scheduler uses it from now on.\n\n"
-                                    f"The folder you used before is unchanged:\n{before}\n(Change folder... goes back "
-                                    "to it.)")
+        got = self.restore()
+        if not got:
+            return
+        how, path = got
+        if how == "new":
+            self.switch_folder(path)
+            if self.folder == path:
+                messagebox.showinfo("Restored", f"Restored into:\n{path}\n\nThis computer uses it from now on. "
+                                    f"The folder used before is unchanged:\n{before}\n(Change folder... goes back "
+                                    "to it.) Other computers and the forms still use that one until pointed here.")
+            return
+        if self.swaps:
+            self.swaps.pending = []
+            self.swaps.refresh_pending()
+        self.show_sources()
+        if self.settings:
+            self.settings.reload()
+        self.autoload()
+        self.check_copies()
+        messagebox.showinfo("Restored", "The backup is now in this data folder. Other computers get it through "
+                            f"the sync.\n\nWhat was in the folder before is saved in:\n{path}\n(To undo: "
+                            "Restore... that file.)")
 
     def open_file(self, name):
         """Opens a file in the data folder. Schedule.pdf / .xlsx that aren't there but can be made: made first."""

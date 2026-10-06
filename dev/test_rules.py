@@ -760,6 +760,39 @@ def main():
         bad.append("a restore went into a folder that already has things in it")
     except backup.BackupError:
         pass
+    # restoring into the data folder in use: what's there is saved first; the forms' spreadsheets, the lock, the logs
+    # and saved zips stay; the rest is the backup's; restoring the safety zip undoes it
+    live = tmp / "live folder"
+    (dfo.app_data(live) / "Logs").mkdir(parents=True)
+    (live / dfo.APPROVALS_FILE).write_text("new sign-ups")
+    (live / dfo.CONFLICTS_FILE).write_text("new conflicts")
+    (live / dfo.COMBOS_PDF).write_text("only here")
+    (live / "Combo Scheduler backup old.zip").write_text("a zip saved here")
+    dfo.schedule_path(live).write_text("today's schedule")
+    dfo.lock_path(live).write_text("our lock")
+    (dfo.app_data(live) / "Logs" / "pc.txt").write_text("today's log")
+    old = tmp / "old state"
+    (old / dfo.ARCHIVE / "Fall 2026").mkdir(parents=True)
+    (old / dfo.ARCHIVE / "Fall 2026" / dfo.SCHEDULE_XLSX).write_text("past")
+    (old / dfo.APPROVALS_FILE).write_text("old sign-ups")
+    dfo.app_data(old).mkdir()
+    dfo.schedule_path(old).write_text("yesterday's schedule")
+    old_zip = tmp / "old.zip"
+    backup.create_backup(old, old_zip)
+    safety = backup.restore_in_place(old_zip, live)
+    state = {p.relative_to(live).as_posix(): p.read_text() for p in live.rglob("*") if p.is_file()
+             and backup.BEFORE_RESTORE not in p.parts}
+    want = {"Approvals.xlsx": "new sign-ups", "Conflicts.xlsx": "new conflicts", "Combo Scheduler backup old.zip":
+            "a zip saved here", "App data/schedule.json": "yesterday's schedule", "App data/In use.json": "our lock",
+            "App data/Logs/pc.txt": "today's log", "Archive/Fall 2026/Schedule.xlsx": "past"}
+    if state != want or not safety.exists():
+        bad.append(f"restore into the folder in use: {state}")
+    backup.restore_in_place(old_zip, live, keep_inputs=False)
+    if (live / dfo.APPROVALS_FILE).read_text() != "old sign-ups":
+        bad.append("restoring with the backup's spreadsheets kept the current ones")
+    backup.restore_in_place(safety, live)
+    if dfo.schedule_path(live).read_text() != "today's schedule" or (live / dfo.COMBOS_PDF).read_text() != "only here":
+        bad.append("restoring the safety backup didn't undo the restore")
     a_file.write_text("not a zip")
     try:
         backup.read_backup(a_file)
@@ -783,7 +816,8 @@ def main():
     if dfo.usual_inputs(old)["approvals"] != old / dfo.APPROVALS_FILE:
         bad.append("Approvals.xlsx doesn't win over the old name")
     ok = not bad
-    print(f"{'PASS' if ok else 'FAIL'}  data folder anywhere: usable or not, backup made and restored into a new folder")
+    print(f"{'PASS' if ok else 'FAIL'}  data folder anywhere: usable or not, backup made, restored into a new folder "
+          "and into the folder in use (and undone)")
     for b_ in bad:
         print("      -", b_)
     failures += not ok
