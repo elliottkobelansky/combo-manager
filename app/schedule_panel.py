@@ -8,6 +8,7 @@ straight away: text typed into an open set (e.g. "Jam session"), or clearing it.
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
+import app_log
 from core.model import make_label
 from core.swaps import claimers
 from data_folder import CONTACTS_XLSX, SCHEDULE_PDF, SCHEDULE_XLSX
@@ -218,10 +219,13 @@ class SchedulePanel:
             if text is None or text.strip() == current:
                 return
         try:
-            save_changes(self.swaps.get_folder(), st["combos"], typed={(d, k): text})
+            save_changes(self.swaps.get_folder(), st["combos"], typed={(d, k): text},
+                         what=[f"Text in {make_label(d)} set {k}: " + (f"'{text.strip()}'" if text.strip() else "cleared")])
         except ScheduleFileError as e:
             messagebox.showerror("Couldn't save", str(e))
             return
+        app_log.write(f"Schedule tab: {make_label(d)} set {k} " + (f"says '{text.strip()}'" if text.strip() else
+                                                                    "is open again"))
         if text.strip():
             st["typed"].setdefault(d, {})[k] = text.strip()
         else:

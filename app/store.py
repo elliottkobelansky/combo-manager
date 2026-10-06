@@ -9,6 +9,12 @@
                                                             members added or removed, the liaison changed and combos
                                                             withdrawn in the app (the Combos tab); the approvals are
                                                             never changed
+    new_combos   {semester: {"app1": {"members": [email], "liaison": email, "supervisor": email, "first_year": bool}}}
+                                                            combos made in the app (late, after the form closed);
+                                                            numbered and edited like the others
+    overruled    {semester: {email: ["2026-10-13", ...]}}   conflict dates overruled in the app: they don't count
+    added_conflicts {semester: {email: ["2026-10-13", ...]}} conflicts added in the app (told to the director, not
+                                                            sent through the form): they count like the form's
 
 Written by the app and by solve.py (when a new combo gets its number), in the data folder's App data
 (data_folder.py), next to the other files.
@@ -29,7 +35,8 @@ class Store:
             self.data = {}
         except ValueError:
             raise ValueError(f"{self.path} is damaged. Restore it from {DATA_FILE}.bak next to it, or from a backup.")
-        for key in ("numbers", "names", "instruments", "emails", "members"):
+        for key in ("numbers", "names", "instruments", "emails", "members", "new_combos", "overruled",
+                    "added_conflicts"):
             self.data.setdefault(key, {})
         self.changed = False
 
@@ -137,6 +144,50 @@ class Store:
             ch["liaison"] = ""
         self._save_changes(semester, ref, ch)
 
+    # combos made in the app (not in the approvals)
+    def new_combos(self, semester):
+        return self.data["new_combos"].get(semester, {})
+
+    def add_combo(self, semester, members, liaison, supervisor="", first_year=False):
+        """A combo the approvals don't have (e.g. accepted after the form closed). -> its ref ('app1', 'app2', ...),
+        which keeps its number, member edits and withdrawal like a Forms response Id."""
+        table = self.data["new_combos"].setdefault(semester, {})
+        n = 1 + max((int(r[3:]) for r in table if r[3:].isdigit()), default=0)
+        ref = f"app{n}"
+        table[ref] = {"members": [e.lower() for e in members], "liaison": liaison.lower(),
+                      "supervisor": supervisor.lower(), "first_year": bool(first_year)}
+        self.changed = True
+        return ref
+
+    # conflicts overruled in the app
+    def overruled(self, semester):
+        """{email: {date}}: conflict dates that don't count."""
+        from datetime import date
+        return {e: {date.fromisoformat(d) for d in ds} for e, ds in self.data["overruled"].get(semester, {}).items()}
+
+    def added_conflicts(self, semester):
+        """{email: {date}}: conflicts added in the app."""
+        from datetime import date
+        return {e: {date.fromisoformat(d) for d in ds}
+                for e, ds in self.data["added_conflicts"].get(semester, {}).items()}
+
+    def set_added_conflict(self, semester, email, d, added=True):
+        """Adds (or takes back) a conflict for email on date d, as if they'd sent it through the form."""
+        self._set_date(self.data["added_conflicts"].setdefault(semester, {}), email, d, added)
+
+    def set_overruled(self, semester, email, d, overruled=True):
+        """Overrules (or counts again) email's conflict on date d."""
+        self._set_date(self.data["overruled"].setdefault(semester, {}), email, d, overruled)
+
+    def _set_date(self, table, email, d, on):
+        ds = set(table.get(email.lower(), [])) | {d.isoformat()} if on else \
+            set(table.get(email.lower(), [])) - {d.isoformat()}
+        if ds:
+            table[email.lower()] = sorted(ds)
+        else:
+            table.pop(email.lower(), None)
+        self.changed = True
+
     # email fixes
     @property
     def emails(self):
@@ -167,4 +218,13 @@ class Store:
                     ch[kind] = [new if e == shown else e for e in ch.get(kind, [])]
                 if ch.get("liaison") == shown:
                     ch["liaison"] = new
+        for table in self.data["new_combos"].values():
+            for spec in table.values():
+                spec["members"] = [new if e == shown else e for e in spec.get("members", [])]
+                for k in ("liaison", "supervisor"):
+                    if spec.get(k) == shown:
+                        spec[k] = new
+        for table in list(self.data["overruled"].values()) + list(self.data["added_conflicts"].values()):
+            if shown in table:
+                table[new] = sorted(set(table.pop(shown)) | set(table.get(new, [])))
         self.changed = True

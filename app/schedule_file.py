@@ -7,7 +7,10 @@ and never read back, so editing them changes nothing.
                  "break": 15, "supervised": true}, ...],
      "sets":   {"2026-09-29": {"1": "Combo 28", "2": "Combo 30"}, ...},     combo names; a set not listed is open
      "typed":  {"2026-09-29": {"4": "Jam session"}},                        text in a set (it then counts as taken)
-     "report": [["warn", "..."], ...]}                                      what the solver said when it was made
+     "report": [["warn", "..."], ...],                                      what the solver said when it was made
+     "history": [{"saved": "2026-10-20T15:02:11", "computer": "OFFICE-PC", "what": ["Trade with Combo 12: ..."],
+                  "changes": [{"night": "2026-10-13", "set": 2, "before": "Combo 05", "after": "Combo 12"}]}, ...]}
+                                                                            every change since it was made
 
 Once a schedule exists it decides the nights (dates, venues, sets, times): changing the settings only affects the
 next schedule made. "Supervised nights preferred here" still comes from the settings' show days.
@@ -18,6 +21,7 @@ the first time the schedule is loaded; the old file goes to App data/Schedule ba
 import json
 import re
 import shutil
+import socket
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from pathlib import Path
@@ -45,6 +49,7 @@ class Schedule:
     supervised: Optional[Set[date]]               # None: this schedule doesn't track supervision
     problems: List[str] = field(default_factory=list)   # combos in it that aren't accepted any more, ...
     report: List[list] = field(default_factory=list)
+    history: List[dict] = field(default_factory=list)   # every change since it was made, oldest first
     converted: bool = False                       # just made from an old Schedule.xlsx
 
 
@@ -127,7 +132,7 @@ def load(folder, combos, settings):
     supervised = ({date.fromisoformat(n["date"]) for n in data.get("nights", []) if n.get("supervised")}
                   if data.get("supervision", True) else None)
     return Schedule(data.get("semester", ""), nights, sets, typed, supervised, problems, data.get("report", []),
-                    converted)
+                    data.get("history", []), converted)
 
 
 def entries(schedule):
@@ -145,6 +150,19 @@ def _night_json(n, supervised):
     return {"date": n.date.isoformat(), "venue": n.venue, "sets": n.n_slots,
             "first_set": n.first_set.strftime("%H:%M") if n.first_set else None, "set_length": n.set_length,
             "break": n.break_minutes, "supervised": n.date in supervised}
+
+
+def _entry(what, changes=()):
+    """A history entry: when, on which computer, what was done (titles), and each set's before / after."""
+    return {"saved": datetime.now().isoformat(timespec="seconds"), "computer": socket.gethostname(),
+            "what": list(what), "changes": list(changes)}
+
+
+def _shown(data, key, num):
+    """What a set holds in the file, as words: a combo's name, the text in it (quoted), or 'open'."""
+    name = data.get("sets", {}).get(key, {}).get(num)
+    text = data.get("typed", {}).get(key, {}).get(num)
+    return name or (f'"{text}"' if text else "open")
 
 
 def _write(folder, data):
@@ -173,14 +191,14 @@ def save_new(folder, result, settings):
         "nights": [_night_json(n, supervised) for n in result.nights],
         "sets": {d.isoformat(): {str(k): result.combos[c].name for k, c in enumerate(cs, start=1)}
                  for d, cs in sorted(result.lineup.items()) if cs},
-        "typed": {}, "report": [list(r) for r in result.report]})
+        "typed": {}, "report": [list(r) for r in result.report], "history": [_entry(["Schedule made"])]})
 
 
-def save_changes(folder, combos, sets=None, typed=None):
-    """Changes some sets: sets = {(date, set): combo id or None (open)}, typed = {(date, set): text or None (open)}.
-    Reads the file again first, so changes saved meanwhile elsewhere (other sets) are kept; a backup goes into App
-    data/Schedule backups first. -> the backup's path. Raises ScheduleFileError (nothing changed) for a set that
-    isn't in the schedule."""
+def save_changes(folder, combos, sets=None, typed=None, what=()):
+    """Changes some sets: sets = {(date, set): combo id or None (open)}, typed = {(date, set): text or None (open)};
+    what: what was done, in words (e.g. the swaps' titles), for the history. Reads the file again first, so changes
+    saved meanwhile elsewhere (other sets) are kept; a backup goes into App data/Schedule backups first. -> the
+    backup's path. Raises ScheduleFileError (nothing changed) for a set that isn't in the schedule."""
     data = _read(folder)
     if data is None:
         raise ScheduleFileError("No schedule yet: make it first (Run tab, step 2). Nothing was changed.")
@@ -190,6 +208,7 @@ def save_changes(folder, combos, sets=None, typed=None):
     if missing:
         raise ScheduleFileError("These sets aren't in the schedule: " + ", ".join(missing) + ". Nothing was changed.")
     copy = backup(folder)
+    before = {(d, k): _shown(data, d.isoformat(), str(k)) for (d, k), _ in todo}
     for (d, k), value in todo:
         key, num = d.isoformat(), str(k)
         row, texts = data.setdefault("sets", {}).setdefault(key, {}), data.setdefault("typed", {}).setdefault(key, {})
@@ -206,11 +225,15 @@ def save_changes(folder, combos, sets=None, typed=None):
             row.pop(num, None)
     data["sets"] = {d: r for d, r in data["sets"].items() if r}
     data["typed"] = {d: r for d, r in data["typed"].items() if r}
+    changes = [{"night": d.isoformat(), "set": k, "before": before[(d, k)], "after": _shown(data, d.isoformat(), str(k))}
+               for d, k in sorted(before) if before[(d, k)] != _shown(data, d.isoformat(), str(k))]
+    if changes:
+        data.setdefault("history", []).append(_entry(what, changes))
     _write(folder, data)
     return copy
 
 
-def open_sets_of(folder, name):
+def open_sets_of(folder, name, what=()):
     """Every set combo `name` plays becomes open (it was withdrawn), going by the schedule as saved now. A backup first.
     -> (the sets [(date, set)], the backup), or ([], None) when it plays none."""
     data = _read(folder)
@@ -220,6 +243,8 @@ def open_sets_of(folder, name):
         return [], None
     copy = backup(folder)
     data["sets"] = {d: kept for d, row in data["sets"].items() if (kept := {k: n for k, n in row.items() if n != name})}
+    data.setdefault("history", []).append(_entry(what or [f"{name} withdrawn"], [
+        {"night": d.isoformat(), "set": k, "before": name, "after": "open"} for d, k in cells]))
     _write(folder, data)
     return cells, copy
 
@@ -273,7 +298,8 @@ def convert_old(folder, combos, settings):
         "sets": {d.isoformat(): {str(k): combos[c].name for k, c in row.items() if c} for d, row in sorted(sets.items())
                  if any(row.values())},
         "typed": {d.isoformat(): {str(k): t for k, t in row.items()} for d, row in sorted(typed.items())},
-        "report": [["warn", f"From the old Schedule.xlsx: {p}"] for p in problems]})
+        "report": [["warn", f"From the old Schedule.xlsx: {p}"] for p in problems],
+        "history": [_entry(["Converted from the old, hand-editable Schedule.xlsx"])]})
     dest = schedule_backups(folder)
     dest.mkdir(parents=True, exist_ok=True)
     shutil.move(str(old), str(dest / f"Schedule (old hand-editable file, {datetime.now():%Y-%m-%d}).xlsx"))

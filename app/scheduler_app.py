@@ -29,6 +29,7 @@ from app_config import input_files, is_picked, load_config, pick_input_file, sav
 from data_folder import (APP_DATA, APPROVALS_FILE, CONFLICTS_FILE, OLD_APPROVALS_FILE, SCHEDULE_PDF,  # noqa: E402
                          SCHEDULE_XLSX, app_data, looks_like_data_folder, problem, settings_path, usual_inputs)
 import shared_folder  # noqa: E402
+import app_log  # noqa: E402
 AUTHOR, EMAIL = "Elliott Kobelansky", "elliottkobelansky@gmail.com"
 PACKAGES = {"openpyxl": "openpyxl", "ortools": "ortools", "reportlab": "reportlab"}   # import name -> pip name
 OPTIONAL = {"tkcalendar": "tkcalendar", "sv_ttk": "sv-ttk"}   # pop-up calendars; the modern look
@@ -72,7 +73,8 @@ def run_solve(args, folder, write):
         except SystemExit as e:                       # argparse errors
             return e.code or 0
         except Exception:
-            print("\nSomething went wrong. Please send this to whoever maintains the scheduler:\n")
+            print("\nSomething went wrong. Please send this to whoever maintains the scheduler (it's in the log "
+                  "too: About tab > Open the log):\n")
             traceback.print_exc()
             return 1
 
@@ -126,6 +128,7 @@ class App:
     def __init__(self, root):
         self.root, self.folder, self.queue, self.busy = root, load_folder(), queue.Queue(), False
         self.exported = set()                         # folders whose missing exports were made (autoload)
+        root.report_callback_exception = self.tk_error
         import theme
         self.theme = theme
         self.mode = load_config().get("theme", "light")
@@ -182,7 +185,7 @@ class App:
                     "(Approvals.xlsx and Conflicts.xlsx), the settings, the schedule, the PDFs and the past "
                     "semesters. The program itself can be installed again any time; the data folder is what matters."
                     "\n\n\u2022  Only this computer will use the scheduler: any folder on it works, e.g. "
-                    "Documents/Combo Scheduler data. Make a backup now and then (the Back up... button) and keep "
+                    "Documents/Combo Scheduler data. Make a backup now and then (the Backup... button) and keep "
                     "it somewhere else.\n\u2022  Several computers, or someone taking over later: use a folder "
                     "that's shared and kept in sync, e.g. in OneDrive, SharePoint or on a network drive. Each "
                     "computer chooses the same folder once.\n\nThe choice is remembered on this computer; "
@@ -256,7 +259,7 @@ class App:
         ttk.Button(where, text="Open folder", command=lambda: open_path(self.folder)).pack(side="right", padx=(6, 0))
         ttk.Button(where, text="Change folder...", command=self.change_folder).pack(side="right")
         ttk.Button(where, text="Restore...", command=self.restore_and_switch).pack(side="right", padx=(0, 6))
-        ttk.Button(where, text="Back up...", command=self.make_backup).pack(side="right", padx=(0, 6))
+        ttk.Button(where, text="Backup...", command=self.make_backup).pack(side="right", padx=(0, 6))
         self.folder_label = ttk.Label(where, text=self.folder_text(), style="Sub.TLabel")
         self.folder_label.pack(side="left", fill="x", expand=True)
 
@@ -357,6 +360,9 @@ class App:
             return False
         shared_folder.claim(folder)
         self.told_taken = False
+        app_log.set_folder(folder)
+        app_log.write(f"Opened the data folder {folder}" + (f" (taken over from {shared_folder.describe(other)})"
+                                                             if other else ""))
         return True
 
     def keep_folder(self):
@@ -473,6 +479,7 @@ class App:
             return
         if self.folder and self.settings:
             shared_folder.release(self.folder)
+        app_log.write("Closed the app")
         self.root.destroy()
 
     def autoload(self):
@@ -511,8 +518,28 @@ class App:
                             "together. Thanks for making it happen, and I hope this leaves you a little less time in "
                             "spreadsheets and a little more time listening. Have a great semester of shows!",
                   wraplength=640, justify="left").pack(anchor="w", pady=(24, 0))
+        row = ttk.Frame(tab)
+        row.pack(anchor="w", pady=(24, 0))
+        ttk.Label(row, text="Something not working? Send the log file with your email:").pack(side="left")
+        ttk.Button(row, text="Open the log", command=self.open_log).pack(side="left", padx=(10, 0))
         ttk.Label(tab, text="Free to use, share and change.", style="Hint.TLabel").pack(anchor="w", pady=(24, 0))
         return tab
+
+    def open_log(self):
+        """Opens the folder with this computer's log file (App data/Logs in the data folder)."""
+        if not self.folder:
+            messagebox.showinfo("The log", "No data folder chosen yet, so there's no log.")
+            return
+        log = app_log.path(self.folder)
+        log.parent.mkdir(parents=True, exist_ok=True)
+        open_path(log.parent)
+
+    def tk_error(self, exc, value, tb):
+        """An error in the window (a button that crashed): into the log, and said once, plainly."""
+        app_log.error("in the window", value)
+        where = f"\n\nThe details are in the log ({app_log.path(self.folder)}): please send that file to whoever " \
+                "maintains the scheduler (About tab)." if self.folder else ""
+        messagebox.showerror("Something went wrong", f"{value}{where}")
 
     def show_sources(self):
         """The Run tab's two input lines: which file each one is, and whether it's there; and Step 1 names them."""
@@ -673,6 +700,7 @@ class App:
                 messagebox.showerror("Backup", f"Couldn't make the backup:\n{n}")
                 return
             save_config(backup_dir=str(dest.parent))
+            app_log.write(f"Backup saved: {dest} ({n} files)")
             self.status.configure(text=f"Backup saved: {dest} ({n} files).")
             inside = dest.resolve().is_relative_to(self.folder.resolve())
             messagebox.showinfo("Backup saved", f"Saved {dest.name} ({n} files) in:\n{dest.parent}\n\n" + (
@@ -715,6 +743,8 @@ class App:
         except (BackupError, OSError) as e:
             messagebox.showerror("Restore", f"Couldn't restore the backup:\n{e}")
             return None
+        app_log.set_folder(dest)
+        app_log.write(f"Restored {picked} into this folder")
         return dest
 
     def restore_and_switch(self):
@@ -796,8 +826,11 @@ class App:
             self.write(intro)
 
         def job():
-            code = run_solve(args, self.folder, self.write)
+            out = []
+            code = run_solve(args, self.folder, lambda t: (out.append(t), self.write(t)))
             self.write("\n" + ("Done." if code == 0 else "Done, but there are problems: see the red lines above.") + "\n")
+            app_log.write(f"{message} (solve.py {' '.join(args)}): " + ("done" if code == 0 else f"exit code {code}")
+                          + "\n" + (intro or "") + "".join(out))
             if on_done:
                 self.queue.put(lambda: on_done(code))
         self.start(job, message)

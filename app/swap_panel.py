@@ -9,6 +9,7 @@ of it in words (core.swaps.swap_summary) to send them.
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+import app_log
 from app_config import input_files
 from core.model import make_label
 from data_folder import settings_path
@@ -472,11 +473,14 @@ class SwapPanel:
         if not self.same_as_on_disk():
             return
         try:
-            backup = save_changes(self.get_folder(), st["combos"], sets=changes)
+            backup = save_changes(self.get_folder(), st["combos"], sets=changes,
+                                  what=[("\u2716 rule overridden: " if o.breaks else "") + o.title for o in self.pending])
         except ScheduleFileError as e:
             messagebox.showerror("Couldn't save", str(e))
             return
         n = len(self.pending)
+        app_log.write(f"Swaps tab: saved {n} change(s); backup {backup}\n"
+                      + "\n".join(("RULE OVERRIDDEN: " if o.breaks else "") + o.title for o in self.pending))
         self.pending = []
         self.load(quiet=True)
         self.save_status.configure(text=f"Saved {n} change(s) (backup in 'App data/Schedule backups'). "

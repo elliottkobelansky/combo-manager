@@ -9,6 +9,7 @@ tab all use them. The approvals spreadsheet itself is never changed.
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
+import app_log
 from app_config import input_files
 from core.model import make_label
 from data_folder import COMBOS_PDF, COMBOS_XLSX, settings_path
@@ -109,18 +110,21 @@ class CombosPanel:
             self.info.configure(text="Not loaded: " + str(e).strip().splitlines()[0])
             return
         combos = {c.id: c for c in inp.combos}
-        shows, sets, supervised = {}, {}, None
+        shows, sets, supervised, nights = {}, {}, None, None
         if has_schedule(folder):
             try:
                 sched = load_schedule(folder, combos, settings)
-                sets, supervised = sched.sets, sched.supervised
+                sets, supervised, nights = sched.sets, sched.supervised, sched.nights
                 for d, row in sets.items():
                     for k, c in row.items():
                         if c:
                             shows.setdefault(c, []).append(make_label(d) + ("*" if supervised and d in supervised else ""))
             except ScheduleFileError:
                 pass
-        self.data = dict(combos=combos, shows=shows, sets=sets, supervised=supervised or set(),
+        if nights is None:                            # no schedule yet: the nights the settings would give
+            from core import generate_nights
+            nights = generate_nights(settings)
+        self.data = dict(combos=combos, shows=shows, sets=sets, supervised=supervised or set(), nights=nights,
                          withdrawn={c.name: c for c in inp.withdrawn}, pending=inp.pending, names=self.store.names,
                          blocked=inp.blocked,
                          instruments=self.store.instruments(settings.semester_name), settings=settings,
@@ -439,6 +443,9 @@ class CombosPanel:
             menu.add_command(label="Change name...", command=self.rename)
             menu.add_command(label="Change email...", command=self.edit_email)
             menu.add_command(label="Set instrument...", command=lambda: self.edit_instrument(item))
+            n = sum(1 for _, counts in self.conflict_dates(email).values() if counts)
+            menu.add_command(label=f"Conflicts ({n})..." if n else "Conflicts... (none: add one)",
+                             command=lambda: ConflictsDialog(self, email))
             menu.add_separator()
             menu.add_command(label=f"Remove from {combo.name}...", command=self.remove_member)
         elif kind == "removed":
@@ -468,8 +475,27 @@ class CombosPanel:
                                  command=lambda: self.set_first_year(combo, True))
             menu.add_separator()
             menu.add_command(label=f"Withdraw {combo.name}...", command=self.withdraw)
+        if self.data:
+            menu.add_separator()
+            menu.add_command(label="New combo... (one not in the approvals)", command=self.new_combo)
         self.menu = menu                              # (kept for tests)
         return menu
+
+    def new_combo(self):
+        if not self.data:
+            messagebox.showinfo("New combo", "Nothing loaded yet.")
+            return
+        NewComboDialog(self)
+
+    def conflict_dates(self, email):
+        """{date: (source, counts)} of someone's conflicts: source 'form' (the conflict form; counts False when
+        overruled in the app) or 'app' (added in the app)."""
+        sem = self.data["settings"].semester_name
+        added = self.store.added_conflicts(sem).get(email, set())
+        out = {d: ("form", True) for d in self.data["blocked"].get(email, ()) if d not in added}
+        out.update({d: ("form", False) for d in self.store.overruled(sem).get(email, ())})
+        out.update({d: ("app", True) for d in added})
+        return dict(sorted(out.items()))
 
     def copy_emails(self, combo, liaison=False):
         """The combo's emails, ready to paste into Outlook: the liaison, the other members by name, the supervisor.
@@ -588,6 +614,8 @@ class CombosPanel:
                 opened += [(name, d, k) for d, k in cells]
                 backup = backup or copy
         n = len(self.pending)
+        app_log.write(f"Combos tab: saved {n} change(s)\n" + "\n".join(p["text"] for p in self.pending)
+                      + "".join(f"\nOpened {make_label(d)} set {k} ({name})" for name, d, k in opened))
         self.pending = []
         self.load(quiet=True)
         self.refresh_pending()
@@ -903,3 +931,155 @@ class AddMemberDialog:
         self.win.destroy()
         panel.queue(change, f"Add {name or panel.name(e)} to {self.combo.name}."
                     + (f" Note: {' '.join(clashes)}" if clashes else ""), combo=self.combo.name)
+
+
+class NewComboDialog:
+    """A combo that isn't in the approvals (accepted late, after the form closed): its liaison, other members and
+    supervisor by email. A pending change like the others; after Confirm it's numbered and edited like any combo."""
+
+    def __init__(self, panel):
+        self.panel = panel
+        win = self.win = tk.Toplevel(panel.frame)
+        win.title("New combo")
+        win.transient(panel.frame.winfo_toplevel())
+        box = ttk.Frame(win, padding=16)
+        box.pack(fill="both", expand=True)
+        ttk.Label(box, text="New combo", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(box, text="For a combo that isn't in the approvals spreadsheet (e.g. accepted after the form "
+                            "closed). It gets the next number.", style="Hint.TLabel", wraplength=440,
+                  justify="left").grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 10))
+        self.liaison, self.supervisor = ttk.Entry(box, width=46), ttk.Entry(box, width=46)
+        self.members = tk.Text(box, width=46, height=6, relief="solid", borderwidth=1, wrap="word")
+        self.first_year = tk.BooleanVar()
+        rows = [("Liaison", self.liaison, "Their email."),
+                ("Other members", self.members, "Emails: one per line, or pasted from anywhere."),
+                ("Supervisor", self.supervisor, "Their email (optional now).")]
+        for r, (label, widget, hint) in enumerate(rows, start=1):
+            ttk.Label(box, text=label).grid(row=2 * r, column=0, sticky="nw", padx=(0, 12), pady=(6, 0))
+            widget.grid(row=2 * r, column=1, sticky="w", pady=(6, 0))
+            ttk.Label(box, text=hint, style="Hint.TLabel").grid(row=2 * r + 1, column=1, sticky="w")
+        if panel.data["settings"].use_first_year:
+            ttk.Checkbutton(box, text="First-year combo", variable=self.first_year).grid(row=8, column=1, sticky="w",
+                                                                                        pady=(8, 0))
+        bar = ttk.Frame(box)
+        bar.grid(row=9, column=0, columnspan=2, sticky="e", pady=(14, 0))
+        ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(bar, text="Add", style="Accent.TButton", command=self.add).pack(side="right", padx=(0, 6))
+        self.liaison.focus_set()
+        win.grab_set()
+
+    def clean(self, text):
+        p = self.panel
+        return [p.store.fix_email(p.data["rules"].norm(m)) for m in EMAIL_RE.findall(text)]
+
+    def add(self):
+        p = self.panel
+        liaison = self.clean(self.liaison.get())
+        if not liaison:
+            messagebox.showerror("New combo", "Type the liaison's email.", parent=self.win)
+            return
+        members = [e for e in dict.fromkeys(self.clean(self.members.get("1.0", "end"))) if e != liaison[0]]
+        sup = self.clean(self.supervisor.get())
+        if self.supervisor.get().strip() and not sup:
+            messagebox.showerror("New combo", "The supervisor's email doesn't look like an email address.",
+                                 parent=self.win)
+            return
+        liaison, sup, fy = liaison[0], sup[0] if sup else "", self.first_year.get()
+        sem = p.data["settings"].semester_name
+        others = sorted({c.name for c in p.data["combos"].values() for e in [liaison] + members if e in c.members})
+        self.win.destroy()
+        n = 1 + max((int(r[3:]) for r in p.store.new_combos(sem) if r[3:].isdigit()), default=0)
+        p.queue(lambda s: s.add_combo(sem, [liaison] + members, liaison, sup, fy),
+                f"New combo: {p.name(liaison)} (liaison) and {len(members)} other member(s)."
+                + (f" Note: some are also in {', '.join(others)}." if others else "")
+                + (" It has no shows yet: give it sets (Schedule tab) or let it claim open sets (Swaps tab)."
+                   if p.data["sets"] else ""))
+        new = next((c.name for c in p.data["combos"].values() if c.ref == f"app{n}"), None)
+        if new:                                       # now numbered (in the preview): mark it
+            p.pending[-1]["combos"] = [new]
+            p.pending[-1]["text"] = p.pending[-1]["text"].replace("New combo:", f"New combo {new}:")
+            p.fill()
+            p.info.configure(text=f"Not saved yet: {p.pending[-1]['text']} (Confirm changes, below)")
+
+
+class ConflictsDialog:
+    """Someone's conflicts: the conflict form's dates, each with a 'counts' tick (untick to overrule it, e.g. they can
+    make it after all), dates added in the app (untick to take one back), and a night to add (told to the director,
+    not sent through the form). A pending change; the conflicts spreadsheet isn't changed."""
+
+    def __init__(self, panel, email):
+        self.panel, self.email = panel, email
+        self.dates = panel.conflict_dates(email)
+        self.plays = {}
+        for d, row in panel.data["sets"].items():
+            for c in row.values():
+                if c and email in panel.data["combos"][c].members:
+                    self.plays.setdefault(d, []).append(panel.data["combos"][c].name)
+        win = self.win = tk.Toplevel(panel.frame)
+        win.title("Conflicts")
+        win.transient(panel.frame.winfo_toplevel())
+        box = ttk.Frame(win, padding=16)
+        box.pack(fill="both", expand=True)
+        ttk.Label(box, text=f"Conflicts of {panel.name(email)}", style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(box, text="Ticked nights count as nights they can't play. Untick one to overrule it (e.g. they can "
+                            "make it after all). The conflicts spreadsheet isn't changed.", style="Hint.TLabel",
+                  wraplength=440, justify="left").pack(anchor="w", pady=(2, 10))
+        self.rows = ttk.Frame(box)
+        self.rows.pack(fill="x")
+        self.vars, self.new = {}, set()
+        if not self.dates:
+            self.none = ttk.Label(self.rows, text="None so far.", style="Hint.TLabel")
+            self.none.pack(anchor="w")
+        for d, (source, counts) in self.dates.items():
+            self.row(d, counts, source)
+        taken = set(self.dates)
+        self.choices = {f"{make_label(n.date)}, {n.venue}": n.date for n in panel.data["nights"] if n.date not in taken}
+        add = ttk.Frame(box)
+        add.pack(fill="x", pady=(12, 0))
+        ttk.Label(add, text="Add a night they can't make:").pack(side="left")
+        self.pick = ttk.Combobox(add, values=list(self.choices), state="readonly", width=24)
+        self.pick.pack(side="left", padx=6)
+        ttk.Button(add, text="Add", command=self.add).pack(side="left")
+        bar = ttk.Frame(box)
+        bar.pack(fill="x", pady=(14, 0))
+        ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(bar, text="OK", style="Accent.TButton", command=self.ok).pack(side="right", padx=(0, 6))
+        win.grab_set()
+
+    def row(self, d, counts, source):
+        self.vars[d] = tk.BooleanVar(value=counts)
+        text = make_label(d) + ("   (added here)" if source == "app" else "") + (
+            f"   ({', '.join(self.plays[d])} plays that night)" if d in self.plays else "")
+        ttk.Checkbutton(self.rows, text=text, variable=self.vars[d]).pack(anchor="w", pady=1)
+
+    def add(self):
+        d = self.choices.pop(self.pick.get(), None)
+        if d is None:
+            return
+        if getattr(self, "none", None):
+            self.none.destroy()
+            self.none = None
+        self.new.add(d)
+        self.row(d, True, "app")
+        self.pick.configure(values=list(self.choices))
+        self.pick.set("")
+
+    def ok(self):
+        p, email = self.panel, self.email
+        sem = p.data["settings"].semester_name
+        overrule = {d: not v.get() for d, v in self.vars.items()           # the form's: overruled or not
+                    if d in self.dates and self.dates[d][0] == "form" and v.get() != self.dates[d][1]}
+        added = {d: v.get() for d, v in self.vars.items()                  # added here: kept or taken back
+                 if (d in self.new and v.get()) or (d in self.dates and self.dates[d][0] == "app" and not v.get())}
+        self.win.destroy()
+        if not overrule and not added:
+            return
+
+        def change(s):
+            for d, on in overrule.items():
+                s.set_overruled(sem, email, d, on)
+            for d, on in added.items():
+                s.set_added_conflict(sem, email, d, on)
+        words = ([f"{make_label(d)} {'overruled' if on else 'counts again'}" for d, on in sorted(overrule.items())]
+                 + [f"{make_label(d)} {'added' if on else 'taken back'}" for d, on in sorted(added.items())])
+        p.queue(change, f"{p.name(email)}'s conflicts: {', '.join(words)}.", combo=p.combos_of(email))

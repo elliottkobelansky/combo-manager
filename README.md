@@ -20,7 +20,7 @@ tab, see [swaps](#during-the-semester-swaps)):
 plus buttons to open the folder, `Schedule.pdf` and `Schedule.xlsx`, a **Settings** tab (below), a dark
 mode switch and a **Text size** control (A− / A+, 85% to 175%), both remembered on that computer. Lists that are
 wider than the window get a horizontal scrollbar. It works on the **data
-folder** shown at the top; **Change folder...** picks another (remembered on that computer), **Back up...** and
+folder** shown at the top; **Change folder...** picks another (remembered on that computer), **Backup...** and
 **Restore...** are below.
 
 **Where things live:** the **program** is installed on each computer (this folder, unzipped locally; it has no
@@ -37,7 +37,7 @@ folder is (choose one, make a new one, or restore a backup); a folder that can't
 again, never silently swapped. Per-computer preferences (the folder, text size, dark mode, input files picked
 elsewhere, where backups go) are in `~/.combo_scheduler.json`.
 
-**Backups** (`app/backup.py`): **Back up...** zips the whole data folder (spreadsheets, `App data` with the `.bak`
+**Backups** (`app/backup.py`): **Backup...** zips the whole data folder (spreadsheets, `App data` with the `.bak`
 copies and schedule backups, `Archive`; an input file picked from elsewhere goes in under its usual name) into
 `Combo Scheduler backup 2026-10-06 1405.zip`, wherever you choose: keep it off this computer when the data folder
 is local. **Restore...** (also on the first-run screen) unpacks a backup into a *new* folder and switches to it; the
@@ -163,6 +163,8 @@ Print `Schedule.pdf` with `Combos.pdf` (Combos tab): the combo numbers on the ca
   each set. Open sets and text in a set too.
 - **All sets**: one row per set (date, venue, set, start, end, combo, supervised), for sorting and filtering.
 - **Supervision**: the supervised nights and the combos playing them.
+- **Changes**: every change since the schedule was made, newest first (when, on which computer, what, and each
+  set's before and after): the swap history, for "your show moved" questions.
 - **Report**: warnings from when the schedule was made.
 
 A data folder from before 2026-10-06 has the old, hand-editable `Schedule.xlsx` instead: the app turns it into
@@ -271,6 +273,20 @@ it"). A set on a **supervised night** must be filled (supervised nights are full
 rule check flags it until it is. Withdrawing waits until pending swaps are confirmed or discarded. Withdrawn combos
 stay listed in grey; Actions > **Put back** returns the combo with its old number but no shows (its sets may be
 taken by then): it can claim open sets in the Swaps tab.
+
+**New combo...** (Combos tab, Actions or right-click): a combo that isn't in the approvals (accepted after the form
+closed): liaison, other members and supervisor by email. It gets the next number and is then edited, withdrawn and
+put back like any other; it starts with no shows (give it sets, Schedule tab, or let it claim open sets, Swaps tab).
+Kept in `scheduler_data.json`.
+
+**Overruling a conflict** (Combos tab, right-click a person > **Conflicts...**): their conflict dates, each with a
+"counts" tick; untick one when they can make it after all. It stops counting everywhere (swaps, the check), the
+conflicts spreadsheet isn't changed, and Check inputs lists it. (Overruling a whole submission is still the
+spreadsheet's Status column.)
+
+**The log** (About tab > **Open the log**): `App data/Logs/<computer>.txt` in the data folder, one file per
+computer: every step's output, saves, backups, folder changes and every error with its details. When something
+goes wrong the app says so and points to it: send that file. Kept to about 1 MB.
 
 **Pending combos and the first-year tag** (Combos tab): combos still waiting for a decision are listed in grey
 ("Waiting for a decision · liaison", with their members); approve or reject them with the approval email's buttons
@@ -444,7 +460,8 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 | `app/data_folder.py` | What's in the data folder and where: every path into it is made here; whether a folder can be used. |
 | `app/app_config.py` | This computer's own choices (`~/.combo_scheduler.json`): which data folder, text size, dark mode. |
 | `app/shared_folder.py` | Several computers on one data folder: lock file, crash-safe writes, changed-on-disk checks, conflict copies. |
-| `app/backup.py` | Back up... / Restore...: the data folder as one zip, and back into a new folder. |
+| `app/backup.py` | Backup... / Restore...: the data folder as one zip, and back into a new folder. |
+| `app/app_log.py` | The log: `App data/Logs/<computer>.txt`. |
 | `app/outputs/combos_pdf.py`, `combos_xlsx.py` | Write `Combos.pdf` and `Combos.xlsx` (the Combos tab's Export buttons). |
 | `app/combos_panel.py` | The app's Combos tab (all combos and people; names, emails, instruments, members, liaison). |
 | `app/swap_panel.py`, `app/core/swaps.py` | The app's Swaps tab, and the swap finder behind it (pure, tested in `test_rules.py`). |

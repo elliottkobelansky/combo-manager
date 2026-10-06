@@ -298,6 +298,10 @@ def main():
     sch2 = sf_.load(sdir, result.combos, s)
     if sch2.sets[d1][k1] != c2 or sch2.sets[d2][k2] != c1 or not copy or not copy.exists():
         bad.append("a trade wasn't saved, or no backup was made first")
+    if [h["what"] for h in sch2.history] != [["Schedule made"], []] or \
+            sorted((ch["before"], ch["after"]) for ch in sch2.history[-1]["changes"]) != sorted(
+                [(result.combos[c1].name, result.combos[c2].name), (result.combos[c2].name, result.combos[c1].name)]):
+        bad.append(f"the history doesn't have the trade: {sch2.history}")
     if open_set:
         sf_.save_changes(sdir, result.combos, typed={open_set: "Jam session"})
         if sf_.load(sdir, result.combos, s).typed.get(open_set[0], {}).get(open_set[1]) != "Jam session":
@@ -321,6 +325,8 @@ def main():
     sch = sf_.load(sdir, result.combos, s)
     write_schedule_xlsx(sdir / "Schedule.xlsx", sch, result.combos, s, lambda e: e, {})
     wb = open_wb(sdir / "Schedule.xlsx")
+    if "Changes" not in wb.sheetnames or len(list(wb["Changes"].iter_rows())) < 4:
+        bad.append("the export has no Changes sheet with the history")
     if wb.sheetnames[:2] != ["By night", "All sets"] or is_old_schedule(sdir / "Schedule.xlsx") \
             or sf_.load(sdir, result.combos, s).sets != sch.sets:
         bad.append(f"the export: sheets {wb.sheetnames}, or it's taken for an old schedule")
@@ -778,6 +784,86 @@ def main():
         bad.append("Approvals.xlsx doesn't win over the old name")
     ok = not bad
     print(f"{'PASS' if ok else 'FAIL'}  data folder anywhere: usable or not, backup made and restored into a new folder")
+    for b_ in bad:
+        print("      -", b_)
+    failures += not ok
+
+    # Combos made in the app and conflicts overruled in the app (Combos tab); the log file.
+    import app_log
+    bad = []
+    (app_data(tmp) / "scheduler_data.json").unlink(missing_ok=True)
+    make(tmp / "a.xlsx", tmp / "f.xlsx", nights, 33, seed=1, sem=base.semester_name)
+    before = load_input(tmp, base, "a.xlsx", "f.xlsx")
+    sem = base.semester_name
+    top = max(int(c.name.split()[-1]) for c in before.combos)
+    victim = next(e for e in sorted(before.blocked) if before.blocked[e])
+    gone_day = sorted(before.blocked[victim])[0]
+    st = Store(tmp)
+    ref = st.add_combo(sem, ["late.one@mail.mcgill.ca", "late.two@mail.mcgill.ca"], "late.one@mail.mcgill.ca",
+                       "prof.late@mcgill.ca", first_year=True)
+    st.set_overruled(sem, victim, gone_day)
+    st.save()
+    after = load_input(tmp, base, "a.xlsx", "f.xlsx")
+    new = next((c for c in after.combos if c.ref == ref), None)
+    if not new or new.name != f"Combo {top + 1:02d}" or new.liaison != "late.one@mail.mcgill.ca" \
+            or not new.first_year or new.professor != "prof.late@mcgill.ca" or len(after.combos) != len(before.combos) + 1:
+        bad.append(f"a combo made in the app isn't read right: {new}")
+    if {c.name for c in before.combos} - {c.name for c in after.combos}:
+        bad.append("a combo made in the app changed the others' numbers")
+    if gone_day in after.blocked.get(victim, set()) or not any("overruled in the app" in t for _, t in after.notes):
+        bad.append("an overruled conflict still counts, or the check doesn't say so")
+    st = Store(tmp)
+    st.set_withdrawn(sem, ref, True)
+    st.set_overruled(sem, victim, gone_day, False)
+    st.save()
+    again = load_input(tmp, base, "a.xlsx", "f.xlsx")
+    if any(c.ref == ref for c in again.combos) or not any(c.ref == ref for c in again.withdrawn):
+        bad.append("withdrawing a combo made in the app didn't work")
+    if gone_day not in again.blocked.get(victim, set()):
+        bad.append("a conflict counted again isn't back")
+    st = Store(tmp)
+    st.set_overruled(sem, victim, gone_day)
+    st.set_email(victim, "renamed.person@mail.mcgill.ca")
+    if st.overruled(sem).get("renamed.person@mail.mcgill.ca") != {gone_day}:
+        bad.append("an email fix lost the overruled conflict")
+    st = Store(tmp)                                        # a conflict added in the app counts
+    free = next(e for c in before.combos for e in sorted(c.members) if not before.blocked.get(e))
+    st.set_added_conflict(sem, free, nights[0].date)
+    st.save()
+    if nights[0].date not in load_input(tmp, base, "a.xlsx", "f.xlsx").blocked.get(free, set()):
+        bad.append("a conflict added in the app doesn't count")
+    # Check flags addresses that make the scheduler miss someone
+    from core.model import Combo
+    from inputs import EmailRules, check_addresses, not_emails
+    if not_emails("ana.ruiz@mail.mcgill.ca\nTBD\nBen Li <ben.li@mail.mcgill.ca>, Carla Diaz") != ["TBD", "Carla Diaz"]:
+        bad.append(f"text that isn't an email: {not_emails('ana.ruiz@mail.mcgill.ca\nTBD, Carla Diaz')}")
+    notes_ = []
+    check_addresses([Combo("Combo 01", "Combo 01", frozenset({"ana.ruiz@mail.mcgill.ca", "ben.li@mail.mcgil.ca"})),
+                     Combo("Combo 02", "Combo 02", frozenset({"ana.ruiz@gmail.com", "dev.patel@mail.mcgill.ca"}))],
+                    {"dev.patel@gmail.com": {nights[0].date}, "prof@mcgill.ca": set()},
+                    EmailRules("mail.mcgill.ca"), notes_)
+    said = " | ".join(t for _, t in notes_)
+    if not ("typo of 'mail.mcgill.ca'" in said and "ben.li@mail.mcgil.ca" in said and "two addresses" in said
+            and "Conflicts from dev.patel@gmail.com" in said and "prof@mcgill.ca" not in said and len(notes_) == 3):
+        bad.append(f"address checks: {said}")
+    logdir = tmp / "log test"
+    logdir.mkdir()
+    app_log.set_folder(logdir)
+    app_log.LIMIT = 2000
+    for i in range(60):
+        app_log.write(f"line {i}\nsecond line")
+    try:
+        raise ValueError("boom")
+    except ValueError:
+        app_log.error("a test")
+    text = app_log.path().read_text()
+    if "boom" not in text or "line 0\n" in text or len(text) > 2000 + 400 or not text.startswith("["):
+        bad.append("the log isn't written, cut down or doesn't keep errors")
+    app_log.set_folder(None)
+    app_log.write("nowhere")                                # no folder: nothing, no error
+    ok = not bad
+    print(f"{'PASS' if ok else 'FAIL'}  combos made in the app (numbered next, edited, withdrawn), conflicts "
+          "overruled or added in the app, Check flags bad addresses, the log")
     for b_ in bad:
         print("      -", b_)
     failures += not ok

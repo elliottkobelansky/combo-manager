@@ -5,6 +5,8 @@ change and never read back, so editing it changes nothing.
                 (in the Combos tab's order), and the supervisor
     All sets    one row per set (date, venue, set, times, combo, supervised): for sorting and filtering
     Supervision the supervised nights and who plays them (when every combo has a supervised night)
+    Changes     every change since the schedule was made (swaps, give-aways, text in sets, withdrawn combos), newest
+                first: when, on which computer, what, and each set's before and after
     Report      what the solver said when the schedule was made
 
 At the end, the readers for the old, hand-editable Schedule.xlsx (before 2026-10-06), used once to turn one into
@@ -142,6 +144,19 @@ def write_schedule_xlsx(path, schedule, combos, settings, name_of, instruments):
         s = sheet("Supervision", ["Date", "Day", "Venue", "Combos playing"], sup, (14, 12, 14, 60))
         for r in range(2, s.max_row + 1):
             s.cell(row=r, column=1).number_format = "yyyy-mm-dd"
+    rows = []
+    for entry in reversed(schedule.history):
+        saved = entry.get("saved", "").replace("T", " ")[:16]
+        what = "; ".join(entry.get("what", []))
+        cells = entry.get("changes") or [{}]
+        for i, ch in enumerate(cells):
+            night = ch.get("night")
+            rows.append([saved if i == 0 else "", entry.get("computer", "") if i == 0 else "", what if i == 0 else "",
+                         make_label(datetime.fromisoformat(night).date()) if night else "", ch.get("set", ""),
+                         ch.get("before", ""), ch.get("after", "")])
+    if rows:
+        sheet("Changes", ["Saved", "Computer", "What", "Night", "Set", "Before", "After"], rows,
+              (17, 14, 70, 14, 6, 20, 20))
     if schedule.report:
         sheet("Report", ["Level", "Message"], [[str(l).upper(), t] for l, t in schedule.report], (10, 120))
     save_workbook(wb, path)

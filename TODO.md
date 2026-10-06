@@ -50,7 +50,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [x] First run with no data folder chosen asks for it (choose / make a new one / restore a backup); the
   program folder holds no data (the old `data/` there is gone; demo data is made anywhere with `make_fake_forms.py`); a folder that has gone (sync not connected) is asked for again,
   never silently swapped. A folder that can't be written to, or has other things in it, is pointed out.
-- [x] **Back up... / Restore...** (2026-10-06, `app/backup.py`): the whole data folder as one zip; restore goes into
+- [x] **Backup... / Restore...** (2026-10-06, `app/backup.py`): the whole data folder as one zip; restore goes into
   a new folder, never over the current one.
 - [x] `python dev/make_zip.py [--demo] [--mac]`: the program without data; `--demo` adds the fake data as "Demo data".
 - [x] Quick Start + README describe it (program local, data folder anywhere, new computer = pick it again or
@@ -65,7 +65,8 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [x] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `settings.json` and swap saves of
   the schedule (2026-10-05); a brand-new schedule, `schedule.json` and backups too (2026-10-06). The PDFs and contact lists (rebuilt
   any time) still save directly.
-- [ ] A log file in the data folder, for "send this to whoever maintains it".
+- [x] A log file (2026-10-06): `App data/Logs/<computer>.txt`, About tab > Open the log; errors in the window are
+  caught, logged and explained.
 - [x] **Several computers on one shared data folder** (2026-10-05, `app/shared_folder.py`): lock file
   `App data/In use.json` (told who has it open, open anyway = take over, the other is told once; stale after 15
   min); saves refused when the file changed on disk since it was read (combo edits, settings: yours / theirs /
@@ -100,14 +101,13 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   Other: what limit?
 - **Ready-to-send emails** after the schedule is final (per combo: its dates, the swap policy, contacts; per
   supervisor), as To / Cc / Subject / Body rows, from the schedule so they follow swaps.
-- **Swap history:** kept with the schedule and shown as a Swaps sheet in the `Schedule.xlsx` export (date, combos, from -> to, reason) for "your show moved"
-  emails; maybe a swap-request form shown as an inbox in the Swaps tab.
+- **Swap requests:** a swap-request form shown as an inbox in the Swaps tab. (The swap history is done: the
+  Changes sheet, 2026-10-06.)
 - **Supervisors:** which professor attends each supervised night, their availability, a names sheet.
 - **Messy member entries** on the combo form: report text that isn't an email ("TBD", a name alone), unknown
   domain typos (close to `mail.mcgill.ca`), spaces / doubled `@`, member counts outside the form's range, and the
   same person under two addresses. Then decide whether the **Student email domain fixes** setting stays (proposal:
   drop it for a "same name on two domains" warning).
-- **New combo...** in the Combos tab for late combos after the form closed; **overrule a conflict** in the app.
 - **Warnings** when an approvals row changes after the combo was edited in the app, and when a Response Id comes
   back with completely different members (form responses reset mid-semester).
 - **Apply night changes to an existing schedule** (add a night as open sets, cancel a night and name the combos

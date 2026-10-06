@@ -165,7 +165,50 @@ COUNTS = ("", "active", "ok", "okay", "accepted", "counted", "counts")
 OVERRULED = ("overruled", "rejected", "ignored", "not counted")
 
 
-def parse_conflicts(path, sheet, semester, notes, fix=lambda e: e, rules=EmailRules()):
+def not_emails(text):
+    """Pieces of a members cell (lines, or split at , ;) with no email address in them but some letters: 'TBD', a
+    name on its own. They're left out, so a member may be missing."""
+    pieces = (x.strip() for x in re.split(r"[\n,;]+", str(text or "")))
+    return [x for x in pieces if x and not EMAIL_RE.search(x) and len(re.findall(r"[A-Za-z]", x)) >= 2]
+
+
+def check_addresses(combos, blocked, rules, notes):
+    """Address problems that make the scheduler miss someone: a domain that looks like a typo of the student domain
+    (mail.mcgil.ca), the same person under two addresses in the combos, and conflicts sent from an address no combo
+    has when a member's looks like the same person (their conflicts don't count)."""
+    from difflib import SequenceMatcher
+    members = {e: c for c in combos for e in c.members}
+    everyone = sorted(set(members) | set(blocked))
+    if rules.domain:
+        for e in everyone:
+            dom = e.split("@")[1]
+            if dom != rules.domain and SequenceMatcher(None, dom, rules.domain).ratio() >= 0.85:
+                where = members[e].name if e in members else "the conflict form"
+                notes.append(("warn", f"{e} ({where}): is '{dom}' a typo of '{rules.domain}'? If so, fix the email "
+                                      "(Combos tab: Change email) or add the slip to Student email domain fixes "
+                                      "(Settings)."))
+
+    def key(e):
+        return re.sub(r"[^a-z0-9]", "", e.split("@")[0].lower())
+    by_key = {}
+    for e in members:
+        by_key.setdefault(key(e), []).append(e)
+    for k, es in sorted(by_key.items()):
+        if len(es) > 1:
+            notes.append(("warn", f"{' and '.join(sorted(es))} ({', '.join(sorted({members[e].name for e in es}))}): "
+                                  "the same person with two addresses? If so, fix one (Combos tab: Change email)."))
+    for e in sorted(blocked):
+        twins = [m for m in by_key.get(key(e), []) if m != e]
+        if e not in members and twins:
+            m = twins[0]
+            notes.append(("warn", f"Conflicts from {e} don't match any combo member, so they don't count. The same "
+                                  f"person as {m} ({members[m].name})? If so, fix the email (Combos tab: Change "
+                                  "email) and their conflicts count."))
+
+
+def parse_conflicts(path, sheet, semester, notes, fix=lambda e: e, rules=EmailRules(), overruled=None, added=None):
+    """-> {email: {dates}}. overruled = {email: {dates}} overruled in the app (Combos tab): they don't count;
+    added = {email: {dates}} added in the app: they count like the form's."""
     what = "Conflicts"
     headers, rows = read_export(path, sheet, DEFAULT_CONFLICT_HEADERS, what, notes)
     sem_i = col(headers, "semester")
@@ -189,11 +232,11 @@ def parse_conflicts(path, sheet, semester, notes, fix=lambda e: e, rules=EmailRu
     if submissions > len(best):
         notes.append(("info", f"Conflicts: {submissions - len(best)} repeat submission(s); each person's latest was used."))
 
-    blocked, overruled = {}, []
+    blocked, overruled_rows = {}, []
     for email, (xl, r) in sorted(best.items()):
         status = str(cell(r, status_i) or "").strip().lower()
         if status in OVERRULED:
-            overruled.append(email)
+            overruled_rows.append(email)
             continue
         if status not in COUNTS:
             notes.append(("warn", f"Conflicts row {xl} ({email}): Status '{cell(r, status_i)}' isn't Active or "
@@ -208,9 +251,21 @@ def parse_conflicts(path, sheet, semester, notes, fix=lambda e: e, rules=EmailRu
             if d:
                 ds.add(d)
         blocked[email] = ds
-    if overruled:
-        notes.append(("info", f"Conflicts: {len(overruled)} submission(s) overruled by the director, not counted: "
-                              f"{', '.join(overruled)}."))
+    if overruled_rows:
+        notes.append(("info", f"Conflicts: {len(overruled_rows)} submission(s) overruled by the director, not counted: "
+                              f"{', '.join(overruled_rows)}."))
+    in_app = sorted((e, d) for e, ds in (overruled or {}).items() for d in ds & blocked.get(e, set()))
+    for e, d in in_app:
+        blocked[e].discard(d)
+    if in_app:
+        notes.append(("info", f"Conflicts: {len(in_app)} date(s) overruled in the app (Combos tab), not counted: "
+                              + ", ".join(f"{e} on {d:%a %b} {d.day}" for e, d in in_app) + "."))
+    extra = sorted((e, d) for e, ds in (added or {}).items() for d in ds)
+    for e, d in extra:
+        blocked.setdefault(e, set()).add(d)
+    if extra:
+        notes.append(("info", f"Conflicts: {len(extra)} date(s) added in the app (Combos tab): "
+                              + ", ".join(f"{e} on {d:%a %b} {d.day}" for e, d in extra) + "."))
     empty = sorted(e for e, ds in blocked.items() if not ds)
     if empty:
         notes.append(("info", f"Conflicts: {len(empty)} submission(s) listed no dates (e.g. {', '.join(empty[:3])}); "
@@ -246,36 +301,14 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
 
     found, pending, rejected, withdrawn, seen_refs, outside, edited = [], [], [], [], set(), set(), {}
     app_withdrawn, waiting = [], []                # accepted but withdrawn in the app; waiting for a decision
-    for xl, key, r in rows:
-        status = str(cell(r, status_i) or "").strip().lower()
-        ref = ref_of(cell(r, id_i)) if id_i is not None and not blank(cell(r, id_i)) else f"row{xl}"
-        seen_refs.add(ref)
-        liaison = store.fix_email(first_email(rules, cell(r, liaison_i)))
-        who = f"response {ref} ({liaison or 'no liaison'})"
-        if status in REJECTED:
-            rejected.append(who)
-            continue
-        if status in WITHDRAWN:
-            withdrawn.append(who)
-            continue
-        if status in ("", "pending"):
-            pending.append(who)
-            emails = []                            # shown in the Combos tab (greyed); never scheduled
-            for m in EMAIL_RE.findall(" ".join(str(cell(r, i) or "") for i in (liaison_i, members_i))):
-                e = store.fix_email(rules.norm(m))
-                if e not in emails and not rules.is_example(e):
-                    emails.append(e)
-            prof_m = EMAIL_RE.search(str(cell(r, prof_i) or "")) if prof_i is not None else None
-            waiting.append(Combo(id=f"Pending {ref}", name=f"Pending {ref}", members=frozenset(emails),
-                                 liaison=liaison if liaison in emails else (emails[0] if emails else ""),
-                                 professor=store.fix_email(prof_m.group(0).lower()) if prof_m else "", ref=ref))
-            continue
-        if status not in ACCEPTED:
-            notes.append(("warn", f"{what} {who}: Status '{cell(r, status_i)}' isn't Pending, Accepted, Rejected or "
-                                  "Withdrawn; left out."))
-            continue
+    def take(xl, key, ref, who, raw, liaison, prof_raw, fy, name):
+        """An accepted combo: its members (from the emails in raw, with the app's member changes), liaison,
+        supervisor (prof_raw: the cell's text; None = no such column) and first-year tag -> found / app_withdrawn."""
+        for piece in not_emails(raw):
+            notes.append(("warn", f"{what} {who}: '{piece}' isn't an email address, so it's left out. A member "
+                                  "missing? Add them in the Combos tab (Add a member)."))
         members, seen = [], set()
-        for m in EMAIL_RE.findall(" ".join(str(cell(r, i) or "") for i in (liaison_i, members_i))):
+        for m in EMAIL_RE.findall(raw):
             e = store.fix_email(rules.norm(m))
             if rules.is_example(e):
                 notes.append(("warn", f"{what} {who}: example address '{e}' found; removed."))
@@ -305,23 +338,59 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
             edited[ref] = changes
         if not members and not had_members:
             notes.append(("warn", f"{what} {who}: accepted but has no valid member emails; skipped."))
-            continue
+            return
         if changes["liaison"] in seen:                  # chosen in the app
             liaison = changes["liaison"]
         elif liaison not in seen:                       # e.g. the liaison was removed: the first member stands in
             liaison = members[0] if members else ""
-        prof_m = EMAIL_RE.search(str(cell(r, prof_i) or "")) if prof_i is not None else None
+        prof_m = EMAIL_RE.search(prof_raw or "")
         prof = store.fix_email(prof_m.group(0).lower()) if prof_m else ""
-        if prof_i is not None and not prof:
+        if prof_raw is not None and not prof:
             notes.append(("warn", f"{what} {who}: no supervisor email."))
         elif rules.domain and rules.is_student(prof):
             notes.append(("warn", f"{what} {who}: supervisor '{prof}' is a student address. A mistake?"))
         (app_withdrawn if changes["withdrawn"] else found).append(
-                     dict(xl=xl, key=key, ref=ref, members=frozenset(members), liaison=liaison, prof=prof,
-                          name=str(cell(r, name_i)).strip() if name_i is not None and not blank(cell(r, name_i)) else "",
-                          fy=use_first_year and (changes["first_year"] if changes["first_year"] is not None else
-                                                 fy_i is not None and str(cell(r, fy_i) or "").strip().lower()
-                                                 in ("yes", "y", "true", "1"))))
+            dict(xl=xl, key=key, ref=ref, members=frozenset(members), liaison=liaison, prof=prof, name=name,
+                 fy=use_first_year and (changes["first_year"] if changes["first_year"] is not None else fy)))
+
+    for xl, key, r in rows:
+        status = str(cell(r, status_i) or "").strip().lower()
+        ref = ref_of(cell(r, id_i)) if id_i is not None and not blank(cell(r, id_i)) else f"row{xl}"
+        seen_refs.add(ref)
+        liaison = store.fix_email(first_email(rules, cell(r, liaison_i)))
+        who = f"response {ref} ({liaison or 'no liaison'})"
+        if status in REJECTED:
+            rejected.append(who)
+            continue
+        if status in WITHDRAWN:
+            withdrawn.append(who)
+            continue
+        if status in ("", "pending"):
+            pending.append(who)
+            emails = []                            # shown in the Combos tab (greyed); never scheduled
+            for m in EMAIL_RE.findall(" ".join(str(cell(r, i) or "") for i in (liaison_i, members_i))):
+                e = store.fix_email(rules.norm(m))
+                if e not in emails and not rules.is_example(e):
+                    emails.append(e)
+            prof_m = EMAIL_RE.search(str(cell(r, prof_i) or "")) if prof_i is not None else None
+            waiting.append(Combo(id=f"Pending {ref}", name=f"Pending {ref}", members=frozenset(emails),
+                                 liaison=liaison if liaison in emails else (emails[0] if emails else ""),
+                                 professor=store.fix_email(prof_m.group(0).lower()) if prof_m else "", ref=ref))
+            continue
+        if status not in ACCEPTED:
+            notes.append(("warn", f"{what} {who}: Status '{cell(r, status_i)}' isn't Pending, Accepted, Rejected or "
+                                  "Withdrawn; left out."))
+            continue
+        take(xl, key, ref, who, " ".join(str(cell(r, i) or "") for i in (liaison_i, members_i)), liaison,
+             str(cell(r, prof_i) or "") if prof_i is not None else None,
+             fy_i is not None and str(cell(r, fy_i) or "").strip().lower() in ("yes", "y", "true", "1"),
+             str(cell(r, name_i)).strip() if name_i is not None and not blank(cell(r, name_i)) else "")
+    for i, (ref, spec) in enumerate(sorted(store.new_combos(semester).items()), start=1):   # made in the app
+        liaison = store.fix_email(spec.get("liaison", ""))
+        seen_refs.add(ref)
+        take(None, 1e12 + i, ref, f"combo made in the app ({liaison or 'no liaison'})",
+             " ".join([liaison] + spec.get("members", [])), liaison, spec.get("supervisor", ""),
+             bool(spec.get("first_year")), "")
 
     if pending:
         notes.append(("pending", f"{len(pending)} combo(s) are still Pending (no decision yet), so they are NOT "
@@ -425,9 +494,11 @@ def load_input(folder, settings, approvals=APPROVALS_FILE, conflicts=CONFLICTS_F
         raise InputError(str(e))
     notes = []
     rules = EmailRules.from_settings(settings)
-    blocked = parse_conflicts(folder / conflicts, conflicts_sheet, settings.semester_name, notes, store.fix_email, rules)
+    blocked = parse_conflicts(folder / conflicts, conflicts_sheet, settings.semester_name, notes, store.fix_email, rules,
+                              store.overruled(settings.semester_name), store.added_conflicts(settings.semester_name))
     combos, withdrawn, waiting = parse_approvals(folder / approvals, approvals_sheet, settings.semester_name, notes, store, rules,
                              settings.use_first_year)
+    check_addresses(combos + waiting, blocked, rules, notes)
     if store.changed:
         try:
             store.save()
