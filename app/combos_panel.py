@@ -127,7 +127,7 @@ class CombosPanel:
         self.data = dict(combos=combos, shows=shows, sets=sets, supervised=supervised or set(), nights=nights,
                          withdrawn={c.name: c for c in inp.withdrawn}, pending=inp.pending, names=self.store.names,
                          blocked=inp.blocked,
-                         instruments=self.store.instruments(settings.semester_name), settings=settings,
+                         instruments=self.store.instruments(settings.semester_name, combos.values()), settings=settings,
                          rules=EmailRules.from_settings(settings))
         n_people = len({e for c in combos.values() for e in c.members})
         self.info.configure(text=f"{len(combos)} combos, {n_people} students." + (
@@ -530,7 +530,8 @@ class CombosPanel:
         else:
             change(self.store)
             self.data["names"] = self.store.names
-            self.data["instruments"] = self.store.instruments(self.data["settings"].semester_name)
+            self.data["instruments"] = self.store.instruments(self.data["settings"].semester_name,
+                                                              self.data["combos"].values())
             if view == "fill":
                 self.fill()
             else:

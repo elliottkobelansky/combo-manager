@@ -76,7 +76,7 @@ def write_exports(folder, sched, combos, settings, store):
     from outputs.excel_schedule import write_schedule_xlsx
     try:
         write_schedule_xlsx(folder / SCHEDULE_XLSX, sched, combos, settings, name_of,
-                            store.instruments(settings.semester_name))
+                            store.instruments(settings.semester_name, combos.values()))
         print(f"Wrote {folder / SCHEDULE_XLSX}")
     except PermissionError:
         print(f"  [WARN] {SCHEDULE_XLSX} is open in Excel, so it wasn't updated (the schedule itself is saved). "

@@ -132,6 +132,7 @@ class DateField(ttk.Frame):
                                 "window. Until then, type dates as YYYY-MM-DD (e.g. 2027-03-02).", parent=self)
             return
         top = tk.Toplevel(self)
+        top.withdraw()                                # placed next to the field first, then shown
         top.title("Pick a date")
         top.transient(self.winfo_toplevel())
         try:
@@ -149,10 +150,24 @@ class DateField(ttk.Frame):
             top.destroy()
         cal.bind("<<CalendarSelected>>", done)
         ttk.Button(top, text="Cancel", command=top.destroy).pack(pady=(0, 12))
+        place_below(top, self)
         top.grab_set()
 
     def get(self):
         return self.var.get().strip() or None
+
+
+def place_below(top, widget):
+    """Shows the (withdrawn) window top just below widget, or above it when there's no room below; kept on screen.
+    (Without this, Windows opens it in the screen's top-left corner.)"""
+    top.update_idletasks()
+    w, h = top.winfo_reqwidth(), top.winfo_reqheight()
+    x, y = widget.winfo_rootx(), widget.winfo_rooty() + widget.winfo_height() + 4
+    screen_w, screen_h = widget.winfo_screenwidth(), widget.winfo_screenheight()
+    if y + h > screen_h - 48:                         # (the taskbar)
+        y = widget.winfo_rooty() - h - 4
+    top.geometry(f"+{max(0, min(x, screen_w - w - 8))}+{max(0, y)}")
+    top.deiconify()
 
 
 def as_int(text):

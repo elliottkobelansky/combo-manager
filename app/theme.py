@@ -1,25 +1,20 @@
-"""Look of the app: the Sun Valley theme (sv-ttk package) in light or dark, or a similar built-in fallback.
+"""Look of the app: Tk's built-in 'clam' theme, recoloured in light or dark. (The Sun Valley theme looked a little
+smoother but drew everything from images, which made every tab switch 3 to 6 times slower.)
 
-apply(root, mode) sets the theme and returns the palette (colours for the parts ttk doesn't draw: the output panel,
-its highlighted lines, hint text and the calendar pop-up).
+apply(root, mode) sets the look and returns the palette (colours for the parts ttk doesn't draw: the output panel,
+its highlighted lines, hint text, menus and the calendar pop-up).
 """
 import sys
 from tkinter import font as tkfont
 from tkinter import ttk
 
-try:
-    import sv_ttk
-except ImportError:
-    sv_ttk = None
-
-# Accent colours are Sun Valley's own blues, so the buttons, the selection and the calendar all match.
 PALETTES = {
-    "light": dict(bg="#FAFAFA", panel="#FFFFFF", text="#1C1C1E", muted="#6B6B76", border="#E3E3E8",
+    "light": dict(bg="#F7F7F9", panel="#FFFFFF", text="#1C1C1E", muted="#6B6B76", border="#D9D9E0",
                   warn="#B25E00", bad="#D11A2A", good="#1F8A4C", accent="#005FB8", accent_text="#FFFFFF",
-                  band="#EEF1F6"),
+                  accent_hover="#0A6CCB", band="#EEF1F6", hover="#ECEDF2"),
     "dark": dict(bg="#1C1C1C", panel="#232326", text="#ECECF1", muted="#A0A0AB", border="#3A3A40",
                  warn="#F0A54A", bad="#FF6B6B", good="#4CD787", accent="#57C8FF", accent_text="#1C1C1C",
-                 band="#2C2D33"),
+                 accent_hover="#7AD4FF", band="#2C2D33", hover="#2E2F35"),
 }
 
 
@@ -39,15 +34,6 @@ def mono_font():
     return tkfont.nametofont("TkFixedFont").actual("family")
 
 
-def _unstamp_labels(widget):
-    """Sun Valley's theme switch calls tk_setPalette, which writes its text colour into every existing ttk label and
-    so overrides the label styles (grey hints, blue step titles and links). Clearing it lets the styles show."""
-    for child in widget.winfo_children():
-        if child.winfo_class() == "TLabel":
-            child.configure(foreground="")
-        _unstamp_labels(child)
-
-
 SCALE = 1.0                                           # text size (1.0 = normal), set by apply()
 SCALES = [0.85, 1.0, 1.15, 1.3, 1.5, 1.75]            # the steps of the A- / A+ buttons
 _BASE_SIZES = {}                                      # named font -> its size at 100%
@@ -59,12 +45,13 @@ def size(points):
 
 
 def _scale_named_fonts(root):
-    """Resizes Tk's and the theme's named fonts (TkDefaultFont, SunValleyBodyFont, ...): almost all text uses them."""
+    """Resizes Tk's named fonts (TkDefaultFont, TkHeadingFont, ...): almost all text uses them."""
+    family = ui_font()
     for name in tkfont.names(root):
         f = tkfont.nametofont(name, root=root)
         base = _BASE_SIZES.setdefault(name, f.actual("size") if f.cget("size") == 0 else f.cget("size"))
         new = round(base * SCALE) or (1 if base > 0 else -1)
-        f.configure(size=new)
+        f.configure(size=new, **({"family": family} if name != "TkFixedFont" and name.startswith("Tk") else {}))
 
 
 def apply(root, mode="light", scale=None):
@@ -74,37 +61,85 @@ def apply(root, mode="light", scale=None):
     mode = mode if mode in PALETTES else "light"
     p = PALETTES[mode]
     style = ttk.Style(root)
-    if sv_ttk is not None:
-        if not getattr(root, "_unstamp_bound", False):    # after the palette pass (it runs on the same event)
-            root.bind("<<ThemeChanged>>", lambda e: root.after_idle(_unstamp_labels, root), add="+")
-            root._unstamp_bound = True
-        sv_ttk.set_theme(mode)
-    else:                                              # fallback: the plain 'clam' theme, recoloured
-        style.theme_use("clam")
-        style.configure(".", background=p["bg"], foreground=p["text"], fieldbackground=p["panel"],
-                        bordercolor=p["border"], lightcolor=p["bg"], darkcolor=p["bg"])
-        style.configure("TButton", padding=(12, 6), background=p["panel"])
-        style.map("TButton", background=[("active", p["border"])])
-        style.configure("Accent.TButton", background=p["accent"], foreground=p["accent_text"])
-        style.map("Accent.TButton", background=[("active", p["accent"]), ("disabled", p["border"])])
-        style.configure("Card.TFrame", background=p["panel"], relief="solid", borderwidth=1)
-        style.configure("TNotebook.Tab", padding=(14, 6))
-        style.configure("Treeview", background=p["panel"], fieldbackground=p["panel"], foreground=p["text"])
-        root.configure(background=p["bg"])
+    style.theme_use("clam")
     _scale_named_fonts(root)
-    style.configure("Treeview", rowheight=size(26))
-    style.configure("Treeview.Heading", padding=(size(6), 2, 2, 2))   # column titles: not flush with the left edge
     family = ui_font()
+    bg, panel, text, muted, border, accent = p["bg"], p["panel"], p["text"], p["muted"], p["border"], p["accent"]
+    style.configure(".", background=bg, foreground=text, fieldbackground=panel, bordercolor=border,
+                    lightcolor=bg, darkcolor=bg, troughcolor=bg, selectbackground=accent,
+                    selectforeground=p["accent_text"], insertcolor=text, focuscolor=accent, arrowcolor=text)
+    style.map(".", foreground=[("disabled", muted)])
+    # buttons: flat, a light border; the accent ones solid blue
+    style.configure("TButton", padding=(size(12), size(5)), background=panel, bordercolor=border,
+                    lightcolor=panel, darkcolor=panel, focusthickness=0)
+    style.map("TButton", background=[("pressed", border), ("active", p["hover"])],
+              lightcolor=[("pressed", border), ("active", p["hover"])],
+              darkcolor=[("pressed", border), ("active", p["hover"])])
+    style.configure("Accent.TButton", background=accent, foreground=p["accent_text"], bordercolor=accent,
+                    lightcolor=accent, darkcolor=accent)
+    style.map("Accent.TButton", background=[("disabled", border), ("pressed", accent), ("active", p["accent_hover"])],
+              lightcolor=[("disabled", border), ("active", p["accent_hover"])],
+              darkcolor=[("disabled", border), ("active", p["accent_hover"])],
+              bordercolor=[("disabled", border), ("active", p["accent_hover"])],
+              foreground=[("disabled", muted)])
+    style.configure("Big.Accent.TButton", font=(family, size(11), "bold"), padding=(size(18), size(8)))
+    # fields
+    for w in ("TEntry", "TCombobox", "TSpinbox"):
+        style.configure(w, fieldbackground=panel, background=panel, bordercolor=border, lightcolor=panel,
+                        darkcolor=panel, padding=size(4))
+        style.map(w, bordercolor=[("focus", accent)], lightcolor=[("focus", panel)])
+    style.map("TCombobox", fieldbackground=[("readonly", panel)], selectbackground=[("readonly", panel)],
+              selectforeground=[("readonly", text)], background=[("active", p["hover"])])
+    root.option_add("*TCombobox*Listbox.background", panel)
+    root.option_add("*TCombobox*Listbox.foreground", text)
+    root.option_add("*TCombobox*Listbox.selectBackground", accent)
+    root.option_add("*TCombobox*Listbox.selectForeground", p["accent_text"])
+    for w in ("TCheckbutton", "TRadiobutton"):
+        style.configure(w, background=bg, indicatorbackground=panel, indicatorforeground=accent,
+                        upperbordercolor=muted, lowerbordercolor=muted, indicatorsize=size(15),
+                        indicatormargin=(0, 0, size(6), 0))
+        style.map(w, background=[("active", bg)], indicatorbackground=[("pressed", p["hover"])])
+    # tabs: the open one white with blue text
+    style.configure("TNotebook", background=bg, bordercolor=border, lightcolor=bg, darkcolor=bg, tabmargins=(0, 0, 0, 0))
+    style.configure("TNotebook.Tab", padding=(size(14), size(6)), background=bg, bordercolor=border, lightcolor=bg,
+                    darkcolor=bg, foreground=muted)
+    style.map("TNotebook.Tab", background=[("selected", panel), ("active", p["hover"])],
+              foreground=[("selected", accent), ("active", text)], lightcolor=[("selected", panel)],
+              expand=[("selected", (0, 0, 0, 0))])
+    # tables
+    style.configure("Treeview", background=panel, fieldbackground=panel, foreground=text, bordercolor=border,
+                    lightcolor=panel, darkcolor=panel, rowheight=size(26))
+    style.map("Treeview", background=[("selected", accent)], foreground=[("selected", p["accent_text"])])
+    style.configure("Treeview.Heading", background=bg, foreground=muted, bordercolor=border, lightcolor=bg,
+                    darkcolor=bg, relief="flat", padding=(size(6), 2, 2, 2), font=(family, size(9), "bold"))
+    style.map("Treeview.Heading", background=[("active", p["hover"])])
+    style.configure("TScrollbar", background=border, troughcolor=bg, bordercolor=bg, lightcolor=border,
+                    darkcolor=border, arrowcolor=muted, gripcount=0)
+    style.map("TScrollbar", background=[("active", muted)])
+    style.configure("Card.TFrame", background=bg, bordercolor=border, relief="solid", borderwidth=1)
+    style.configure("TSeparator", background=border)
+    # text styles
     style.configure("Title.TLabel", font=(family, size(18), "bold"))
-    style.configure("Sub.TLabel", font=(family, size(10)), foreground=p["muted"])
-    style.configure("Hint.TLabel", font=(family, size(9)), foreground=p["muted"])
+    style.configure("Sub.TLabel", font=(family, size(10)), foreground=muted)
+    style.configure("Hint.TLabel", font=(family, size(9)), foreground=muted)
     style.configure("CardTitle.TLabel", font=(family, size(12), "bold"))
-    style.configure("Link.TLabel", font=(family, size(11)), foreground=p["accent"])
+    style.configure("Link.TLabel", font=(family, size(11)), foreground=accent)
     style.configure("Warn.TLabel", foreground=p["warn"])
-    style.configure("Step.TLabel", font=(family, size(12), "bold"), foreground=p["accent"])
-    style.configure("Big.Accent.TButton", font=(family, size(11), "bold"), padding=(18, 8))
-    root.option_add("*Toplevel.background", p["bg"])
+    style.configure("Step.TLabel", font=(family, size(12), "bold"), foreground=accent)
+    root.configure(background=bg)
+    root.option_add("*Toplevel.background", bg)
+    for w in _toplevels(root):                         # windows already open (a theme switch)
+        w.configure(background=bg)
     return p
+
+
+def _toplevels(widget):
+    out = []
+    for child in widget.winfo_children():
+        if child.winfo_class() == "Toplevel":
+            out.append(child)
+        out += _toplevels(child)
+    return out
 
 
 def scrolled_tree(parent, spec, **kw):

@@ -73,7 +73,9 @@ def create_backup(folder, dest, inputs=None):
 
 
 def read_backup(path):
-    """The zip's backup-info (made, computer, files, ...). Raises BackupError if it isn't a whole backup."""
+    """The zip's backup-info (made, computer, files, ...) and what it holds: semester (its settings'), schedule (the
+    semester of its schedule, or None), past (the semesters in its Archive). Raises BackupError if it isn't a whole
+    backup."""
     try:
         with zipfile.ZipFile(path) as zf:
             names = zf.namelist()
@@ -89,7 +91,18 @@ def read_backup(path):
                 info = json.loads(zf.read(INFO)) if INFO in names else {}
             except ValueError:
                 info = {}
-            return {**info, "files": len([n for n in names if n != INFO and not n.endswith("/")])}
+
+            def inside(name, key):
+                try:
+                    return json.loads(zf.read(f"{APP_DATA}/{name}")).get(key) if f"{APP_DATA}/{name}" in names else None
+                except (ValueError, AttributeError):
+                    return None
+            past = sorted({PurePosixPath(n).parts[1] for n in names if n.startswith("Archive/")
+                           and len(PurePosixPath(n).parts) > 2})
+            return {**info, "files": len([n for n in names if n != INFO and not n.endswith("/")]),
+                    "semester": inside("settings.json", "semester_name"),
+                    "schedule": inside("schedule.json", "semester") or (
+                        "(old format)" if "Schedule.xlsx" in names else None), "past": past}
     except (zipfile.BadZipFile, OSError) as e:
         raise BackupError(f"Can't read {Path(path).name} as a backup ({e}).")
 

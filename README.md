@@ -40,8 +40,9 @@ elsewhere, where backups go) are in `~/.combo_scheduler.json`.
 **Backups** (`app/backup.py`): **Backup...** zips the whole data folder (spreadsheets, `App data` with the `.bak`
 copies and schedule backups, `Archive`; an input file picked from elsewhere goes in under its usual name) into
 `Combo Scheduler backup 2026-10-06 1405.zip`, wherever you choose: keep it off this computer when the data folder
-is local. **Restore...** (also on the first-run screen) unpacks a backup into a *new* folder and switches to it; the
-current folder is never overwritten. After a dead computer: install the program, then pick the surviving data
+is local. **Restore...** (also on the first-run screen) opens a window that shows what's in a backup (when and
+where it was made, its semester, schedule and past semesters) and where it will go: a *new* folder (next to the
+current one unless you change it), which the scheduler then switches to; the current folder is never overwritten. After a dead computer: install the program, then pick the surviving data
 folder, or restore the latest backup.
 
 **Several computers on one data folder** (`app/shared_folder.py`): best one at a time, but it's guarded. The app
@@ -86,10 +87,10 @@ The package versions are pinned in `requirements.txt`: the app's Install button,
 
 ## Setup (once)
 
-    pip install openpyxl ortools reportlab tkcalendar sv-ttk
+    pip install -r requirements.txt
 
-`reportlab` is only needed for the PDFs; `tkcalendar` and `sv-ttk` (both optional) give the app its pop-up calendars and its modern look (light and
-dark mode); without them it still works, with typed dates and a plainer look.
+`reportlab` is only needed for the PDFs; `tkcalendar` (optional) gives the app its pop-up calendars; without it
+the app still works, with typed dates.
 
 ## Running it each semester
 
@@ -318,7 +319,8 @@ yet; alphabetical within one instrument. The liaison is marked, not moved to the
 **Combos tab:** every accepted combo (with its liaison and shows) and its people, in columns: Instrument, Also in
 (other combos), Conflicts (dates submitted), Email; with a search box. **Click an Instrument cell** to pick one
 (Saxophone, Trumpet, Trombone, Guitar, Piano, Bass, Drums, or Other: type anything); it's per person per combo and
-kept in `scheduler_data.json`. **Export PDF** writes `Combos.pdf` (every combo with its supervisor and
+kept in `scheduler_data.json`. It's chosen once: a person's later combos (this semester or the next) start with the
+instrument last set for them (by email), until changed. **Export PDF** writes `Combos.pdf` (every combo with its supervisor and
 members, instruments when set; numbered like the calendar); **Export Excel** writes `Combos.xlsx` (one table per
 combo, like the schedule's: each member with instrument and email, the liaison marked, then the supervisor). Double-click a person
 (or Actions > **Change name**) to correct their name, or double-click their email (or Actions > **Change email**) to fix a typo'd
@@ -479,7 +481,7 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 | `app/outputs/combos_pdf.py`, `combos_xlsx.py` | Write `Combos.pdf` and `Combos.xlsx` (the Combos tab's Export buttons). |
 | `app/combos_panel.py` | The app's Combos tab (all combos and people; names, emails, instruments, members, liaison). |
 | `app/swap_panel.py`, `app/core/swaps.py` | The app's Swaps tab, and the swap finder behind it (pure, tested in `test_rules.py`). |
-| `app/theme.py` | The app's look (Sun Valley theme, light and dark). The About tab (author and contact) is in `scheduler_app.py`. |
+| `app/theme.py` | The app's look (Tk's built-in theme, recoloured light and dark). The About tab (author and contact) is in `scheduler_app.py`. |
 | `app/settings_file.py` | Reads, checks and saves `settings.json` (defaults and help texts live here). |
 | `app/settings_panel.py` | The app's Settings tab. |
 | `app/core/stats.py` | Stats and the rule check behind `solve.py --stats`. |

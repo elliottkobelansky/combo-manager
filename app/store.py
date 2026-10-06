@@ -2,7 +2,10 @@
 
     numbers      {semester: {response id: combo number}}   combo numbers never change once given out
     names        {email: name}                              corrected names (the Combos tab); others are guessed
-    instruments  {semester: {"Combo 05|email": instrument}} per person per combo (the Combos tab)
+    instruments  {semester: {"Combo 05|email": instrument}} per person per combo (the Combos tab); "" = set to
+                                                            no instrument
+    last_instrument {email: instrument}                     the instrument last set for someone: the default for
+                                                            their other combos, this semester and later ones
     emails       {email as typed: corrected email}          fixes applied when reading both spreadsheets
     members      {semester: {response id: {"add": [email], "remove": [email], "liaison": email, "withdrawn": true,
                                            "first_year": "yes" or "no"}}}
@@ -36,7 +39,7 @@ class Store:
         except ValueError:
             raise ValueError(f"{self.path} is damaged. Restore it from {DATA_FILE}.bak next to it, or from a backup.")
         for key in ("numbers", "names", "instruments", "emails", "members", "new_combos", "overruled",
-                    "added_conflicts"):
+                    "added_conflicts", "last_instrument"):
             self.data.setdefault(key, {})
         self.changed = False
 
@@ -71,17 +74,34 @@ class Store:
         self.changed = True
 
     # instruments
-    def instruments(self, semester):
-        """{(combo name, email): instrument}"""
-        return {tuple(k.split("|", 1)): v for k, v in self.data["instruments"].get(semester, {}).items()}
+    def instruments(self, semester, combos=()):
+        """{(combo name, email): instrument}: the ones set for this semester; with combos, also each member's usual
+        instrument where none was set (the one last set for them, in any combo or semester), so it's chosen once."""
+        set_here = {tuple(k.split("|", 1)): v for k, v in self.data["instruments"].get(semester, {}).items()}
+        out = {k: v for k, v in set_here.items() if v}
+        usual = self.usual_instruments()
+        for c in combos:
+            for e in c.members:
+                if (c.name, e) not in set_here and usual.get(e):
+                    out[(c.name, e)] = usual[e]
+        return out
+
+    def usual_instruments(self):
+        """{email: instrument}: the one last set for each person (older data: any one set for them)."""
+        usual = {}
+        for table in self.data["instruments"].values():
+            for key, inst in table.items():
+                if inst:
+                    usual.setdefault(key.split("|", 1)[1], inst)
+        usual.update(self.data["last_instrument"])
+        return usual
 
     def set_instrument(self, semester, combo, email, instrument):
+        """instrument "" = no instrument (kept, so the person's usual one isn't filled in instead)."""
         table = self.data["instruments"].setdefault(semester, {})
-        key = f"{combo}|{email.lower()}"
+        table[f"{combo}|{email.lower()}"] = instrument or ""
         if instrument:
-            table[key] = instrument
-        else:
-            table.pop(key, None)
+            self.data["last_instrument"][email.lower()] = instrument
         self.changed = True
 
     # members added or removed in the app, per combo (by its response id, which never changes)
@@ -212,6 +232,8 @@ class Store:
         for table in self.data["instruments"].values():
             for key in [k for k in table if k.split("|", 1)[1] == shown]:
                 table[key.split("|", 1)[0] + "|" + new] = table.pop(key)
+        if shown in self.data["last_instrument"]:
+            self.data["last_instrument"].setdefault(new, self.data["last_instrument"].pop(shown))
         for table in self.data["members"].values():
             for ch in table.values():
                 for kind in ("add", "remove"):

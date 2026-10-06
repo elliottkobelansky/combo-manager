@@ -846,6 +846,16 @@ def main():
     if not ("typo of 'mail.mcgill.ca'" in said and "ben.li@mail.mcgil.ca" in said and "two addresses" in said
             and "Conflicts from dev.patel@gmail.com" in said and "prof@mcgill.ca" not in said and len(notes_) == 3):
         bad.append(f"address checks: {said}")
+    st = Store(tmp)                                        # an instrument is chosen once, then carried over
+    st.set_instrument("Fall 2026", "Combo 03", "kai.drums@mail.mcgill.ca", "Drums")
+    st.set_instrument("Fall 2026", "Combo 04", "kai.drums@mail.mcgill.ca", "Vibraphone")   # the latest wins
+    later = [Combo("Combo 01", "Combo 01", frozenset({"kai.drums@mail.mcgill.ca", "nobody.yet@mail.mcgill.ca"}))]
+    got = st.instruments("Winter 2027", later)
+    if got != {("Combo 01", "kai.drums@mail.mcgill.ca"): "Vibraphone"}:
+        bad.append(f"instruments not carried over by email: {got}")
+    st.set_instrument("Winter 2027", "Combo 01", "kai.drums@mail.mcgill.ca", "")
+    if st.instruments("Winter 2027", later):
+        bad.append("'No instrument' was filled in with the usual one again")
     logdir = tmp / "log test"
     logdir.mkdir()
     app_log.set_folder(logdir)
@@ -863,7 +873,7 @@ def main():
     app_log.write("nowhere")                                # no folder: nothing, no error
     ok = not bad
     print(f"{'PASS' if ok else 'FAIL'}  combos made in the app (numbered next, edited, withdrawn), conflicts "
-          "overruled or added in the app, Check flags bad addresses, the log")
+          "overruled or added in the app, Check flags bad addresses, instruments carried over, the log")
     for b_ in bad:
         print("      -", b_)
     failures += not ok

@@ -5,4 +5,3 @@ ortools==9.15.6755
 reportlab==5.0.1
 tkcalendar==1.6.1
 babel==2.18.0
-sv-ttk==2.6.1

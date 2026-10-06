@@ -36,7 +36,7 @@ import shared_folder  # noqa: E402
 import app_log  # noqa: E402
 AUTHOR, EMAIL = "Elliott Kobelansky", "elliottkobelansky@gmail.com"
 PACKAGES = {"openpyxl": "openpyxl", "ortools": "ortools", "reportlab": "reportlab"}   # import name -> pip name
-OPTIONAL = {"tkcalendar": "tkcalendar", "sv_ttk": "sv-ttk"}   # pop-up calendars; the modern look
+OPTIONAL = {"tkcalendar": "tkcalendar"}   # the pop-up calendars
 
 try:
     import tkinter as tk
@@ -162,7 +162,7 @@ class App:
         head.pack(fill="x")
         self.dark = tk.BooleanVar(value=self.mode == "dark")
         ttk.Checkbutton(head, text="Dark mode", variable=self.dark, command=self.toggle_theme,
-                        style="Switch.TCheckbutton" if theme.sv_ttk else "TCheckbutton").pack(side="right")
+                        style="TCheckbutton").pack(side="right")
         sizes = ttk.Frame(head)                       # text size: A- 100% A+
         sizes.pack(side="right", padx=(0, 18))
         ttk.Button(sizes, text="A\u2212", width=3, command=lambda: self.text_size(-1)).pack(side="left")
@@ -434,7 +434,7 @@ class App:
         self.setup_button = ttk.Button(row, text="Install", style="Accent.TButton", command=self.install)
         self.setup_button.pack(side="left")
         self.skip_button = ttk.Button(row, text="Continue without them", command=self.skip_setup)
-        if not missing_packages():                    # only the look (sv-ttk) and the pop-up calendar are missing
+        if not missing_packages():                    # only the pop-up calendar is missing
             self.skip_button.pack(side="left", padx=8)
         self.output_panel(tab)
         self.status = ttk.Label(self.shell, text="", style="Hint.TLabel")
@@ -729,40 +729,92 @@ class App:
         in_background(self.root, work, done)
 
     def restore(self):
-        """Asks for a backup zip and where to put it; unpacks it into a new folder there. -> that folder, or None.
-        The current data folder is never touched."""
+        """The Restore window: pick a backup (what's in it is shown) and where its new folder goes, then unpack it
+        there. -> that folder, or None. The current data folder is never touched."""
         from backup import BackupError, new_folder, read_backup, restore_backup
-        start = Path(load_config().get("backup_dir") or default_parent())
-        picked = filedialog.askopenfilename(title="The backup to restore",
-                                            initialdir=str(start if start.is_dir() else default_parent()),
-                                            filetypes=[("Zip file", "*.zip"), ("All files", "*.*")])
-        if not picked:
-            return None
-        try:
-            info = read_backup(picked)
-        except BackupError as e:
-            messagebox.showerror("Restore", str(e))
-            return None
-        made = info.get("made", "").replace("T", " ")[:16]
-        about = (f"made {made} on {info.get('computer', '?')}, " if made else "") + f"{info['files']} files"
-        if not messagebox.askokcancel(
-                "Restore", f"{Path(picked).name}\n({about})\n\nNext, choose where to put it: it's unpacked into a "
-                "new folder there, which becomes the data folder. Nothing that exists now is changed.\n\n"
-                "Several computers? Put it in the shared/synced folder they all use."):
-            return None
-        parent = filedialog.askdirectory(title="Where to put the restored data folder",
-                                         initialdir=str(default_parent()))
-        if not parent:
-            return None
-        dest = new_folder(parent, f"Combo Scheduler data (restored {datetime.now():%Y-%m-%d})")
-        try:
-            restore_backup(picked, dest)
-        except (BackupError, OSError) as e:
-            messagebox.showerror("Restore", f"Couldn't restore the backup:\n{e}")
-            return None
-        app_log.set_folder(dest)
-        app_log.write(f"Restored {picked} into this folder")
-        return dest
+        win = tk.Toplevel(self.root)
+        win.title("Restore a backup")
+        win.transient(self.root)
+        box = ttk.Frame(win, padding=20)
+        box.pack(fill="both", expand=True)
+        ttk.Label(box, text="Restore a backup", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=3,
+                                                                             sticky="w")
+        ttk.Label(box, text="The backup's files are copied into a NEW folder, and the scheduler switches to it. "
+                            "Nothing is overwritten or deleted: the data folder you use now stays exactly as it is, "
+                            "and Change folder... goes back to it any time.", wraplength=560, justify="left").grid(
+            row=1, column=0, columnspan=3, sticky="w", pady=(6, 16))
+        picked, dest_parent, result = {}, [Path(self.folder).parent if self.folder else default_parent()], []
+        ttk.Label(box, text="1. The backup", style="Step.TLabel").grid(row=2, column=0, sticky="w")
+        name = ttk.Label(box, text="(none chosen yet)", style="Hint.TLabel")
+        name.grid(row=3, column=0, columnspan=2, sticky="w")
+        about = ttk.Label(box, text="", wraplength=440, justify="left")
+        about.grid(row=4, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        ttk.Label(box, text="2. Restore it into this new folder", style="Step.TLabel").grid(row=5, column=0,
+                                                                                           sticky="w", pady=(16, 0))
+        where = ttk.Label(box, text="", style="Hint.TLabel", wraplength=440, justify="left")
+        where.grid(row=6, column=0, columnspan=2, sticky="w")
+
+        def target():
+            return new_folder(dest_parent[0], f"Combo Scheduler data (restored {datetime.now():%Y-%m-%d})")
+
+        def show_target():
+            where.configure(text=str(target()) + "\n(Several computers? Put it in the shared folder they all use.)")
+
+        def choose():
+            start = Path(load_config().get("backup_dir") or default_parent())
+            path = filedialog.askopenfilename(parent=win, title="The backup to restore",
+                                              initialdir=str(start if start.is_dir() else default_parent()),
+                                              filetypes=[("Backup (zip)", "*.zip"), ("All files", "*.*")])
+            if not path:
+                return
+            try:
+                info = read_backup(path)
+            except BackupError as e:
+                messagebox.showerror("Restore", str(e), parent=win)
+                return
+            picked.update(path=path, info=info)
+            made = info.get("made", "")
+            when = datetime.fromisoformat(made).strftime("%a %b %d, %Y at %H:%M") if made else "at an unknown time"
+            lines = [f"\u2022 Made {when}" + (f" on {info['computer']}" if info.get("computer") else ""),
+                     f"\u2022 Semester: {info.get('semester') or 'no settings in it'}",
+                     f"\u2022 Schedule: {info['schedule']}" if info.get("schedule") else "\u2022 No schedule yet",
+                     f"\u2022 Past semesters: {', '.join(info['past'])}" if info.get("past") else "",
+                     f"\u2022 {info['files']} files"]
+            name.configure(text=Path(path).name)
+            about.configure(text="\n".join(l for l in lines if l))
+            go.configure(state="normal")
+
+        def change_place():
+            path = filedialog.askdirectory(parent=win, title="Where to put the restored data folder",
+                                           initialdir=str(dest_parent[0]))
+            if path:
+                dest_parent[0] = Path(path)
+                show_target()
+
+        def restore():
+            dest = target()
+            try:
+                restore_backup(picked["path"], dest)
+            except (BackupError, OSError) as e:
+                messagebox.showerror("Restore", f"Couldn't restore the backup:\n{e}", parent=win)
+                return
+            app_log.set_folder(dest)
+            app_log.write(f"Restored {picked['path']} into this folder")
+            result.append(dest)
+            win.destroy()
+        ttk.Button(box, text="Choose a backup...", command=choose).grid(row=3, column=2, sticky="e")
+        ttk.Button(box, text="Change...", command=change_place).grid(row=6, column=2, sticky="ne")
+        bar = ttk.Frame(box)
+        bar.grid(row=7, column=0, columnspan=3, sticky="e", pady=(20, 0))
+        ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
+        go = ttk.Button(bar, text="Restore and switch to it", style="Accent.TButton", state="disabled",
+                        command=restore)
+        go.pack(side="right", padx=(0, 6))
+        box.columnconfigure(1, weight=1)
+        show_target()
+        win.grab_set()
+        self.root.wait_window(win)
+        return result[0] if result else None
 
     def restore_and_switch(self):
         if self.settings and not self.settings.ask_to_save():
@@ -771,12 +823,14 @@ class App:
         if self.combos and not self.combos.ask_to_save():
             self.tabs.select(self.combos.frame)
             return
+        before = self.folder
         folder = self.restore()
         if folder:
             self.switch_folder(folder)
             if self.folder == folder:
-                messagebox.showinfo("Restored", f"Restored into:\n{folder}\n\nThe scheduler uses it from now on. "
-                                    "The folder used before is still there, unchanged.")
+                messagebox.showinfo("Restored", f"Restored into:\n{folder}\n\nThe scheduler uses it from now on.\n\n"
+                                    f"The folder you used before is unchanged:\n{before}\n(Change folder... goes back "
+                                    "to it.)")
 
     def open_file(self, name):
         """Opens a file in the data folder. Schedule.pdf / .xlsx that aren't there but can be made: made first."""
@@ -941,13 +995,14 @@ def selftest(out):
 
     def window():
         root = tk.Tk()
-        import sv_ttk
-        sv_ttk.set_theme("light")
+        import theme
+        theme.apply(root, "dark")
+        theme.apply(root, "light")
         from tkcalendar import Calendar
         Calendar(root, locale="en_US").pack()
         root.update()
         root.destroy()
-    step("the window, its look and the pop-up calendar (tkinter, sv-ttk, tkcalendar)", window)
+    step("the window, its look and the pop-up calendar (tkinter, tkcalendar)", window)
     lines.append("ALL OK" if not failed else f"{failed} FAILED")
     Path(out).write_text("\n".join(lines) + "\n", encoding="utf-8")
     return 1 if failed else 0
