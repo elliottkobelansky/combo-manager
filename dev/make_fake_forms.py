@@ -1,13 +1,14 @@
-"""Makes a fake approvals table (Combo Approvals.xlsx, in the layout the Power Automate flow writes) and a fake
+"""Makes a fake approvals table (Approvals.xlsx, in the layout the Power Automate flow writes) and a fake
 conflicts table (Conflicts.xlsx, in the layout the conflict flow writes), with deliberate mistakes, for testing.
 make() also returns what the approvals should turn into (worked out from what was put in, not by parsing), so
 test_rules.py can check inputs.py against it.
 
-    python dev/make_fake_forms.py [--combos 33] [--seed 1]    # new fake spreadsheets (+ instruments)
-    python dev/make_fake_forms.py --instruments [--replace]  # only fill in instruments for the combos in data/
-Writes into data/. Needs data/settings.json (the app's Settings tab, or: python app/settings_file.py --new).
-Instruments go into data/scheduler_data.json (as if set in the Combos tab); people who already have one keep it
-unless --replace.
+    python dev/make_fake_forms.py FOLDER [--combos 33] [--seed 1]  # a demo data folder: fake spreadsheets, instruments
+    python dev/make_fake_forms.py FOLDER --instruments [--replace]  # only fill in instruments for the combos there
+FOLDER is any folder (made if needed), e.g. ~/Documents/Combo Scheduler demo; choose it in the app with Change
+folder... to try things. Never inside the program folder: that holds no data. Without settings yet, it gets the
+example settings (settings_file.DEFAULTS). Instruments go into App data/scheduler_data.json (as if set in the Combos
+tab); people who already have one keep it unless --replace.
 """
 import argparse
 import random
@@ -21,8 +22,8 @@ from openpyxl import Workbook
 from openpyxl.worksheet.table import Table
 
 from core import generate_nights
-from settings_file import SETTINGS_FILE, load_settings
-from util import DATA_FOLDER, app_data
+from data_folder import APPROVALS_FILE, CONFLICTS_FILE, settings_path, store_path
+from settings_file import DEFAULTS, load_settings, save_data
 
 EPOCH = date(1899, 12, 30)
 OUTSIDE = ["jamie.outside@gmail.com", "sam.guest@gmail.com"]   # non-McGill members: must be kept like anyone else
@@ -248,25 +249,38 @@ def fake_instruments(folder, settings, seed=1, replace=False):
     return n_set
 
 
+def make_demo(folder, combos=33, seed=1, force=False):
+    """A data folder to try the app with: the example settings (unless it has settings already), fake approvals and
+    conflicts for that semester, and instruments. -> how many instruments were set."""
+    folder = Path(folder)
+    approvals, conflicts = folder / APPROVALS_FILE, folder / CONFLICTS_FILE
+    existing = [f.name for f in (approvals, conflicts) if f.exists()]
+    if existing and not force:
+        raise SystemExit(f"{', '.join(existing)} already exist in {folder} (real data?). Use another folder, "
+                         "or run with --force to overwrite them with fake data.")
+    folder.mkdir(parents=True, exist_ok=True)
+    if not settings_path(folder).exists():
+        save_data(settings_path(folder), DEFAULTS)
+    settings, _ = load_settings(settings_path(folder))
+    make(approvals, conflicts, generate_nights(settings), combos, seed, settings.semester_name)
+    return fake_instruments(folder, settings, seed)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
+    ap.add_argument("folder", type=Path, help="the demo data folder, e.g. ~/Documents/Combo Scheduler demo")
     ap.add_argument("--combos", type=int, default=33)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--force", action="store_true", help="overwrite existing response files")
-    ap.add_argument("--instruments", action="store_true", help="only fill in instruments for the combos in data/")
+    ap.add_argument("--instruments", action="store_true", help="only fill in instruments for the combos there")
     ap.add_argument("--replace", action="store_true", help="with --instruments: also replace instruments already set")
     a = ap.parse_args()
+    folder = a.folder.expanduser()
     if a.instruments:
-        settings, _ = load_settings(app_data(DATA_FOLDER) / SETTINGS_FILE)
-        n = fake_instruments(DATA_FOLDER, settings, a.seed, a.replace)
-        print(f"Set {n} instrument(s) in {DATA_FOLDER / 'scheduler_data.json'}.")
+        settings, _ = load_settings(settings_path(folder))
+        n = fake_instruments(folder, settings, a.seed, a.replace)
+        print(f"Set {n} instrument(s) in {store_path(folder)}.")
         sys.exit(0)
-    approvals, conflicts = DATA_FOLDER / "Combo Approvals.xlsx", DATA_FOLDER / "Conflicts.xlsx"
-    existing = [f.name for f in (approvals, conflicts) if f.exists()]
-    if existing and not a.force:
-        raise SystemExit(f"{', '.join(existing)} already exist in {DATA_FOLDER} (real data?). Move them first, "
-                         "or run with --force to overwrite them with fake data.")
-    settings, _ = load_settings(app_data(DATA_FOLDER) / SETTINGS_FILE)
-    make(approvals, conflicts, generate_nights(settings), a.combos, a.seed, settings.semester_name)
-    n = fake_instruments(DATA_FOLDER, settings, a.seed)
-    print(f"Wrote Combo Approvals.xlsx and Conflicts.xlsx in {DATA_FOLDER}, and {n} instrument(s).")
+    n = make_demo(folder, a.combos, a.seed, a.force)
+    print(f"Wrote {APPROVALS_FILE} and {CONFLICTS_FILE} in {folder}, and {n} instrument(s). In the app: Change "
+          "folder..., pick it, then Make schedule.")

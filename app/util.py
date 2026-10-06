@@ -1,10 +1,7 @@
 """Tiny helpers shared by the Excel-facing modules (settings loader and adapters)."""
 import re
 from datetime import date, datetime, time, timedelta
-from pathlib import Path
 
-# The default data folder (spreadsheets, settings, outputs): data/ next to app/. The app can pick another one.
-DATA_FOLDER = Path(__file__).resolve().parent.parent / "data"
 # Instruments in the order members are listed (Combos tab and Combos.pdf): any other instrument first, then these;
 # people with no instrument set yet last.
 INSTRUMENTS = ["Voice", "Trumpet", "Saxophone", "Trombone", "Guitar", "Piano", "Bass", "Drums"]
@@ -21,27 +18,6 @@ def by_instrument(emails, instrument_of, name_of):
     return sorted(emails, key=rank)
 
 
-# The program's own files live in a subfolder of the data folder, so the top shows only what people open.
-APP_DATA = "App data"
-_MOVED_IN = ("settings.json", "settings.json.bak", "scheduler_data.json", "scheduler_data.json.bak", "Schedule backups")
-
-
-def app_data(folder):
-    """folder/App data: settings.json and scheduler_data.json (with their .bak copies) and Schedule backups. In a
-    data folder from before (those at the top), they're moved in the first time. Writers create the folder."""
-    import shutil
-    folder = Path(folder)
-    sub = folder / APP_DATA
-    for name in _MOVED_IN:
-        old, new = folder / name, sub / name
-        if old.exists() and not new.exists():
-            sub.mkdir(exist_ok=True)
-            shutil.move(str(old), str(new))
-    return sub
-
-
-# The input spreadsheets' usual names (the app can pick other files: app_config.py).
-APPROVALS_FILE, CONFLICTS_FILE = "Combo Approvals.xlsx", "Conflicts.xlsx"
 EXCEL_EPOCH = date(1899, 12, 30)
 
 

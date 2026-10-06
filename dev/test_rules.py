@@ -16,7 +16,7 @@ from openpyxl import load_workbook
 
 from inputs import load_input
 from settings_file import DEFAULTS, validate
-from util import app_data
+from data_folder import app_data, lock_path
 
 
 def check(result, inp, settings):
@@ -373,10 +373,10 @@ def main():
     app_config.pick_input_file(tmp, "approvals", elsewhere_dir / "renamed approvals.xlsx")
     files = app_config.input_files(tmp)
     picked_ok = (files["approvals"] == elsewhere_dir / "renamed approvals.xlsx" and files["conflicts"] == usual["conflicts"]
-                 and app_config.input_files(elsewhere_dir)["approvals"] == elsewhere_dir / "Combo Approvals.xlsx")
+                 and app_config.input_files(elsewhere_dir)["approvals"] == elsewhere_dir / "Approvals.xlsx")
     read_ok = len(load_input(tmp, base, files["approvals"], "f.xlsx").combos) == len(inp.combos)
     app_config.pick_input_file(tmp, "approvals", None)
-    ok = picked_ok and read_ok and app_config.input_files(tmp) == usual and usual["approvals"] == tmp / "Combo Approvals.xlsx"
+    ok = picked_ok and read_ok and app_config.input_files(tmp) == usual and usual["approvals"] == tmp / "Approvals.xlsx"
     print(f"{'PASS' if ok else 'FAIL'}  input files: a renamed file in another folder is picked, read, and reset")
     failures += not ok
 
@@ -497,7 +497,7 @@ def main():
         print("      -", b_)
     failures += not ok
 
-    # several computers on one data folder: stale saves refused, the lock file, OneDrive's conflict copies
+    # several computers on one data folder: stale saves refused, the lock file, sync apps' conflict copies
     import json
     import time
     import shared_folder as sf
@@ -523,34 +523,122 @@ def main():
     if sf.holder(lock_dir) or sf.refresh(lock_dir):
         bad.append("our own lock is reported as someone else's")
     other = {"computer": "OFFICE-PC", "user": "ana", "pid": 1, "since": time.time(), "seen": time.time()}
-    (app_data(lock_dir) / sf.LOCK_FILE).write_text(json.dumps(other))
+    lock_path(lock_dir).write_text(json.dumps(other))
     if not sf.holder(lock_dir) or "OFFICE-PC (ana)" not in sf.describe(sf.holder(lock_dir)):
         bad.append("another computer's lock isn't reported")
     if not sf.refresh(lock_dir) or sf.read_lock(lock_dir)["computer"] != "OFFICE-PC":
         bad.append("a refresh overwrote the lock of a computer that took the folder over")
     sf.release(lock_dir)
-    if not (app_data(lock_dir) / sf.LOCK_FILE).exists():
+    if not lock_path(lock_dir).exists():
         bad.append("closing removed another computer's lock")
-    (app_data(lock_dir) / sf.LOCK_FILE).write_text(json.dumps({**other, "seen": time.time() - sf.STALE - 60}))
+    lock_path(lock_dir).write_text(json.dumps({**other, "seen": time.time() - sf.STALE - 60}))
     if sf.holder(lock_dir):
         bad.append("a left-over lock (not updated for a long time) still counts")
     sf.claim(lock_dir)
     sf.release(lock_dir)
-    if (app_data(lock_dir) / sf.LOCK_FILE).exists():
+    if lock_path(lock_dir).exists():
         bad.append("closing didn't remove our lock")
     for n in ("Schedule-OFFICE-PC.xlsx", "Conflicts (1).xlsx", "Schedule.xlsx", "Schedule notes.txt",
-              "Combos-OFFICE-PC-2.pdf"):
+              "Combos-OFFICE-PC-2.pdf", "Schedule (LAPTOP's conflicted copy 2026-10-06).pdf", "Schedule (draft).pdf"):
         (lock_dir / n).write_text("x")
     (app_data(lock_dir) / "settings-LAPTOP.json").write_text("{}")
     (app_data(lock_dir) / "settings.json.bak").write_text("{}")
     copies = sorted(c.name for c, _ in sf.conflict_copies(lock_dir))
-    if copies != ["Combos-OFFICE-PC-2.pdf", "Conflicts (1).xlsx", "Schedule-OFFICE-PC.xlsx", "settings-LAPTOP.json"]:
+    if copies != ["Combos-OFFICE-PC-2.pdf", "Conflicts (1).xlsx", "Schedule (LAPTOP's conflicted copy 2026-10-06).pdf",
+                  "Schedule-OFFICE-PC.xlsx", "settings-LAPTOP.json"]:
         bad.append(f"conflict copies found: {copies}")
     ok = not bad
     print(f"{'PASS' if ok else 'FAIL'}  shared folder: stale saves refused, lock file taken over / left over / released, conflict copies found")
     for b_ in bad:
         print("      -", b_)
     failures += not ok
+    # The data folder can be anywhere: usable or not (and why), and a backup restored into a new folder holds
+    # everything that matters, with an input file picked from outside the folder under its usual name.
+    import os
+    import zipfile
+    import backup
+    import data_folder as dfo
+    bad = []
+    nowhere, a_file = tmp / "not there", tmp / "a file.txt"
+    a_file.write_text("x")
+    if not dfo.problem(nowhere) or not dfo.problem(a_file) or dfo.problem(tmp):
+        bad.append(f"usable folders: {dfo.problem(nowhere)!r}, {dfo.problem(a_file)!r}, {dfo.problem(tmp)!r}")
+    if hasattr(os, "geteuid") and os.geteuid() != 0:      # root can write anywhere
+        locked = tmp / "read-only"
+        locked.mkdir()
+        locked.chmod(0o500)
+        if not dfo.problem(locked):
+            bad.append("a folder that can't be written to passes as usable")
+        locked.chmod(0o700)
+    other_dir = tmp / "some other folder"
+    other_dir.mkdir()
+    (other_dir / "holiday.jpg").write_text("x")
+    src = tmp / "to back up"
+    src.mkdir()
+    if dfo.looks_like_data_folder(other_dir) or not dfo.looks_like_data_folder(tmp / "lockdir") \
+            or not dfo.looks_like_data_folder(src):
+        bad.append("looks_like_data_folder: only a new (empty) folder or one with the scheduler's files is one")
+    (src / dfo.SCHEDULE_XLSX).write_text("schedule")
+    (src / dfo.ARCHIVE / "Fall 2026").mkdir(parents=True)
+    (src / dfo.ARCHIVE / "Fall 2026" / dfo.SCHEDULE_XLSX).write_text("old schedule")
+    dfo.schedule_backups(src).mkdir(parents=True)
+    (dfo.schedule_backups(src) / "Schedule 2026-10-01 120000.xlsx").write_text("before a swap")
+    dfo.settings_path(src).write_text("{}")
+    (dfo.app_data(src) / (dfo.SETTINGS_FILE + ".bak")).write_text("{}")
+    dfo.store_path(src).write_text("{}")
+    dfo.lock_path(src).write_text("{}")
+    (src / ".Schedule.xlsx.123.tmp").write_text("half")
+    picked = elsewhere_dir / "Approvals from the flow.xlsx"
+    picked.write_text("approvals")
+    zip_path = src / backup.backup_name()                  # saved inside the folder: left out of the next one
+    n = backup.create_backup(src, zip_path, {"approvals": picked, "conflicts": src / dfo.CONFLICTS_FILE})
+    backup.create_backup(src, src / "second.zip")
+    with zipfile.ZipFile(src / "second.zip") as zf:
+        if any(name.startswith(backup.PREFIX) for name in zf.namelist()):
+            bad.append("a backup saved in the data folder went into the next backup")
+    info = backup.read_backup(zip_path)
+    if n != 7 or info["files"] != 7 or info.get("inputs from", {}).get("approvals") != str(picked):
+        bad.append(f"backup: {n} files, info {info}")
+    restored = backup.restore_backup(zip_path, backup.new_folder(tmp, "restored"))
+    got = sorted(p.relative_to(restored).as_posix() for p in restored.rglob("*") if p.is_file())
+    want = sorted(["App data/Schedule backups/Schedule 2026-10-01 120000.xlsx", "App data/scheduler_data.json",
+                   "App data/settings.json", "App data/settings.json.bak", "Archive/Fall 2026/Schedule.xlsx",
+                   "Approvals.xlsx", "Schedule.xlsx"])
+    if got != want or (restored / dfo.APPROVALS_FILE).read_text() != "approvals":
+        bad.append(f"restored: {got}")
+    try:
+        backup.restore_backup(zip_path, restored)
+        bad.append("a restore went into a folder that already has things in it")
+    except backup.BackupError:
+        pass
+    a_file.write_text("not a zip")
+    try:
+        backup.read_backup(a_file)
+        bad.append("a file that isn't a zip passed as a backup")
+    except backup.BackupError:
+        pass
+    with zipfile.ZipFile(tmp / "evil.zip", "w") as zf:
+        zf.writestr(backup.INFO, "{}")
+        zf.writestr("../outside.txt", "x")
+    try:
+        backup.read_backup(tmp / "evil.zip")
+        bad.append("a zip with a path outside the folder passed as a backup")
+    except backup.BackupError:
+        pass
+    old = tmp / "old names"                                # a folder from before Approvals.xlsx: still read
+    old.mkdir()
+    (old / dfo.OLD_APPROVALS_FILE).write_text("x")
+    if dfo.usual_inputs(old)["approvals"] != old / dfo.OLD_APPROVALS_FILE:
+        bad.append("the old Combo Approvals.xlsx isn't read when it's the only one")
+    (old / dfo.APPROVALS_FILE).write_text("x")
+    if dfo.usual_inputs(old)["approvals"] != old / dfo.APPROVALS_FILE:
+        bad.append("Approvals.xlsx doesn't win over the old name")
+    ok = not bad
+    print(f"{'PASS' if ok else 'FAIL'}  data folder anywhere: usable or not, backup made and restored into a new folder")
+    for b_ in bad:
+        print("      -", b_)
+    failures += not ok
+
     print("\nAll good." if not failures else f"\n{failures} scenario(s) failed.")
     return failures
 

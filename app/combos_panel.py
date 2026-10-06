@@ -11,12 +11,13 @@ from tkinter import messagebox, simpledialog, ttk
 
 from app_config import input_files
 from core.model import make_label
+from data_folder import COMBOS_PDF, SCHEDULE_XLSX, settings_path
 from inputs import EMAIL_RE, EmailRules, InputError, load_input, name_from_email
 from outputs.excel_schedule import ScheduleFileError, check_semester, open_label, read_schedule, write_swap
-from settings_file import SETTINGS_FILE, SettingsError, load_settings
+from settings_file import SettingsError, load_settings
 from store import Store
 from theme import popup, scrolled_tree
-from util import INSTRUMENTS, app_data, by_instrument
+from util import INSTRUMENTS, by_instrument
 
 
 
@@ -80,7 +81,7 @@ class CombosPanel:
         """quiet: when loading by itself (app start, folder change), a problem is shown in the tab, not a pop-up."""
         folder = self.get_folder()
         try:
-            settings, _ = load_settings(app_data(folder) / SETTINGS_FILE)
+            settings, _ = load_settings(settings_path(folder))
             files = input_files(folder)
             inp = load_input(folder, settings, files["approvals"], files["conflicts"])
             self.store = Store(folder)
@@ -93,10 +94,10 @@ class CombosPanel:
             return
         combos = {c.id: c for c in inp.combos}
         shows, sets, supervised = {}, {}, None
-        if (folder / "Schedule.xlsx").exists():
+        if (folder / SCHEDULE_XLSX).exists():
             try:
-                check_semester(folder / "Schedule.xlsx", settings)
-                sets, _, supervised, _ = read_schedule(folder / "Schedule.xlsx", combos)
+                check_semester(folder / SCHEDULE_XLSX, settings)
+                sets, _, supervised, _ = read_schedule(folder / SCHEDULE_XLSX, combos)
                 for d, row in sets.items():
                     for k, c in row.items():
                         if c:
@@ -554,7 +555,7 @@ class CombosPanel:
         backup = None
         if shows:
             try:
-                backup = write_swap(folder / "Schedule.xlsx", {s: None for s in shows}, self.data["combos"],
+                backup = write_swap(folder / SCHEDULE_XLSX, {s: None for s in shows}, self.data["combos"],
                                     open_label(settings))
             except ScheduleFileError as e:
                 messagebox.showerror("Couldn't withdraw", str(e))
@@ -633,7 +634,7 @@ class CombosPanel:
         except ImportError:
             messagebox.showerror("Combo list", "The PDF needs the reportlab package: Run tab > Install missing packages.")
             return
-        path = self.get_folder() / "Combos.pdf"
+        path = self.get_folder() / COMBOS_PDF
         combos = sorted(self.data["combos"].values(), key=lambda c: c.name)
         try:
             write_combos_pdf(path, combos, self.name, self.data["settings"].semester_name, self.data["instruments"])

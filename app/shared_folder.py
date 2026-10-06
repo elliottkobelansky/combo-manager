@@ -1,11 +1,13 @@
-"""Several computers on one data folder (shared in OneDrive).
+"""Several computers on one data folder (kept in sync by OneDrive, SharePoint, Dropbox, a network drive...). Nothing
+here depends on which: on a folder only this computer uses, it all still works and simply never finds anything.
 
     lock file      'App data/In use.json' says which computer has the app open on this folder; a second computer is
                    told and can open it anyway (it takes the folder over, and the first is told when it next checks)
     safe writes    write_text: a temp file renamed over the old one, so a crash or a sync never leaves half a file
     fingerprints   what a file held when it was read, so a save can tell it changed on disk since (another computer
-                   saved it and OneDrive synced it in)
-    copies         OneDrive's conflict copies ('Schedule-OFFICE-PC.xlsx', 'settings (1).json'), to point out
+                   saved it and the sync brought it in)
+    copies         a sync app's conflict copies ('Schedule-OFFICE-PC.xlsx', 'settings (1).json',
+                   "Schedule (OFFICE-PC's conflicted copy).xlsx"), to point out
 
 Standard library only: the app uses this before checking that the other packages are installed.
 """
@@ -19,9 +21,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from util import app_data
-
-LOCK_FILE = "In use.json"
+from data_folder import APP_DATA_FILES, TOP_FILES, app_data, lock_path
 REFRESH = 3 * 60             # seconds between "still here" updates of the lock file
 STALE = 15 * 60              # a lock not updated for this long is left over (a crash, a computer put to sleep)
 
@@ -76,7 +76,7 @@ def _is_me(lock):
 
 def read_lock(folder):
     try:
-        lock = json.loads((app_data(folder) / LOCK_FILE).read_text(encoding="utf-8"))
+        lock = json.loads(lock_path(folder).read_text(encoding="utf-8"))
         return lock if isinstance(lock, dict) else None
     except (OSError, ValueError):
         return None
@@ -104,7 +104,7 @@ def claim(folder):
     old = read_lock(folder)
     since = old["since"] if old and _is_me(old) else time.time()
     try:
-        write_text(app_data(folder) / LOCK_FILE, json.dumps({**me(), "since": since, "seen": time.time()}))
+        write_text(lock_path(folder), json.dumps({**me(), "since": since, "seen": time.time()}))
     except OSError:
         pass
 
@@ -124,29 +124,27 @@ def release(folder):
     lock = read_lock(folder)
     if lock and _is_me(lock):
         try:
-            (app_data(folder) / LOCK_FILE).unlink()
+            lock_path(folder).unlink()
         except OSError:
             pass
 
 
-# ---------------------------------------------------------------- OneDrive conflict copies
-
-WATCHED = ["Combo Approvals.xlsx", "Conflicts.xlsx", "Schedule.xlsx", "Schedule.pdf", "Combos.pdf",
-           "Contact lists.xlsx"]
-WATCHED_APP_DATA = ["settings.json", "scheduler_data.json"]
+# ---------------------------------------------------------------- conflict copies
 
 
 def conflict_copies(folder):
-    """Files that look like OneDrive kept two versions of one of ours: 'Schedule-OFFICE-PC.xlsx',
-    'Schedule-OFFICE-PC-2.xlsx', 'settings (1).json'. -> [(copy, the usual file)], as paths."""
+    """Files that look like a sync app kept two versions of one of ours: 'Schedule-OFFICE-PC.xlsx',
+    'Schedule-OFFICE-PC-2.xlsx', 'settings (1).json' (OneDrive, SharePoint, Google Drive), "Schedule (OFFICE-PC's
+    conflicted copy 2026-10-06).xlsx" (Dropbox). -> [(copy, the usual file)], as paths."""
     found = []
-    for where, names in ((Path(folder), WATCHED), (app_data(folder), WATCHED_APP_DATA)):
+    for where, names in ((Path(folder), TOP_FILES), (app_data(folder), APP_DATA_FILES)):
         try:
             present = [p for p in where.iterdir() if p.is_file()]
         except OSError:
             continue
         for name in names:
             stem, ext = os.path.splitext(name)
-            pattern = re.compile(re.escape(stem) + r"(-[^.\\/]+| \(\d+\))" + re.escape(ext) + "$", re.IGNORECASE)
+            pattern = re.compile(re.escape(stem) + r"(-[^.\\/]+| \(\d+\)| \([^()]*conflicted copy[^()]*\))"
+                                 + re.escape(ext) + "$", re.IGNORECASE)
             found += [(p, where / name) for p in present if pattern.match(p.name)]
     return sorted(found)

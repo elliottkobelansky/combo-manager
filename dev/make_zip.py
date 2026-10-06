@@ -1,20 +1,21 @@
 """Builds a zip of the program to hand out: the files in git (the launchers, app/, dev/, the guides), in a
-'Combo Scheduler' folder, run permissions kept. No data: the program lives on each computer and the data folder in
-OneDrive (the app asks for it on first run).
+'Combo Scheduler' folder, run permissions kept. No data: the program lives on each computer and the data folder wherever
+the director chooses (the app asks for it on first run).
 
     python dev/make_zip.py [--demo] [--mac] [--out PATH]
 
---demo  adds a 'Demo data' folder (a copy of data/: the fake semester) to try the app with
+--demo  adds a 'Demo data' folder, made fresh by make_fake_forms.py (example settings, fake forms), to try the app
+        with: choose it as the data folder
 --mac   leaves out the Windows launcher (.bat): Gmail refuses zips that contain one
 --out   where to write it (default: next to the project folder, combo-scheduler.zip)
 """
 import argparse
 import subprocess
+import tempfile
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SKIP_DATA = (".bak", "cfg.json", "In use.json", ".tmp")    # backups, test-only config, the lock file, half-written files
 
 
 def add(zf, path, name):
@@ -39,10 +40,11 @@ def main():
         for f in files:
             add(zf, ROOT / f, f"Combo Scheduler/{f}")
         if a.demo:
-            data = ROOT / "data"
-            for p in sorted(data.rglob("*")):
-                rel = p.relative_to(data)
-                if rel.parts[0] != "Archive" and not p.name.endswith(SKIP_DATA):
+            from make_fake_forms import make_demo         # dev/, next to this file
+            with tempfile.TemporaryDirectory() as tmp:
+                make_demo(tmp)
+                for p in sorted(Path(tmp).rglob("*")):
+                    rel = p.relative_to(tmp)
                     add(zf, p, f"Demo data/{rel.as_posix()}" + ("/" if p.is_dir() else ""))
     with zipfile.ZipFile(out) as zf:
         bad = zf.testzip()

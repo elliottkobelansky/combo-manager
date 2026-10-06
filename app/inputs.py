@@ -1,6 +1,6 @@
 """Reads the two input files straight into the solver's input (core.model.ScheduleInput).
 
-COMBO APPROVALS (Combo Approvals.xlsx, table Approvals, filled by the approval flow; the director decides Status).
+COMBO APPROVALS (Approvals.xlsx, table Approvals, filled by the approval flow; the director decides Status).
 Columns found by words in the header, so exact wording and order don't matter:
     Response Id | Submitted | Semester | Liaison | Members | Supervisor | First year | Status | Decided by | ... | Notes
       - Members: every member's email, any separator and any text around them ("piano: ana.ruiz@..." works);
@@ -37,7 +37,8 @@ from openpyxl.utils.exceptions import InvalidFileException
 
 from core.model import Combo, ScheduleInput
 from store import Store
-from util import APPROVALS_FILE, CONFLICTS_FILE, blank, to_date  # noqa: F401  (others import the names from here)
+from data_folder import APPROVALS_FILE, CONFLICTS_FILE  # noqa: F401  (others import the names from here)
+from util import blank, to_date
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+'\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
 EXAMPLE_NAMES = {"first.last"}                      # placeholder addresses from the form text (first.last@<domain>)

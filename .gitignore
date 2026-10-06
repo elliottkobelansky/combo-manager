@@ -1,6 +1,6 @@
-# Data and outputs live in the (OneDrive) data folder, not in git: from Winter 2027 they hold real student emails.
+# Data and outputs live in the data folder chosen in the app, never in the program folder: from Winter 2027 they
+# hold real student emails. In case a data folder ends up in here anyway, none of it goes into git:
 data/
-# ...and in case a data folder ends up somewhere else in here:
 *.xlsx
 *.pdf
 !Quick Start.pdf
@@ -8,6 +8,7 @@ data/
 scheduler_data.json
 settings.json
 Schedule backups/
+Combo Scheduler backup*.zip
 
 # Python
 __pycache__/

@@ -40,31 +40,37 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [ ] Once real sign-ups are in: tune "Ideal days between shows" with `python app/solve.py --compare-gaps 14 21 28 35`.
 - [ ] Solver time: 90 (the new default; the current fake `settings.json` still says 30).
 
-### 3. Hand-over: program local, data in OneDrive (decided 2026-10-05)
-- **Synced (OneDrive), one shared folder e.g. `Combo Scheduler data`:** at the top `Combo Approvals.xlsx` and
+### 3. Hand-over: program local, data in one data folder (decided 2026-10-05; any folder since 2026-10-06)
+- **The data folder, e.g. `Combo Scheduler data`:** any folder; shared through OneDrive / SharePoint when several
+  computers use it, but the app doesn't care (`app/data_folder.py`). At the top `Approvals.xlsx` and
   `Conflicts.xlsx` (the flows write there), `Schedule.xlsx`, the PDFs and contact lists, `Archive/` (past
   semesters); in `App data/` the program's own files: `settings.json`, `scheduler_data.json`, `Schedule backups/`.
 - **Local (each computer):** the program (unzipped folder now, the packaged app later), `~/.combo-scheduler-python`
   (rebuilt if missing), `~/.combo_scheduler.json` (which data folder, text size, dark mode: per computer on purpose).
-- [x] First run with no data folder chosen (and no `data/` with files next to the program) asks for it; a folder that
-  has gone (OneDrive not signed in) is asked for again, never silently swapped.
+- [x] First run with no data folder chosen asks for it (choose / make a new one / restore a backup); the
+  program folder holds no data (the old `data/` there is gone; demo data is made anywhere with `make_fake_forms.py`); a folder that has gone (sync not connected) is asked for again,
+  never silently swapped. A folder that can't be written to, or has other things in it, is pointed out.
+- [x] **Back up... / Restore...** (2026-10-06, `app/backup.py`): the whole data folder as one zip; restore goes into
+  a new folder, never over the current one.
 - [x] `python dev/make_zip.py [--demo] [--mac]`: the program without data; `--demo` adds the fake data as "Demo data".
-- [x] Quick Start + README describe it (program local, data folder in OneDrive, new computer = pick it again).
+- [x] Quick Start + README describe it (program local, data folder anywhere, new computer = pick it again or
+  restore a backup).
 - [ ] Point both flows at the shared data folder.
 - [ ] Try it on the **director's** computer (Windows or Mac), including the Mac "Open Anyway" step.
 - [ ] Walk the director through `Quick Start.pdf` once.
 
 ### 4. Safety (small, worth doing)
-- [x] Backed up: private GitHub repo `elliottkobelansky/combo-scheduler` (2026-10-05; `data/` is never pushed).
+- [x] Backed up: private GitHub repo `elliottkobelansky/combo-scheduler` (2026-10-05; no data in it).
 - [ ] Pin package versions (`requirements.txt`, used by the Install button).
 - [x] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `settings.json` and swap saves of
-  `Schedule.xlsx` (2026-10-05). A brand-new schedule (Make schedule) still saves directly.
+  `Schedule.xlsx` (2026-10-05); a brand-new schedule and backups too (2026-10-06). The PDFs and contact lists (rebuilt
+  any time) still save directly.
 - [ ] A log file in the data folder, for "send this to whoever maintains it".
-- [x] **Several computers on one OneDrive data folder** (2026-10-05, `app/shared_folder.py`): lock file
+- [x] **Several computers on one shared data folder** (2026-10-05, `app/shared_folder.py`): lock file
   `App data/In use.json` (told who has it open, open anyway = take over, the other is told once; stale after 15
   min); saves refused when the file changed on disk since it was read (combo edits, settings: yours / theirs /
-  cancel; pending swaps checked against `Schedule.xlsx` as it is now); OneDrive conflict copies pointed out at
-  start. Not done: a real read-only mode for the second computer (it's warned instead). Try it with two real
+  cancel; pending swaps checked against `Schedule.xlsx` as it is now); sync apps' conflict copies pointed out at
+  start (OneDrive / SharePoint, Dropbox). Not done: a real read-only mode for the second computer (it's warned instead). Try it with two real
   computers on OneDrive.
 
 ---
@@ -72,7 +78,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 ## Later (optional)
 
 - **A real app** (PyInstaller): `Combo Scheduler.app` / `.exe`, no Python install. Built on GitHub Actions (or
-  the Mac app on a Mac); default data folder `~/Documents/Combo Scheduler`; ~150-250 MB; unsigned = "Open Anyway"
+  the Mac app on a Mac); data folder chosen on first run as now; ~150-250 MB; unsigned = "Open Anyway"
   once (signing needs an Apple Developer account).
 - **Per-instrument limits** on combos per student (asked 2026-10-05): horn players in at most 1 combo, rhythm
   section (piano, guitar, bass, drums) in at most 2. A warning in Check, the Combos tab and Add member, set in the
@@ -113,7 +119,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   warning, year check), About. Setup screen on first run, text size, dark mode, horizontal scrollbars.
 - **Schedule file:** `Schedule.xlsx` is hand-editable, records its semester, and decides the nights once it
   exists; a new semester files the old files into `Archive/<semester>`.
-- **Project:** git + private GitHub repo, `app/` `data/` `dev/` layout, launchers that find a Python with tkinter, the Mac zip,
+- **Project:** git + private GitHub repo, `app/` `dev/` layout (data in the chosen data folder), launchers that find a Python with tkinter, the Mac zip,
   realistic fake data (instruments, supervisors), `Quick Start.pdf`.
 
 ## Decisions (so they aren't re-opened)

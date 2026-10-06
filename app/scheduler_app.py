@@ -4,8 +4,9 @@ tab), and change the settings (Settings tab, saved in settings.json).
     Double-click "Make Schedule.bat" (Windows), "Make Schedule.command" (Mac) or "make-schedule.sh" (Linux),
     or run:  python app/scheduler_app.py
 
-It runs solve.py inside this window, on the data folder shown at the top (by default data/ next to app/;
-"Change..." picks another one and is remembered). Needs Python 3 with tkinter (standard on Windows and the
+It runs solve.py inside this window, on the data folder shown at the top: any folder, on this computer or kept in
+sync (OneDrive, SharePoint, a network drive), picked on first run and remembered on this computer ("Change folder..."
+picks another; data_folder.py says what's in it, backup.py zips it). Needs Python 3 with tkinter (standard on Windows and the
 python.org Mac installer) plus openpyxl, ortools and reportlab; the window offers to install those.
 """
 import contextlib
@@ -18,13 +19,16 @@ import sys
 import threading
 import time
 import traceback
+from datetime import datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from app_config import input_files, is_picked, load_config, pick_input_file, save_config  # noqa: E402
-from util import APPROVALS_FILE, CONFLICTS_FILE, DATA_FOLDER, app_data  # noqa: E402  (both standard library only, safe before packages are installed)
-import shared_folder  # noqa: E402  (standard library only too)
+# these three are standard library only: safe before the packages are installed
+from app_config import input_files, is_picked, load_config, pick_input_file, save_config, saved_folder  # noqa: E402
+from data_folder import (APP_DATA, APPROVALS_FILE, CONFLICTS_FILE, OLD_APPROVALS_FILE, SCHEDULE_PDF,  # noqa: E402
+                         SCHEDULE_XLSX, app_data, looks_like_data_folder, problem, settings_path, usual_inputs)
+import shared_folder  # noqa: E402
 AUTHOR, EMAIL = "Elliott Kobelansky", "elliottkobelansky@gmail.com"
 PACKAGES = {"openpyxl": "openpyxl", "ortools": "ortools", "reportlab": "reportlab"}   # import name -> pip name
 OPTIONAL = {"tkcalendar": "tkcalendar", "sv_ttk": "sv-ttk"}   # pop-up calendars; the modern look
@@ -94,23 +98,25 @@ def open_path(path):
 
 
 def load_folder():
-    """The data folder: the one picked before; else a data/ next to the program that already has files (a developer
-    setup); else None, and the app asks. A picked folder that's gone (e.g. OneDrive not signed in) is asked for again,
-    never silently swapped for another."""
-    folder = load_config().get("folder")
-    if folder and Path(folder).is_dir():
-        return Path(folder)
-    if not folder and DATA_FOLDER.is_dir() and any(DATA_FOLDER.iterdir()):
-        return DATA_FOLDER
-    return None
+    """The data folder picked before on this computer, when it can be used; else None, and the app asks. A picked
+    folder that's gone (a sync app or network drive not connected yet, say) is asked for again, never silently
+    swapped for another."""
+    folder = saved_folder()
+    return folder if not problem(folder) else None
 
 
 def save_folder(folder):
     save_config(folder=str(folder))
 
 
+def default_parent():
+    """Where to suggest a new data folder or a backup: Documents, else the home folder."""
+    docs = Path.home() / "Documents"
+    return docs if docs.is_dir() else Path.home()
+
+
 def shorten(text, room):
-    """Long paths shortened in the middle: '/home/.../OneDrive/Combos'."""
+    """Long paths shortened in the middle: '/home/.../Shared/Combos'."""
     return text if len(text) <= room else text[:room // 3] + " \u2026 " + text[-(room - room // 3 - 3):]
 
 
@@ -156,27 +162,91 @@ class App:
         else:
             self.build_main()
 
-    def ask_first_folder(self):
-        """No data folder yet (first run), or the one picked before is gone: ask for it. False = the user quit."""
-        gone = load_config().get("folder")
-        intro = (f"The data folder used before can't be found:\n{gone}\n\nIs OneDrive running and signed in? "
-                 "Then pick the folder again." if gone else
-                 "Welcome! Pick the Combo Scheduler data folder: the shared folder (in OneDrive) with Combo "
-                 "Approvals.xlsx, Conflicts.xlsx and settings.json.\n\nSetting up for the very first time? Make an "
-                 "empty folder in OneDrive, e.g. 'Combo Scheduler data', and pick that.")
-        while True:
-            if not messagebox.askokcancel("Data folder", intro, icon="info"):
-                return False
-            picked = filedialog.askdirectory(title="The Combo Scheduler data folder")
-            if picked:
-                self.folder = Path(picked)
-                save_folder(self.folder)
-                return True
+    # ------------------------------------------------------------ no data folder yet: ask where it is
+    def folder_screen(self):
+        """First run, or the folder picked before can't be used: where the data folder is (an existing one, a new
+        one, or one restored from a backup). The full app opens once one is chosen."""
+        gone = saved_folder()
+        frame = ttk.Frame(self.shell, padding=(24, 20))
+        frame.pack(fill="both", expand=True, pady=(14, 0))
+        if gone:
+            title = "The data folder can't be opened"
+            text = (f"The data folder used before on this computer can't be used: {problem(gone)}.\n\n    {gone}\n\n"
+                    "If it's in a synced or shared folder (OneDrive, SharePoint, a network drive), check that it's "
+                    "connected and finished syncing, then choose it again. Otherwise choose another folder, or "
+                    "restore a backup.")
+        else:
+            title = "Where should the scheduler keep its files?"
+            text = ("The scheduler keeps everything in one data folder: the two spreadsheets from the forms "
+                    "(Approvals.xlsx and Conflicts.xlsx), the settings, the schedule, the PDFs and the past "
+                    "semesters. The program itself can be installed again any time; the data folder is what matters."
+                    "\n\n\u2022  Only this computer will use the scheduler: any folder on it works, e.g. "
+                    "Documents/Combo Scheduler data. Make a backup now and then (the Back up... button) and keep "
+                    "it somewhere else.\n\u2022  Several computers, or someone taking over later: use a folder "
+                    "that's shared and kept in sync, e.g. in OneDrive, SharePoint or on a network drive. Each "
+                    "computer chooses the same folder once.\n\nThe choice is remembered on this computer; "
+                    "\"Change folder...\" picks another later.")
+        ttk.Label(frame, text=title, style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(frame, text=text, wraplength=760, justify="left").pack(anchor="w", pady=(8, 20))
+        row = ttk.Frame(frame)
+        row.pack(anchor="w")
 
-    def build_main(self):
-        """The full app: data folder, Run tab, and the other tabs."""
+        def use(folder):
+            if folder and self.accept_folder(folder):
+                frame.destroy()
+                self.folder = folder
+                save_folder(folder)
+                self.build_main(taken=True)
+
+        def existing():
+            picked = filedialog.askdirectory(title="The Combo Scheduler data folder",
+                                             initialdir=str(gone.parent if gone and gone.parent.is_dir() else
+                                                            default_parent()))
+            use(Path(picked) if picked else None)
+
+        def new():
+            parent = filedialog.askdirectory(title="Where to make the new 'Combo Scheduler data' folder",
+                                             initialdir=str(default_parent()))
+            if parent:
+                from backup import new_folder
+                folder = new_folder(parent, "Combo Scheduler data")
+                try:
+                    folder.mkdir()
+                except OSError as e:
+                    messagebox.showerror("Can't make the folder", f"Can't make {folder}:\n{e}")
+                    return
+                use(folder)
+
+        def quit_():
+            self.closed = True
+            self.root.destroy()
+        ttk.Button(row, text="Choose existing folder...", style="Accent.TButton", command=existing).pack(side="left")
+        ttk.Button(row, text="Make a new folder...", command=new).pack(side="left", padx=(8, 0))
+        ttk.Button(row, text="Restore from a backup...", command=lambda: use(self.restore())).pack(side="left",
+                                                                                              padx=(8, 0))
+        ttk.Button(row, text="Quit", command=quit_).pack(side="left", padx=(24, 0))
+
+    def accept_folder(self, folder):
+        """Checks a folder before it becomes the data folder: it can be used, it's meant to be one, and no one else
+        has it open (or the user opens it anyway). True = go ahead (it's marked as open here)."""
+        why = problem(folder)
+        if why:
+            messagebox.showerror("Can't use this folder", f"{folder}\n\nThis folder can't be the data folder: {why}.")
+            return False
+        if not looks_like_data_folder(folder) and not messagebox.askyesno(
+                "Use this folder?", f"{folder}\n\nThis folder has other things in it and no scheduler files. The "
+                "scheduler's files would be added among them.\n\nUse it anyway? (Usually better: a folder of its "
+                "own, e.g. 'Combo Scheduler data'.)", icon="warning", default="no"):
+            return False
+        return self.take_folder(folder)
+
+    def build_main(self, taken=False):
+        """The full app: data folder, Run tab, and the other tabs. taken: the folder was just checked and marked."""
         shell = self.shell
-        if (self.folder is None and not self.ask_first_folder()) or not self.take_folder(self.folder):
+        if self.folder is None:
+            self.folder_screen()
+            return
+        if not taken and not self.take_folder(self.folder):
             self.closed = True
             self.root.destroy()
             return
@@ -184,6 +254,8 @@ class App:
         where.pack(fill="x", pady=(4, 0))
         ttk.Button(where, text="Open folder", command=lambda: open_path(self.folder)).pack(side="right", padx=(6, 0))
         ttk.Button(where, text="Change folder...", command=self.change_folder).pack(side="right")
+        ttk.Button(where, text="Restore...", command=self.restore_and_switch).pack(side="right", padx=(0, 6))
+        ttk.Button(where, text="Back up...", command=self.make_backup).pack(side="right", padx=(0, 6))
         self.folder_label = ttk.Label(where, text=self.folder_text(), style="Sub.TLabel")
         self.folder_label.pack(side="left", fill="x", expand=True)
 
@@ -207,12 +279,13 @@ class App:
         self.schedule = SchedulePanel(self.tabs, self.swaps, self.goto_swaps,
                                       lambda done: self.run(["--stats", "--pdf"], "Exporting Schedule.pdf...",
                                                             on_done=done),
-                                      lambda: self.open_file("Schedule.pdf"), lambda: self.palette, open_path)
+                                      lambda: self.open_file(SCHEDULE_PDF), lambda: self.palette, open_path)
         self.tabs.insert(1, self.schedule.frame, text="Schedule")
         self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette, on_save=self.autoload,
-                                      on_dirty=lambda dirty: self.tabs.tab(self.settings.frame,
-                                                                           text="Settings \u25cf" if dirty else "Settings"))
-        self.tabs.add(self.settings.frame, text="Settings")
+                                      on_dirty=lambda dirty: self.settings and self.tabs.tab(
+                                          self.settings.frame, text="Settings \u25cf" if dirty else "Settings"))
+        # (a new data folder has no settings yet: unsaved from the start, before self.settings is set)
+        self.tabs.add(self.settings.frame, text="Settings \u25cf" if self.settings.dirty else "Settings")
         self.current_tab = None
         self.tabs.bind("<<NotebookTabChanged>>", self.tab_changed)
         self.tabs.add(self.about_tab(), text="About")
@@ -221,7 +294,7 @@ class App:
         sources = ttk.Frame(run_tab)
         sources.pack(fill="x", pady=(0, 12))
         self.source_labels = {}
-        for r, (which, title) in enumerate([("approvals", "Combo approvals"), ("conflicts", "Conflicts")]):
+        for r, (which, title) in enumerate([("approvals", "Approvals"), ("conflicts", "Conflicts")]):
             ttk.Label(sources, text=title + ":", width=17, anchor="w").grid(row=r, column=0, sticky="w", pady=2)
             label = ttk.Label(sources, text="", style="Hint.TLabel", anchor="w")
             label.grid(row=r, column=1, sticky="ew", padx=(0, 8))
@@ -230,14 +303,13 @@ class App:
             reset.grid(row=r, column=3, padx=(6, 0), pady=2)
             self.source_labels[which] = (label, reset)
         sources.columnconfigure(1, weight=1)
-        self.show_sources()
 
         # the three steps, as cards
         cards = ttk.Frame(run_tab)
         cards.pack(fill="x")
         for col, (num, title, hint, label, cmd) in enumerate([
-            ("1", "Check inputs", "Reads Combo Approvals.xlsx and Conflicts.xlsx and lists anything to look at. "
-             "Changes nothing.", "Check", lambda: self.run(["--check"], "Checking the inputs...")),
+            ("1", "Check inputs", "", "Check",             # hint: the input files' names (show_sources)
+             lambda: self.run(["--check"], "Checking the inputs...")),
             ("2", "Make schedule", "Builds a new Schedule.xlsx and Schedule.pdf. Once per semester.",
              "Make schedule", self.make_schedule),
             ("3", "Check the schedule", "Rule check and stats for Schedule.xlsx as it is now (after swaps or edits "
@@ -251,21 +323,23 @@ class App:
             ttk.Label(card, text=title, style="CardTitle.TLabel").pack(anchor="w", pady=(2, 4))
             hint_label = ttk.Label(card, text=hint, style="Hint.TLabel", justify="left")
             hint_label.pack(anchor="w", fill="x")
+            if num == "1":
+                self.step1_hint = hint_label
             card.bind("<Configure>", lambda e, l=hint_label: l.configure(wraplength=max(e.width - 34, 120)))
             b = ttk.Button(card, text=label, style="Accent.TButton", command=cmd)
             b.pack(anchor="w", pady=(12, 0))
             self.buttons.append(b)
+        self.show_sources()
 
         files = ttk.Frame(run_tab)
         files.pack(fill="x", pady=(14, 8))
-        for name in ("Schedule.pdf", "Schedule.xlsx"):
+        for name in (SCHEDULE_PDF, SCHEDULE_XLSX):
             ttk.Button(files, text=f"Open {name}", command=lambda n=name: self.open_file(n)).pack(side="left", padx=(0, 8))
 
         self.output_panel(run_tab)
         self.status = ttk.Label(shell, text="Ready.", style="Hint.TLabel")
         self.status.pack(fill="x", pady=(8, 0))
-        self.write("Ready. Make sure the two spreadsheets above are the latest (OneDrive can keep them synced), "
-                   "then start with step 1.\n")
+        self.write("Ready. Make sure the two spreadsheets above are the latest, then start with step 1.\n")
         self.root.after(300, self.autoload)
         self.root.after(shared_folder.REFRESH * 1000, self.keep_folder)
         self.root.after(800, self.check_copies)
@@ -296,12 +370,13 @@ class App:
         self.root.after(shared_folder.REFRESH * 1000, self.keep_folder)
 
     def check_copies(self):
-        """OneDrive's conflict copies in the data folder ('Schedule-OFFICE-PC.xlsx'): says which to sort out."""
+        """A sync app's conflict copies in the data folder ('Schedule-OFFICE-PC.xlsx'): says which to sort out."""
         copies = shared_folder.conflict_copies(self.folder)
         if copies:
             lines = "\n".join(f"  {c.relative_to(self.folder)}  (next to {u.name})" for c, u in copies)
             messagebox.showwarning(
-                "Two versions of a file", "OneDrive kept two versions of these files, probably because two computers "
+                "Two versions of a file", "The sync app (OneDrive, Dropbox, ...) kept two versions of these files, "
+                "probably because two computers "
                 f"saved them at the same time:\n\n{lines}\n\nThe app only reads the file with the usual name. Open "
                 "the data folder, compare the two, keep the right one under the usual name and delete the other.")
 
@@ -430,11 +505,20 @@ class App:
         return tab
 
     def show_sources(self):
-        """The Run tab's two input lines: which file each one is, and whether it's there."""
+        """The Run tab's two input lines: which file each one is, and whether it's there; and Step 1 names them."""
+        files = input_files(self.folder)
+        self.step1_hint.configure(text=f"Reads {files['approvals'].name} and {files['conflicts'].name} and lists "
+                                       "anything to look at. Changes nothing.")
         for which, (label, reset) in self.source_labels.items():
-            path, picked = input_files(self.folder)[which], is_picked(self.folder, which)
-            text = shorten(str(path), 70) if picked else f"{path.name} in the data folder"
-            label.configure(text=text + ("" if path.exists() else "   (not there yet)"))
+            path, picked = files[which], is_picked(self.folder, which)
+            try:                                      # any name; in the data folder (or a folder in it), or anywhere
+                text = f"{path.relative_to(self.folder).as_posix()} in the data folder"
+            except ValueError:
+                text = shorten(str(path), 70)
+            if not path.exists():                     # 'App data' sounds like the place for it, but isn't
+                text += (f"   (not there: it's in {APP_DATA}, move it up one level)"
+                         if not picked and (app_data(self.folder) / path.name).exists() else "   (not there yet)")
+            label.configure(text=text)
             if picked:
                 reset.grid()
             else:
@@ -446,19 +530,25 @@ class App:
         else:
             current = input_files(self.folder)[which]
             picked = filedialog.askopenfilename(
-                title="Combo approvals spreadsheet" if which == "approvals" else "Conflicts spreadsheet",
+                title="Approvals spreadsheet" if which == "approvals" else "Conflicts spreadsheet",
                 initialdir=str(current.parent if current.parent.is_dir() else self.folder),
                 filetypes=[("Excel workbook", "*.xlsx"), ("All files", "*.*")])
             if not picked:
                 return
             picked = Path(picked)
-            usual = self.folder / (APPROVALS_FILE if which == "approvals" else CONFLICTS_FILE)
+            other = "conflicts" if which == "approvals" else "approvals"
+            others = [CONFLICTS_FILE] if which == "approvals" else [APPROVALS_FILE, OLD_APPROVALS_FILE]
+            if picked.name.lower() in [n.lower() for n in others] or picked == input_files(self.folder)[other]:
+                messagebox.showerror("Wrong spreadsheet", f"{picked.name} is the {other} spreadsheet. Choose the "
+                                     + ("approvals" if which == "approvals" else "conflicts") + " one here.")
+                return
+            usual = usual_inputs(self.folder)[which]
             pick_input_file(self.folder, which, None if picked == usual else picked)   # the usual file: nothing to remember
         self.show_sources()
         self.autoload()
 
     def folder_text(self, room=60):
-        """The data folder, shortened in the middle when long: 'Data folder:  /home/.../OneDrive/Combos'."""
+        """The data folder, shortened in the middle when long: 'Data folder:  /home/.../Shared/Combos'."""
         return f"Data folder:  {shorten(str(self.folder), room)}"
 
     def color_output(self):
@@ -527,20 +617,103 @@ class App:
         if self.settings and not self.settings.ask_to_save():
             self.tabs.select(self.settings.frame)
             return
-        picked = filedialog.askdirectory(initialdir=str(self.folder), title="Folder with Combo Approvals.xlsx, "
-                                         "Conflicts.xlsx and settings.json")
-        if picked and Path(picked) != self.folder:
-            if not self.take_folder(Path(picked)):
+        picked = filedialog.askdirectory(initialdir=str(self.folder), title="The Combo Scheduler data folder")
+        if picked:
+            self.switch_folder(Path(picked))
+
+    def switch_folder(self, folder):
+        """Makes folder the data folder from now on (after checking it), and loads everything from it."""
+        if folder == self.folder or not self.accept_folder(folder):
+            return
+        shared_folder.release(self.folder)
+        self.folder = folder
+        self.folder_label.configure(text=self.folder_text())
+        save_folder(self.folder)
+        self.show_sources()
+        if self.settings:
+            self.settings.reload()
+        self.autoload()
+        self.check_copies()
+
+    # backups (backup.py)
+    def make_backup(self):
+        """Zips the data folder to a place the user picks (remembered on this computer)."""
+        from backup import backup_name, create_backup
+        start = Path(load_config().get("backup_dir") or default_parent())
+        picked = filedialog.asksaveasfilename(
+            title="Save a backup of the data folder", initialdir=str(start if start.is_dir() else default_parent()),
+            initialfile=backup_name(), defaultextension=".zip", filetypes=[("Zip file", "*.zip")])
+        if not picked:
+            return
+        dest = Path(picked)
+        self.status.configure(text="Making the backup...")
+
+        def work():
+            try:
+                return create_backup(self.folder, dest, input_files(self.folder))
+            except OSError as e:
+                return e
+
+        def done(n):
+            if isinstance(n, OSError):
+                self.status.configure(text="")
+                messagebox.showerror("Backup", f"Couldn't make the backup:\n{n}")
                 return
-            shared_folder.release(self.folder)
-            self.folder = Path(picked)
-            self.folder_label.configure(text=self.folder_text())
-            save_folder(self.folder)
-            self.show_sources()
-            if self.settings:
-                self.settings.reload()
-            self.autoload()
-            self.check_copies()
+            save_config(backup_dir=str(dest.parent))
+            self.status.configure(text=f"Backup saved: {dest} ({n} files).")
+            inside = dest.resolve().is_relative_to(self.folder.resolve())
+            messagebox.showinfo("Backup saved", f"Saved {dest.name} ({n} files) in:\n{dest.parent}\n\n" + (
+                "It's inside the data folder, so it's lost along with it: copy it somewhere else too (another "
+                "drive, a USB stick, an email to yourself)." if inside else
+                "Keep it somewhere that wouldn't be lost along with this computer or the data folder. To use it: "
+                "Restore... (or the first-run screen on a new computer)."))
+        from theme import in_background
+        in_background(self.root, work, done)
+
+    def restore(self):
+        """Asks for a backup zip and where to put it; unpacks it into a new folder there. -> that folder, or None.
+        The current data folder is never touched."""
+        from backup import BackupError, new_folder, read_backup, restore_backup
+        start = Path(load_config().get("backup_dir") or default_parent())
+        picked = filedialog.askopenfilename(title="The backup to restore",
+                                            initialdir=str(start if start.is_dir() else default_parent()),
+                                            filetypes=[("Zip file", "*.zip"), ("All files", "*.*")])
+        if not picked:
+            return None
+        try:
+            info = read_backup(picked)
+        except BackupError as e:
+            messagebox.showerror("Restore", str(e))
+            return None
+        made = info.get("made", "").replace("T", " ")[:16]
+        about = (f"made {made} on {info.get('computer', '?')}, " if made else "") + f"{info['files']} files"
+        if not messagebox.askokcancel(
+                "Restore", f"{Path(picked).name}\n({about})\n\nNext, choose where to put it: it's unpacked into a "
+                "new folder there, which becomes the data folder. Nothing that exists now is changed.\n\n"
+                "Several computers? Put it in the shared/synced folder they all use."):
+            return None
+        parent = filedialog.askdirectory(title="Where to put the restored data folder",
+                                         initialdir=str(default_parent()))
+        if not parent:
+            return None
+        dest = new_folder(parent, f"Combo Scheduler data (restored {datetime.now():%Y-%m-%d})")
+        try:
+            restore_backup(picked, dest)
+        except (BackupError, OSError) as e:
+            messagebox.showerror("Restore", f"Couldn't restore the backup:\n{e}")
+            return None
+        return dest
+
+    def restore_and_switch(self):
+        if self.settings and not self.settings.ask_to_save():
+            self.tabs.select(self.settings.frame)
+            return
+        folder = self.restore()
+        if folder:
+            self.switch_folder(folder)
+            if self.folder == folder:
+                messagebox.showinfo("Restored", f"Restored into:\n{folder}\n\nThe scheduler uses it from now on. "
+                                    "The folder used before is still there, unchanged.")
 
     def open_file(self, name):
         path = self.folder / name
@@ -550,7 +723,7 @@ class App:
             messagebox.showinfo("Not there yet", f"There is no {name} in the data folder yet.")
 
     def make_schedule(self):
-        existing = [n for n in ("Schedule.xlsx", "Schedule.pdf") if (self.folder / n).exists()]
+        existing = [n for n in (SCHEDULE_XLSX, SCHEDULE_PDF) if (self.folder / n).exists()]
         other = self.other_semester()
         if other is not None:                         # last semester's files: filed away, nothing is lost
             if not messagebox.askyesno(
@@ -570,13 +743,13 @@ class App:
     def other_semester(self):
         """None when there's no Schedule.xlsx or it's for the settings' semester; otherwise the semester it's for
         ('' when unknown)."""
-        path = self.folder / "Schedule.xlsx"
+        path = self.folder / SCHEDULE_XLSX
         if not path.exists():
             return None
         try:
             from outputs.excel_schedule import schedule_semester
-            from settings_file import SETTINGS_FILE, SettingsError, load_settings
-            settings, _ = load_settings(app_data(self.folder) / SETTINGS_FILE)
+            from settings_file import SettingsError, load_settings
+            settings, _ = load_settings(settings_path(self.folder))
         except (ImportError, SettingsError):
             return None
         sem = schedule_semester(path, settings)

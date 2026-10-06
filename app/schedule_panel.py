@@ -10,6 +10,7 @@ from tkinter import messagebox, ttk
 
 from core.model import make_label
 from core.swaps import claimers
+from data_folder import CONTACTS_XLSX
 from theme import in_background, popup, scrolled_tree
 
 
@@ -279,7 +280,7 @@ class SchedulePanel:
         for col, w in zip("ABCDEFG", (12, 11, 12, 11, 70, 60, 30)):
             ws.column_dimensions[col].width = w
         ws.freeze_panes = "A2"
-        path = self.swaps.get_folder() / "Contact lists.xlsx"
+        path = self.swaps.get_folder() / CONTACTS_XLSX
         try:
             wb.save(path)
         except PermissionError:

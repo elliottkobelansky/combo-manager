@@ -7,7 +7,7 @@ The Combo Scheduler makes the combo show calendar from the sign-up and conflict 
 1. Install Python from **python.org** (click **Downloads**, then the big yellow button, then open the file and click through). On Windows, tick **Add python.exe to PATH** on the first screen.
 2. Put the **Combo Scheduler** program folder on this computer (e.g. in Documents), open it and double-click **Make Schedule** (on a Mac: *Make Schedule.command*; on Windows: *Make Schedule.bat*).
 3. Mac only: if it says it can't be opened, go to **System Settings > Privacy & Security**, scroll down and click **Open Anyway**.
-4. The first time, a **Setup** screen appears: click **Install** and wait about a minute. The scheduler then opens and asks for the **data folder**: pick the *Combo Scheduler data* folder in OneDrive. From now on, step 2 is all you need.
+4. The first time, a **Setup** screen appears: click **Install** and wait about a minute. The scheduler then asks for its **data folder** (it holds everything): **Choose existing folder** (e.g. the shared *Combo Scheduler data* in OneDrive), or **Make a new folder**. From now on, step 2 is all you need.
 
 ## While combos sign up
 
@@ -32,4 +32,5 @@ The Combo Scheduler makes the combo show calendar from the sign-up and conflict 
 - Red text in the Run tab says what's wrong: read it first.
 - *Something went wrong*: copy the text in the window and email it to the person in the **About** tab.
 - **Open folder** (top right) shows all the files. Every saved change keeps a copy of the old schedule in *App data > Schedule backups*; past semesters are in *Archive*.
-- **New computer?** Do the first-time steps again and pick the same data folder in OneDrive: everything is still there. Use one computer at a time (the app says if it is open elsewhere).
+- **Back up...** (top right) now and then: the whole data folder as one zip. Keep it off this computer.
+- **New computer?** Do the first-time steps again, then choose the same data folder, or **Restore from a backup**. Use one computer at a time (the app says if it is open elsewhere).

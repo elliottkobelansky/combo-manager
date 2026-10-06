@@ -11,10 +11,10 @@ from tkinter import messagebox, ttk
 
 from core import generate_nights
 from core.model import WEEKDAYS, make_label
-from settings_file import (DEFAULTS, HELP, SETTINGS_FILE, SettingsError, read_data, save_data,
-                           validate)
+from data_folder import SCHEDULE_XLSX, SETTINGS_FILE, settings_path
+from settings_file import DEFAULTS, HELP, SettingsError, read_data, save_data, validate
 from shared_folder import fingerprint
-from util import app_data, to_date
+from util import to_date
 
 try:
     from tkcalendar import Calendar
@@ -357,7 +357,7 @@ class SettingsPanel:
 
     @property
     def path(self):
-        return app_data(self.get_folder()) / SETTINGS_FILE
+        return settings_path(self.get_folder())
 
     def reload(self):
         note = ""
@@ -458,11 +458,11 @@ class SettingsPanel:
         folder = self.get_folder()
         if not semester_paths(folder):
             return None
-        on_file = schedule_semester(folder / "Schedule.xlsx", old) if (folder / "Schedule.xlsx").exists() else None
+        on_file = schedule_semester(folder / SCHEDULE_XLSX, old) if (folder / SCHEDULE_XLSX).exists() else None
         if on_file == new.semester_name:              # the schedule is already the new semester's
             return None
         if on_file == old.semester_name:              # an older file that only matched by its dates: say so in it,
-            record_semester(folder / "Schedule.xlsx", on_file)   # or it would pass for the new semester's
+            record_semester(folder / SCHEDULE_XLSX, on_file)   # or it would pass for the new semester's
         self.old_semester = on_file or old.semester_name
         answer = messagebox.askyesnocancel(
             "New semester", f"The semester changes from {old.semester_name} to {new.semester_name}.\n\n"
@@ -475,7 +475,7 @@ class SettingsPanel:
     def nights_ok(self, new):
         """When a schedule already exists and these settings change the nights, says that they only apply to the
         next schedule made: the current one keeps its own nights (the app reads them from Schedule.xlsx)."""
-        if not (self.get_folder() / "Schedule.xlsx").exists() or not self.path.exists():
+        if not (self.get_folder() / SCHEDULE_XLSX).exists() or not self.path.exists():
             return True
         try:
             old, _ = validate(read_data(self.path))

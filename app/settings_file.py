@@ -1,7 +1,8 @@
 """The settings: settings.json, edited in the app's Settings tab (scheduler_app.py), read into a core.Settings object
 with plain-language checks.
 
-    python app/settings_file.py --new              # write a settings.json with example values (refuses to overwrite)
+    python app/settings_file.py --new FOLDER       # write a settings.json with example values into FOLDER's App data
+                                                   # (refuses to overwrite)
 
 settings.json is plain text; you can read it, but the app is the easy way to change it. Dates are YYYY-MM-DD, set
 times HH:MM (24-hour).
@@ -13,9 +14,8 @@ from pathlib import Path
 
 from core.model import WEEKDAYS, Settings, ShowDay
 from shared_folder import write_text
-from util import DATA_FOLDER, app_data, blank, to_date, to_time
-
-SETTINGS_FILE = "settings.json"
+from data_folder import problem, settings_path
+from util import blank, to_date, to_time
 
 DEFAULTS = {
     "semester_name": "Winter 2027",
@@ -308,7 +308,7 @@ def read_data(path):
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except FileNotFoundError:
-        raise SettingsError(f"Can't find {path}. Open the app's Settings tab (or run: python app/settings_file.py --new).")
+        raise SettingsError(f"Can't find {path}. Open the app's Settings tab (or run: python app/settings_file.py --new FOLDER).")
     except ValueError as e:
         raise SettingsError(f"{path} isn't valid settings ({e}). Fix it in the app, or restore a backup.")
 
@@ -328,8 +328,10 @@ def load_settings(path):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    if args[:1] == ["--new"]:
-        path = app_data(DATA_FOLDER) / SETTINGS_FILE
+    if args[:1] == ["--new"] and len(args) == 2:
+        if problem(args[1]):
+            sys.exit(f"Can't use {args[1]} as the data folder: {problem(args[1])}.")
+        path = settings_path(args[1])
         if path.exists():
             sys.exit(f"{path} already exists.")
         save_data(path, DEFAULTS)

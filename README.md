@@ -20,16 +20,29 @@ tab, see [swaps](#during-the-semester-swaps)):
 plus buttons to open the folder, `Schedule.pdf` and `Schedule.xlsx`, a **Settings** tab (below), a dark
 mode switch and a **Text size** control (A− / A+, 85% to 175%), both remembered on that computer. Lists that are
 wider than the window get a horizontal scrollbar. It works on the **data
-folder** shown at the top; **Change...** picks another (remembered on that computer).
+folder** shown at the top; **Change folder...** picks another (remembered on that computer), **Back up...** and
+**Restore...** are below.
 
 **Where things live:** the **program** is installed on each computer (this folder, unzipped locally; it has no
-data in it). The **data folder** is one shared folder in OneDrive (e.g. `Combo Scheduler data`) with everything that
-matters. At the top, what people open: `Combo Approvals.xlsx` and `Conflicts.xlsx` (point both flows at it),
-`Schedule.xlsx`, the PDFs, `Contact lists.xlsx`, and `Archive/` with past semesters. In **`App data/`**, what the
-program manages: `settings.json`, `scheduler_data.json` (each with a `.bak` copy) and `Schedule backups/` (a data
-folder from before is moved into this layout the first time it's opened). On first
-run the app asks for that folder; a wiped computer only needs the program reinstalled and the folder picked again.
-Per-computer preferences (the folder, text size, dark mode) are in `~/.combo_scheduler.json`.
+data in it, and can be thrown away and reinstalled). The **data folder** (e.g. `Combo Scheduler data`) has
+everything that matters. It can be any folder: one on this computer, or one kept in sync by OneDrive, SharePoint,
+Dropbox or a network drive when several computers use the scheduler; the app treats them all the same and never
+needs a Microsoft login. At the top, what people open: `Approvals.xlsx` and `Conflicts.xlsx` (point both
+flows at it, or pick them under any name, anywhere on the Run tab; a folder with the older name
+`Combo Approvals.xlsx` still works), `Schedule.xlsx`, the PDFs, `Contact lists.xlsx`, and `Archive/`
+with past semesters. In **`App data/`**, what the program manages: `settings.json`, `scheduler_data.json` (each with
+a `.bak` copy) and `Schedule backups/` (a data folder from before is moved into this layout the first time it's
+opened). The layout, and every path into it, is in `app/data_folder.py`. On first run the app asks where the data
+folder is (choose one, make a new one, or restore a backup); a folder that can't be found later is asked for
+again, never silently swapped. Per-computer preferences (the folder, text size, dark mode, input files picked
+elsewhere, where backups go) are in `~/.combo_scheduler.json`.
+
+**Backups** (`app/backup.py`): **Back up...** zips the whole data folder (spreadsheets, `App data` with the `.bak`
+copies and schedule backups, `Archive`; an input file picked from elsewhere goes in under its usual name) into
+`Combo Scheduler backup 2026-10-06 1405.zip`, wherever you choose: keep it off this computer when the data folder
+is local. **Restore...** (also on the first-run screen) unpacks a backup into a *new* folder and switches to it; the
+current folder is never overwritten. After a dead computer: install the program, then pick the surviving data
+folder, or restore the latest backup.
 
 **Several computers on one data folder** (`app/shared_folder.py`): best one at a time, but it's guarded. The app
 writes `App data/In use.json` (computer, user, since when; updated every 3 minutes, ignored after 15 without an
@@ -37,10 +50,11 @@ update); a second computer is told who has it open and can open it anyway, and t
 never overwrite what another computer saved meanwhile: `scheduler_data.json` and `settings.json` are compared with
 what was read (combo edits: "try again"; settings: keep yours / load theirs / cancel), and pending swaps are only
 saved if `Schedule.xlsx` still holds the schedule they were planned on (otherwise reload and redo them). The JSON
-files and swap saves are written to a temp file and renamed (never half a file). OneDrive conflict copies
-(`Schedule-OFFICE-PC.xlsx`, `settings (1).json`) are pointed out when the app opens the folder. (For development, a
-`data/` folder next to the program with files in it is used automatically.) Build a zip to hand out with
-`python dev/make_zip.py` (`--demo` adds the fake data as a "Demo data" folder; `--mac` leaves out the `.bat`, which
+files, `Schedule.xlsx` and backups are written to a temp file and renamed (never half a file). Sync apps' conflict
+copies (`Schedule-OFFICE-PC.xlsx`, `settings (1).json`, Dropbox's `... (conflicted copy ...)`) are pointed out when
+the app opens the folder. All of this works the same on a folder only one computer uses. The program folder never
+holds data (to try things, make a demo data folder: see [Testing without real data](#testing-without-real-data)).
+Build a zip to hand out with `python dev/make_zip.py` (`--demo` adds a fresh fake semester as a "Demo data" folder; `--mac` leaves out the `.bat`, which
 Gmail blocks).
 
 **What's in the folder:**
@@ -48,12 +62,11 @@ Gmail blocks).
 | | |
 |---|---|
 | `Make Schedule.bat` / `.command` / `make-schedule.sh` | Double-click one of these to open the app. |
-| `data/` | The spreadsheets, settings, schedule, PDFs and backups. Everything the director works with. |
 | `app/` | The program. Nothing to open or change in here. |
 | `dev/` | Tests and fake data, for whoever maintains the scheduler. |
 
 **First run on a new computer:** Python 3 must be installed (python.org; on Windows tick "Add python.exe to
-PATH"). The launcher then sets up a private Python environment in the user's home folder (once, outside OneDrive),
+PATH"). The launcher then sets up a private Python environment in the user's home folder (once, outside the data folder),
 and the window shows a one-time **Setup** screen: click **Install** (needs internet, about a minute) and the app reopens by itself. On a Mac, if double-clicking
 is blocked ("unidentified developer" / "could not verify"), open System Settings > Privacy & Security and click Open Anyway (on older macOS: right-click the file > Open). Install Python from python.org: Homebrew's Python has no tkinter (the launcher skips a Python without it, and rebuilds the scheduler's private Python if it was made from one). On Linux you may need `sudo apt install python3-venv python3-tk`.
 
@@ -76,8 +89,8 @@ previous version is kept as `settings.json.bak`):
 | Skip dates | Dates with no show (reading week, holidays), with a reason. The reason appears on the calendar. |
 | Extra dates | One-off shows on days that aren't a regular show day. Usually empty. Set times are optional: blank uses the venue's usual times. |
 
-**Save settings** checks everything first and says what to fix. Without the app: `python app/settings_file.py --new`
-writes a `data/App data/settings.json` with example values (plain text, YYYY-MM-DD dates).
+**Save settings** checks everything first and says what to fix. Without the app: `python app/settings_file.py --new FOLDER`
+writes `FOLDER/App data/settings.json` with example values (plain text, YYYY-MM-DD dates).
 
 **Set times.** For each show day, **first set starts** (e.g. `19:00` or `7:00 PM`), **set length** and
 **break** (minutes) give every set its start and end time: 19:00, 45, 15 gives 7:00–7:45, 8:00–8:45, 9:00–9:45, ...
@@ -87,11 +100,11 @@ show set numbers instead.
 `semester_name` must match exactly what students choose in the form's Semester question (e.g. `Winter 2027`).
 Responses for other semesters are ignored.
 
-**2. Download the inputs.** Save both in the `data` folder. Or, on the app's Run tab, **Choose...** a file
+**2. Download the inputs.** Save both in the data folder. Or, on the app's Run tab, **Choose...** a file
 anywhere and under any name (e.g. straight from a synced OneDrive or SharePoint folder); the choice is remembered on
 that computer for that data folder, and **Use data folder** goes back to the usual file. From the command line:
 `--approvals` and `--conflicts` take a path.
-- **`Combo Approvals.xlsx`**: the approvals table the approval flow fills in, one row per combo submission, with
+- **`Approvals.xlsx`** (formerly `Combo Approvals.xlsx`, still read): the approvals table the approval flow fills in, one row per combo submission, with
   the director's decision (Status: Pending / Accepted / Rejected / Withdrawn) and First year. Only **Accepted** combos
   of this semester (`semester_name` in the settings) are scheduled; rows still **Pending** are reported. In
   OneDrive: File > Save as > Download a copy (or use a synced folder).
@@ -193,7 +206,7 @@ A swap that would take a combo off its only supervised night isn't offered, and 
 for those, edit by hand as below.
 
 The Combos and Swaps tabs load the data folder's files by themselves (at start, after **Change folder...**, and after
-each step or swap); **Reload** picks up files OneDrive synced while the app was open.
+each step or swap); **Reload** picks up files that changed while the app was open (e.g. synced in from another computer).
 
 **Schedule tab:** every show night (PROF = supervised) with its sets, including swap changes not saved yet
 (highlighted, with their nights opened), a search box and "only nights with open sets". While changes are
@@ -213,7 +226,7 @@ already knows (type part of a name or email) or takes a new email, guesses the n
 optionally sets the instrument; it warns if they're in another combo or, once a schedule exists, have a conflict or a
 second show on one of this combo's nights. **Remove** takes someone out; removing the liaison first asks who takes
 over. Removed people stay listed in grey: Actions > **Put back**. **Make liaison** (on a person) or **Change the liaison** (on a combo) changes the liaison. None of
-this touches `Combo Approvals.xlsx`: the changes are kept in `scheduler_data.json` (by Response Id, so they stay
+this touches `Approvals.xlsx`: the changes are kept in `scheduler_data.json` (by Response Id, so they stay
 attached to the right combo as new responses come in), applied whenever the approvals are read, and listed by
 **Check inputs**. A combo with fewer members than the "Warn: members per combo" setting (default 4) shows ⚠ and is
 flagged by the check. After the schedule is out, run **Check the schedule** after a change: a new member's conflicts
@@ -387,9 +400,11 @@ You shouldn't need to touch them. If you do, run `python dev/test_rules.py` afte
 
 ## Testing without real data
 
-Run these from the top folder. `app/solve.py` works on `data/` unless you add `--folder`.
+Run these from the top folder. Demo data goes in a folder of its own, outside the program folder; switch to it in
+the app with **Change folder...** (and back to the real one the same way). `app/solve.py` works on the data folder
+chosen in the app on this computer unless you add `--folder`.
 
-    python dev/make_fake_forms.py    # fake Combo Approvals.xlsx and Conflicts.xlsx, in data/
+    python dev/make_fake_forms.py ~/Documents/"Combo Scheduler demo"   # example settings + fake forms + instruments
     python dev/test_rules.py         # read -> solve on several fake scenarios, checks every hard rule
 
 
@@ -400,11 +415,15 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 
 | File | Job |
 |---|---|
-| `app/inputs.py` | The ONLY file that knows what `Combo Approvals.xlsx` and `Conflicts.xlsx` look like (and the approval rules). Reads them into the solver's input; writes nothing. |
+| `app/inputs.py` | The ONLY file that knows what `Approvals.xlsx` and `Conflicts.xlsx` look like (and the approval rules). Reads them into the solver's input; writes nothing. |
 | `app/solve.py` | Reads `settings.json` + the two downloads, runs the solver, writes `Schedule.xlsx` (+ `Schedule.pdf`). |
 | `app/scheduler_app.py` + `Make Schedule.bat` / `.command` / `make-schedule.sh` | The one-click window around `solve.py`, and its launchers. |
 | `app/schedule_panel.py` | The app's Schedule tab (nights and sets, who could take an open set, Export PDF). |
 | `app/store.py` | `scheduler_data.json`: combo numbers, corrected names and emails, instruments. |
+| `app/data_folder.py` | What's in the data folder and where: every path into it is made here; whether a folder can be used. |
+| `app/app_config.py` | This computer's own choices (`~/.combo_scheduler.json`): which data folder, text size, dark mode. |
+| `app/shared_folder.py` | Several computers on one data folder: lock file, crash-safe writes, changed-on-disk checks, conflict copies. |
+| `app/backup.py` | Back up... / Restore...: the data folder as one zip, and back into a new folder. |
 | `app/outputs/combos_pdf.py` | Writes `Combos.pdf` (the Combos tab's Export button). |
 | `app/combos_panel.py` | The app's Combos tab (all combos and people; names, emails, instruments, members, liaison). |
 | `app/swap_panel.py`, `app/core/swaps.py` | The app's Swaps tab, and the swap finder behind it (pure, tested in `test_rules.py`). |

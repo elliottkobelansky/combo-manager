@@ -10,34 +10,32 @@
                                                             withdrawn in the app (the Combos tab); the approvals are
                                                             never changed
 
-Written by the app and by solve.py (when a new combo gets its number). Keep it with the other files (the synced
-OneDrive folder is ideal).
+Written by the app and by solve.py (when a new combo gets its number), in the data folder's App data
+(data_folder.py), next to the other files.
 """
 import json
 
 from shared_folder import ChangedOnDisk, fingerprint, write_text
-from util import app_data
-
-DATA_FILE = "scheduler_data.json"
+from data_folder import STORE_FILE as DATA_FILE, store_path
 
 
 class Store:
     def __init__(self, folder):
-        self.path = app_data(folder) / DATA_FILE
+        self.path = store_path(folder)
         self.read_as = fingerprint(self.path)        # to tell, when saving, that another computer saved meanwhile
         try:
             self.data = json.loads(self.path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             self.data = {}
         except ValueError:
-            raise ValueError(f"{self.path} is damaged. Restore it from a backup (it's in the data folder).")
+            raise ValueError(f"{self.path} is damaged. Restore it from {DATA_FILE}.bak next to it, or from a backup.")
         for key in ("numbers", "names", "instruments", "emails", "members"):
             self.data.setdefault(key, {})
         self.changed = False
 
     def save(self):
         """Raises ChangedOnDisk (nothing saved) when the file changed since it was read: another computer saved it
-        and OneDrive synced it in. Reading it again and redoing the change is then safe."""
+        and the sync brought it in. Reading it again and redoing the change is then safe."""
         if fingerprint(self.path) != self.read_as:
             raise ChangedOnDisk(f"{DATA_FILE} was changed on another computer a moment ago. Nothing was saved: "
                                 "please try again.")

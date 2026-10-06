@@ -1,4 +1,4 @@
-"""settings.json + Combo Approvals.xlsx + Conflicts.xlsx -> Schedule.xlsx
+"""settings.json + Approvals.xlsx + Conflicts.xlsx -> Schedule.xlsx
 
     python app/solve.py                # build the schedule (asks to confirm first; add -y to skip the question)
     python app/solve.py --check        # validate the data and print warnings, don't solve
@@ -7,6 +7,7 @@
     python app/solve.py --stats        # stats + rule check for the Schedule.xlsx on disk (also after hand edits), no solving
     python app/solve.py --stats --pdf  # ...and rebuild Schedule.pdf from that edited Schedule.xlsx
 
+Works on the data folder picked in the app on this computer; --folder FOLDER for another one.
 Reads the two downloads directly (see inputs.py) and prints their warnings first: combos still Pending, conflict
 form problems. Writes nothing but Schedule.xlsx (and Schedule.pdf).
 Needs: pip install openpyxl ortools
@@ -22,12 +23,13 @@ from statistics import median
 from core import ScheduleError, generate_nights, run_schedule
 from core.checks import analyze
 from core.stats import schedule_stats
-from inputs import APPROVALS_FILE, CONFLICTS_FILE, InputError, load_input, name_from_email
+from inputs import InputError, load_input, name_from_email
 from store import Store
-from util import DATA_FOLDER, app_data
+from app_config import saved_folder
+from data_folder import SCHEDULE_PDF, SCHEDULE_XLSX, problem, settings_path, usual_inputs
 from outputs.excel_schedule import (ScheduleFileError, archive_semester, check_semester, read_schedule,
                                     schedule_nights, schedule_semester, write_schedule)
-from settings_file import SETTINGS_FILE, SettingsError, load_settings
+from settings_file import SettingsError, load_settings
 
 
 def show(report, levels=("warn",)):
@@ -111,23 +113,26 @@ def confirm(outputs):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--folder", default=str(DATA_FOLDER))
+    ap.add_argument("--folder", help="the data folder (default: the one picked in the app on this computer)")
     ap.add_argument("--settings", help="default: App data/settings.json in the folder")
-    ap.add_argument("--approvals", default=APPROVALS_FILE)
-    ap.add_argument("--conflicts", default=CONFLICTS_FILE)
+    ap.add_argument("--approvals", help="default: Approvals.xlsx in the folder")
+    ap.add_argument("--conflicts", help="default: Conflicts.xlsx in the folder")
     ap.add_argument("--conflicts-sheet")
-    ap.add_argument("--out", default="Schedule.xlsx")
+    ap.add_argument("--out", default=SCHEDULE_XLSX)
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--stats", action="store_true",
                     help="stats and a rule check for the existing Schedule.xlsx (works after hand edits); no solving")
     ap.add_argument("--compare-gaps", nargs="+", type=int, metavar="DAYS",
                     help="try these min_days_between_shows values and print a comparison; writes nothing")
     ap.add_argument("-y", "--yes", action="store_true", help="don't ask for confirmation before building the schedule")
-    ap.add_argument("--pdf", nargs="?", const="Schedule.pdf", help="also write a printable calendar (default Schedule.pdf)")
+    ap.add_argument("--pdf", nargs="?", const=SCHEDULE_PDF, help="also write a printable calendar (default Schedule.pdf)")
     a = ap.parse_args(argv)
-    f = Path(a.folder)
+    f = Path(a.folder) if a.folder else saved_folder()
+    if problem(f):
+        print(f"Can't use the data folder{' ' + str(f) if f else ''}: {problem(f)}. Pick one in the app, or add --folder FOLDER.")
+        return 1
     try:
-        settings, setting_warnings = load_settings(f / a.settings if a.settings else app_data(f) / SETTINGS_FILE)
+        settings, setting_warnings = load_settings(f / a.settings if a.settings else settings_path(f))
         if a.stats:
             check_semester(f / a.out, settings)          # another semester's schedule isn't this one's
         # --stats looks at the schedule as it is: its own nights; anything else plans from the settings
@@ -139,7 +144,8 @@ def main(argv=None):
         print(f"\n{settings.semester_name}: {len(nights)} show nights, {sum(sets.values())} sets ({detail})")
         for w in setting_warnings:
             print(f"  [WARN] {w}")
-        inp = load_input(f, settings, a.approvals, a.conflicts, conflicts_sheet=a.conflicts_sheet)
+        inp = load_input(f, settings, a.approvals or usual_inputs(f)["approvals"],
+                         a.conflicts or usual_inputs(f)["conflicts"], conflicts_sheet=a.conflicts_sheet)
         print(f"{len(inp.combos)} combos, {len(inp.blocked)} students with conflicts")
         warnings = [t for lvl, t in inp.notes if lvl in ("pending", "warn")]
         for txt in warnings:

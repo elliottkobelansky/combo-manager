@@ -8,14 +8,14 @@ from tkinter import messagebox, ttk
 
 from app_config import input_files
 from core.model import make_label
+from data_folder import SCHEDULE_XLSX, settings_path
 from core.swaps import apply_option, swap_options
 from inputs import InputError, load_input, name_from_email
 from store import Store
 from outputs.excel_schedule import (ScheduleFileError, check_semester, open_label, read_schedule, schedule_nights,
                                     write_swap)
-from settings_file import SETTINGS_FILE, SettingsError, load_settings
+from settings_file import SettingsError, load_settings
 from theme import in_background
-from util import app_data
 
 
 class SwapPanel:
@@ -123,7 +123,7 @@ class SwapPanel:
             self.refresh_pending()
         folder = self.get_folder()
         try:
-            settings, _ = load_settings(app_data(folder) / SETTINGS_FILE)
+            settings, _ = load_settings(settings_path(folder))
             files = input_files(folder)
             inp = load_input(folder, settings, files["approvals"], files["conflicts"])
             combos = {c.id: c for c in inp.combos}
@@ -133,10 +133,10 @@ class SwapPanel:
                 sets, supervised, typed = self.state["sets"], self.state["supervised"], self.state["typed"]
                 problems = []
             else:
-                if quiet and not (folder / "Schedule.xlsx").exists():
+                if quiet and not (folder / SCHEDULE_XLSX).exists():
                     raise ScheduleFileError("No Schedule.xlsx yet: make the schedule first (Run tab, step 2).")
-                check_semester(folder / "Schedule.xlsx", settings)
-                sets, problems, supervised, typed = read_schedule(folder / "Schedule.xlsx", combos)
+                check_semester(folder / SCHEDULE_XLSX, settings)
+                sets, problems, supervised, typed = read_schedule(folder / SCHEDULE_XLSX, combos)
         except (SettingsError, InputError, ScheduleFileError) as e:
             if keep:
                 return
@@ -159,7 +159,7 @@ class SwapPanel:
         if not keep:
             self.base_sets = {d: dict(row) for d, row in sets.items()}
         self.state = dict(settings=settings, inp=inp, combos=combos, sets=sets, supervised=supervised, typed=typed,
-                          nights=schedule_nights(folder / "Schedule.xlsx", settings) if not keep else
+                          nights=schedule_nights(folder / SCHEDULE_XLSX, settings) if not keep else
                           self.state["nights"], name_of=name_of)
         # "Combo 07 (Ana Ruiz)": the liaison, so the director recognises the combo
         def who(e):                           # the liaison's name, or their email if the name isn't unique
@@ -382,7 +382,7 @@ class SwapPanel:
         if not self.same_as_on_disk():
             return
         try:
-            backup = write_swap(self.get_folder() / "Schedule.xlsx", changes, st["combos"], open_label(st["settings"]))
+            backup = write_swap(self.get_folder() / SCHEDULE_XLSX, changes, st["combos"], open_label(st["settings"]))
         except ScheduleFileError as e:
             messagebox.showerror("Couldn't save", str(e))
             return
@@ -396,10 +396,10 @@ class SwapPanel:
 
     def same_as_on_disk(self):
         """True when Schedule.xlsx still holds what the pending changes were planned against. Otherwise (another
-        computer saved it and OneDrive synced it in, or it was edited in Excel) says so, and offers to reload."""
+        computer saved it and the sync brought it in, or it was edited in Excel) says so, and offers to reload."""
         st = self.state
         try:
-            now, _, _, _ = read_schedule(self.get_folder() / "Schedule.xlsx", st["combos"])
+            now, _, _, _ = read_schedule(self.get_folder() / SCHEDULE_XLSX, st["combos"])
         except ScheduleFileError as e:
             messagebox.showerror("Couldn't save", str(e))
             return False

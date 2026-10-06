@@ -1,13 +1,13 @@
-"""The app's own settings on this computer (~/.combo_scheduler.json): the data folder, light/dark mode, and which
-input spreadsheets to read. Kept per computer, not in settings.json, because the same synced folder has a different
-path on each computer.
+"""The app's own settings on this computer (~/.combo_scheduler.json): the data folder, light/dark mode, text size,
+which input spreadsheets to read, and where backups were last saved. Kept per computer, not in the data folder,
+because the same synced folder has a different path on each computer (and these are each person's own choices).
 
 Standard library only: the app reads this before checking that the other packages are installed.
 """
 import json
 from pathlib import Path
 
-from util import APPROVALS_FILE, CONFLICTS_FILE
+from data_folder import usual_inputs
 
 CONFIG = Path.home() / ".combo_scheduler.json"
 INPUTS = ("approvals", "conflicts")                 # which input files can be picked
@@ -22,18 +22,25 @@ def load_config():
 
 
 def save_config(**changes):
+    from shared_folder import write_text
     try:
-        CONFIG.write_text(json.dumps({**load_config(), **changes}))
+        write_text(CONFIG, json.dumps({**load_config(), **changes}))
     except OSError:
         pass                                          # only a convenience
+
+
+def saved_folder():
+    """The data folder picked on this computer, or None."""
+    folder = load_config().get("folder")
+    return Path(folder) if folder else None
 
 
 def input_files(folder):
     """{"approvals": Path, "conflicts": Path} to read for this data folder: the file picked for it (the Run tab's
     Choose... buttons), or the usual name in the data folder."""
     picked = load_config().get("inputs", {}).get(str(folder), {})
-    usual = {"approvals": APPROVALS_FILE, "conflicts": CONFLICTS_FILE}
-    return {k: Path(picked[k]) if picked.get(k) else Path(folder) / usual[k] for k in INPUTS}
+    usual = usual_inputs(folder)
+    return {k: Path(picked[k]) if picked.get(k) else usual[k] for k in INPUTS}
 
 
 def is_picked(folder, which):

@@ -6,12 +6,14 @@ from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
+from data_folder import (COMBOS_PDF, CONTACTS_XLSX, SCHEDULE_BACKUPS, SCHEDULE_PDF, SCHEDULE_XLSX, schedule_backups,
+                         archive as archive_folder)
+from shared_folder import save_workbook
 
 
 # A semester's files in the data folder: moved together into Archive/<semester>/ when a new semester starts
 # (archive_semester).
-ARCHIVE = "Archive"
-SEMESTER_FILES = ["Schedule.xlsx", "Schedule.pdf", "Combos.pdf", "Contact lists.xlsx", "Schedule backups"]
+SEMESTER_FILES = [SCHEDULE_XLSX, SCHEDULE_PDF, COMBOS_PDF, CONTACTS_XLSX, SCHEDULE_BACKUPS]
 
 
 def schedule_semester(path, settings=None):
@@ -48,7 +50,7 @@ def record_semester(path, semester):
         wb = load_workbook(path)
         if not wb.properties.subject:
             wb.properties.subject = semester
-            wb.save(path)
+            save_workbook(wb, path)
     except (OSError, KeyError):
         pass
 
@@ -67,9 +69,8 @@ def check_semester(path, settings):
 
 def semester_paths(folder):
     """The SEMESTER_FILES that are there (Schedule backups is in App data)."""
-    from util import app_data
     folder = Path(folder)
-    paths = [app_data(folder) / n if n == "Schedule backups" else folder / n for n in SEMESTER_FILES]
+    paths = [schedule_backups(folder) if n == SCHEDULE_BACKUPS else folder / n for n in SEMESTER_FILES]
     return [p for p in paths if p.exists()]
 
 
@@ -82,7 +83,7 @@ def archive_semester(folder, semester):
     if not present:
         return None
     name = re.sub(r'[\\/:*?"<>|]+', "-", str(semester or "Old schedule")).strip() or "Old schedule"
-    archive = folder / ARCHIVE
+    archive = archive_folder(folder)
     dest, n = archive / name, 2
     while dest.exists():
         dest, n = archive / f"{name} ({n})", n + 1
@@ -142,7 +143,7 @@ def write_schedule(path, result, settings):
             wb["Supervision"].cell(row=r, column=1).number_format = "yyyy-mm-dd"
 
     sheet("Report", ["Level", "Message"], [[l.upper(), t] for l, t in result.report], (10, 120))
-    wb.save(path)
+    save_workbook(wb, path)
 
 
 def read_schedule(path, combos):
@@ -252,9 +253,9 @@ def write_swap(path, changes, combos, open_label):
     import shutil
     from datetime import datetime
     from openpyxl import load_workbook
-    from util import app_data, to_date
+    from util import to_date
     path = Path(path)
-    backups = app_data(path.parent) / "Schedule backups"
+    backups = schedule_backups(path.parent)
     backups.mkdir(parents=True, exist_ok=True)
     backup = backups / f"{path.stem} {datetime.now():%Y-%m-%d %H%M%S}{path.suffix}"
     shutil.copy2(path, backup)
@@ -274,7 +275,6 @@ def write_swap(path, changes, combos, open_label):
     if todo:
         raise ScheduleFileError("Couldn't find these sets in Schedule.xlsx: "
                                 + ", ".join(f"{d} set {k}" for d, k in sorted(todo)) + ". Nothing was changed.")
-    from shared_folder import save_workbook
     try:
         save_workbook(wb, path)
     except PermissionError:
