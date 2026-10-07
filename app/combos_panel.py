@@ -1021,9 +1021,13 @@ class NewComboDialog:
         self.liaison.focus_set()
         win.grab_set()
 
-    def clean(self, text):
+    def clean(self, text, supervisor=False):
+        """The emails in text, lowercased, with the app's email fixes. Students' also get the settings' domain fixes
+        (older settings may have some, e.g. mcgill.ca -> mail.mcgill.ca); a supervisor's never do: that would turn a
+        professor's mcgill.ca address into a student one (the approvals sheet is read the same way)."""
         p = self.panel
-        return [p.store.fix_email(p.data["rules"].norm(m)) for m in EMAIL_RE.findall(text)]
+        norm = (lambda m: m.strip().lower()) if supervisor else p.data["rules"].norm
+        return [p.store.fix_email(norm(m)) for m in EMAIL_RE.findall(text)]
 
     def add(self):
         p = self.panel
@@ -1032,7 +1036,7 @@ class NewComboDialog:
             messagebox.showerror("New combo", "Type the liaison's email.", parent=self.win)
             return
         members = [e for e in dict.fromkeys(self.clean(self.members.get("1.0", "end"))) if e != liaison[0]]
-        sup = self.clean(self.supervisor.get())
+        sup = self.clean(self.supervisor.get(), supervisor=True)
         if self.supervisor.get().strip() and not sup:
             messagebox.showerror("New combo", "The supervisor's email doesn't look like an email address.",
                                  parent=self.win)
