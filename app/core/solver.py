@@ -67,9 +67,11 @@ def precheck_supervision(combos, nights, settings: Settings) -> List[str]:
     if not settings.every_combo_supervised or not cap:
         return []
     room = sum(sorted((n.n_slots for n in nights), reverse=True)[:cap])
-    if room < len(combos):
-        return [f"max_supervised_nights is {cap}, but {cap} nights hold at most {room} combos and there are "
-                f"{len(combos)}. Raise max_supervised_nights (or set every_combo_supervised to No)."]
+    need = len(combos) * settings.min_supervised_per_combo
+    if room < need:
+        return [f"The settings allow at most {cap} supervised nights, which hold at most {room} sets, but {len(combos)} "
+                f"combos need {need} supervised shows ({settings.min_supervised_per_combo} each). Raise 'Max "
+                "supervised nights' or lower 'Supervised nights per combo' (Settings tab)."]
     return []
 
 
@@ -160,7 +162,8 @@ def solve_combos(combos, allowed, nights, show_min, settings: Settings):
             model.Add(e >= sum(sum(by_cv[c, v]) for v in secondary_v) - sum(sum(by_cv[c, v]) for v in primary_v))
             primary_terms.append(e)
 
-    # supervision: the solver picks nights a professor attends; every combo plays at least one of them
+    # supervision: the solver picks nights a professor attends; every combo plays at least
+    # min_supervised_per_combo of them
     sup = {}
     if settings.every_combo_supervised:
         for n in nights:
@@ -175,14 +178,14 @@ def solve_combos(combos, allowed, nights, show_min, settings: Settings):
                     model.Add(z <= var)
                     model.Add(z <= sup[d])
                     covered.append(z)
-            model.Add(sum(covered) >= 1)
+            model.Add(sum(covered) >= settings.min_supervised_per_combo)
         if settings.max_supervised_nights:
             model.Add(sum(sup.values()) <= settings.max_supervised_nights)
         # Not a new rule, just a fact that helps the solver prove it's done: the fullest nights still hold only so
         # many combos, so at least this many supervised nights are needed.
         need, room = 0, 0
         for k in sorted((n.n_slots for n in nights), reverse=True):
-            if room >= len(cids):
+            if room >= len(cids) * settings.min_supervised_per_combo:
                 break
             need, room = need + 1, room + k
         model.Add(sum(sup.values()) >= need)

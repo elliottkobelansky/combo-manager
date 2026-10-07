@@ -67,7 +67,7 @@ def write_schedule_xlsx(path, schedule, combos, settings, name_of, instruments):
     ws.title = "By night"
     ws.append([f"{schedule.semester}: combo shows"])
     ws["A1"].font = font(bold=True, size=14)
-    ws.append([f"Made by the Combo Scheduler on {datetime.now():%Y-%m-%d %H:%M}. Editing this file changes nothing: "
+    ws.append([f"Made by Combo Manager on {datetime.now():%Y-%m-%d %H:%M}. Editing this file changes nothing: "
                "make changes in the app, which rebuilds it."])
     ws["A2"].font = font(italic=True, color=GREY)
     for n in schedule.nights:

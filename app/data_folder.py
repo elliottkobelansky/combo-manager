@@ -100,7 +100,7 @@ def problem(folder):
     try:
         probe.write_text("x")
     except OSError:
-        return "the scheduler can't save files in it"
+        return "the app can't save files in it"
     finally:
         try:
             probe.unlink()

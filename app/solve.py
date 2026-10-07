@@ -55,7 +55,7 @@ def compare_gaps(inp, settings, values):
         else:
             print(f"{v:>7} d | no combo has two shows | {filled}/{result.stats['total_sets']} | {result.stats['status']}")
     print("\nPick the smallest value where 'closest' stops improving and the solver still says OPTIMAL.\n"
-          "Then set it in the app's Settings tab (min_days_between_shows) and run solve.py.")
+          "Then set it in the Settings tab ('Ideal days between shows') and make the schedule.")
 
 
 def write_exports(folder, sched, combos, settings, store):
@@ -117,7 +117,7 @@ def confirm(folder):
         when = datetime.fromtimestamp(schedule_path(folder).stat().st_mtime).strftime("%Y-%m-%d %H:%M")
         print(f"  WARNING: there is a schedule already (last saved {when}); it will be replaced (a copy goes to "
               "App data/Schedule backups).\n  Any swaps made in it won't be in the new one.\n"
-              "  To just check the existing schedule, use: python app/solve.py --stats")
+              "  To just check the existing schedule: Check schedule.")
     if not sys.stdin.isatty():
         print("Not running interactively: add -y to confirm.")
         return False
@@ -194,10 +194,13 @@ def main(argv=None):
     except (SettingsError, InputError, ScheduleError, ScheduleFileError) as e:
         print(f"\nCan't continue:\n{e}")
         return 1
-    print(f"\nSolver: {result.stats['status']}. {result.stats['total_sets'] - result.stats['empty_sets']}"
-          f"/{result.stats['total_sets']} sets filled.")
+    filled, total = result.stats["total_sets"] - result.stats["empty_sets"], result.stats["total_sets"]
+    print(f"\nMade a schedule: {filled} of {total} sets filled. " + (
+        "It's the best one for these settings." if result.stats["status"] == "OPTIMAL" else
+        "It's a good one, but the time ran out before it was proven the best: a longer 'Solver time' (Settings tab) "
+        "may improve it."))
     show(result.report)
-    print(f"\nSaved the schedule ({schedule_path(f)}). For details: python app/solve.py --stats")
+    print("\nSaved the schedule. Check schedule (Schedule tab) shows the details.")
     if a.export:
         write_exports(f, sched, combos, settings, Store(f))
     return 0

@@ -89,7 +89,8 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
                 problems.append(f"{combos[c].name} has {per_venue[c][v]} {v} show(s) but needs {need}.")
         need = settings.min_shows_per_combo
         if need and len(shows.get(c, [])) < need:
-            problems.append(f"{combos[c].name} has {len(shows.get(c, []))} show(s) but needs {need} (min_shows_per_combo).")
+            problems.append(f"{combos[c].name} has {len(shows.get(c, []))} show(s) but needs {need} (Settings: "
+                            "minimum shows per combo).")
         cap = settings.max_shows_per_combo
         if cap and len(shows.get(c, [])) > cap:
             problems.append(f"{combos[c].name} has {len(shows[c])} shows, more than the cap of {cap}.")
@@ -122,9 +123,10 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
                 lines.append(f"In the {'first' if settings.supervision_timing == 'early' else 'second'} half of the "
                              f"semester (preferred): {half} of {len(sup)}.")
             sections.append(("Supervision", lines))
+            need = settings.min_supervised_per_combo
             for c in combos:
-                if not on_sup[c]:
-                    problems.append(f"{combos[c].name} plays no supervised night (every_combo_supervised).")
+                if len(on_sup[c]) < need:
+                    problems.append(f"{combos[c].name} plays {len(on_sup[c])} supervised night(s) but needs {need}.")
             for d in sup:
                 empty = [k for k in range(1, nmap[d].n_slots + 1)
                          if sets.get(d, {}).get(k) is None and k not in typed.get(d, {})]
@@ -132,7 +134,7 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
                     problems.append(f"{make_label(d)} is a supervised night but has open set(s) "
                                     f"{', '.join(map(str, empty))}: supervised nights must be full.")
             if cap and len(sup) > cap:
-                problems.append(f"{len(sup)} supervised nights, more than max_supervised_nights ({cap}).")
+                problems.append(f"{len(sup)} supervised nights, more than the settings' maximum of {cap}.")
 
     # ---- spacing
     gaps = []                                              # (days, combo, d1, d2)

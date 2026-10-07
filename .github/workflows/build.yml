@@ -1,6 +1,6 @@
 # Builds the Windows app on every push to main (and on demand: Actions tab > Build the Windows app > Run workflow):
-# runs the tests on Windows, builds "Combo Scheduler.exe" with dev/build_exe.py, checks the built app loads every part
-# it needs (--selftest), and keeps the result for 30 days: open the run, then Artifacts > Combo-Scheduler-windows.
+# runs the tests on Windows, builds "Combo Manager.exe" with dev/build_exe.py, checks the built app loads every part
+# it needs (--selftest), and keeps the result for 30 days: open the run, then Artifacts > Combo-Manager-windows.
 # A tag like v1.0 also puts the zip on a GitHub Release, a lasting download link to hand out.
 name: Build the Windows app
 
@@ -38,18 +38,18 @@ jobs:
         shell: pwsh
         run: |
           $out = Join-Path $PWD "selftest.txt"
-          $p = Start-Process -FilePath "dist\Combo Scheduler\Combo Scheduler.exe" -ArgumentList "--selftest", "`"$out`"" -Wait -PassThru
+          $p = Start-Process -FilePath "dist\Combo Manager\Combo Manager.exe" -ArgumentList "--selftest", "`"$out`"" -Wait -PassThru
           Get-Content $out
           if ($p.ExitCode -ne 0) { exit 1 }
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Combo-Scheduler-windows
-          path: dist/Combo Scheduler/
+          name: Combo-Manager-windows
+          path: dist/Combo Manager/
           retention-days: 30
 
       - name: Attach to a Release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Combo-Scheduler-windows.zip
+          files: dist/Combo-Manager-windows.zip

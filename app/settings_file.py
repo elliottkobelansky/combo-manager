@@ -31,12 +31,12 @@ DEFAULTS = {
     "extra_slot_policy": "open",
     "min_shows_per_combo": 2,
     "max_shows_per_combo": 4,
-    "every_combo_supervised": True,
+    "min_supervised_per_combo": 1,
     "max_supervised_nights": 10,
     "supervision_timing": "none",
     "solver_time_limit_sec": 90,
     "student_email_domain": "mail.mcgill.ca",
-    "email_domain_fixes": "mcgill.ca -> mail.mcgill.ca",
+    "professor_email_domain": "mcgill.ca",
     "show_days": [
         {"weekday": "Tuesday", "venue": "Upstairs", "sets": 4, "min_per_combo": 1, "first_set": "19:00",
          "set_length": 45, "break": 15, "supervision_preferred": True},
@@ -69,9 +69,9 @@ HELP = {
     "min_shows_per_combo": "Every combo gets at least this many shows, at any venues (each venue's minimum still "
                            "applies). With leftover sets left open: exactly this many.",
     "max_shows_per_combo": "Cap on total shows per combo. Blank = no cap.",
-    "every_combo_supervised": "On: every combo plays at least one night a professor attends from start to end (that "
-                              "night has no open sets). Off: no supervised nights.",
-    "max_supervised_nights": "The most supervised nights in the whole semester, counting all professors together "
+    "min_supervised_per_combo": "How many nights each combo plays with a professor attending from start to end "
+                                "(those nights have no open sets). Usually 1; 0 = no supervised nights at all.",
+    "max_supervised_nights": "The most supervised nights in the whole semester, all professors together "
                              "(not per professor). One night covers every combo playing it. Blank = no limit (still "
                              "as few as possible).",
     "supervision_timing": "A light preference for when the supervised nights fall: earlier or later in the "
@@ -79,12 +79,13 @@ HELP = {
     "solver_time_limit_sec": "How long the solver searches (roughly seconds). 90 is plenty: it stops early once it has the best schedule.",
     "student_email_domain": "Students' email domain, e.g. mail.mcgill.ca. Other addresses are fine, just listed. "
                             "Blank = don't check.",
-    "email_domain_fixes": "Domain slips to correct, e.g. mcgill.ca -> mail.mcgill.ca, gmial.com -> gmail.com. "
-                          "Blank = none.",
+    "professor_email_domain": "Supervisors' email domain, e.g. mcgill.ca: a supervisor with another address is "
+                              "pointed out (a typo?). Blank = don't check.",
 }
 
-# Settings saved before these existed keep McGill's behaviour.
-LEGACY = {"student_email_domain": "mail.mcgill.ca", "email_domain_fixes": "mcgill.ca -> mail.mcgill.ca"}
+# Settings saved before these existed keep McGill's behaviour. (Domain fixes are no longer set in the app: an
+# email is fixed in the Combos tab; settings that still have some keep them.)
+LEGACY = {"student_email_domain": "mail.mcgill.ca", "professor_email_domain": "mcgill.ca"}
 
 
 def parse_domain_fixes(text):
@@ -242,10 +243,17 @@ def validate(data):
     if domain and ("." not in domain or " " in domain):
         errors.append(f"Settings student_email_domain: '{domain}' isn't an email domain (e.g. mail.mcgill.ca).")
     try:
-        fixes = parse_domain_fixes(data.get("email_domain_fixes", LEGACY["email_domain_fixes"]))
+        fixes = parse_domain_fixes(data.get("email_domain_fixes", ""))
     except ValueError as e:
         errors.append(f"Settings email_domain_fixes: {e}.")
         fixes = {}
+    prof_domain = str(data.get("professor_email_domain", LEGACY["professor_email_domain"]) or "").strip().lstrip(
+        "@").lower()
+    if prof_domain and ("." not in prof_domain or " " in prof_domain):
+        errors.append(f"Settings professor_email_domain: '{prof_domain}' isn't an email domain (e.g. mcgill.ca).")
+    # supervised nights per combo; settings from before say only on (1) or off (0)
+    min_sup = (get_int("min_supervised_per_combo", low=0) if "min_supervised_per_combo" in data
+               else 1 if data.get("every_combo_supervised", True) else 0) or 0
     fy_date = get_date("first_year_earliest_date", required=False)
     # settings saved before the switch existed: on exactly when there's a date
     use_first_year = bool(data["use_first_year"]) if "use_first_year" in data else bool(fy_date)
@@ -272,13 +280,15 @@ def validate(data):
         min_shows_per_combo=min_total,
         extra_slot_policy=policy,
         solver_time_limit_sec=get_int("solver_time_limit_sec", 90, low=1) or 90,
-        every_combo_supervised=bool(data.get("every_combo_supervised", True)),
+        every_combo_supervised=min_sup > 0,
+        min_supervised_per_combo=max(min_sup, 1),
         max_supervised_nights=get_int("max_supervised_nights", low=1),
         supervision_timing=timing,
         first_year_first_show_supervised=bool(data.get("first_year_first_show_supervised", True)),
         use_first_year=use_first_year,
         student_email_domain=domain,
         email_domain_fixes=fixes,
+        professor_email_domain=prof_domain,
     )
     if errors:
         raise SettingsError("\n".join(f"  - {e}" for e in errors))
@@ -308,7 +318,7 @@ def read_data(path):
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except FileNotFoundError:
-        raise SettingsError(f"Can't find {path}. Open the app's Settings tab (or run: python app/settings_file.py --new FOLDER).")
+        raise SettingsError("No settings yet: fill them in on the Settings tab and click Save settings.")
     except ValueError as e:
         raise SettingsError(f"{path} isn't valid settings ({e}). Fix it in the app, or restore a backup.")
 

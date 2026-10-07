@@ -5,7 +5,7 @@ test_rules.py can check inputs.py against it.
 
     python dev/make_fake_forms.py FOLDER [--combos 33] [--seed 1]  # a demo data folder: fake spreadsheets, instruments
     python dev/make_fake_forms.py FOLDER --instruments [--replace]  # only fill in instruments for the combos there
-FOLDER is any folder (made if needed), e.g. ~/Documents/Combo Scheduler demo; choose it in the app with Change
+FOLDER is any folder (made if needed), e.g. ~/Documents/Combo Manager demo; choose it in the app with Change
 folder... to try things. Never inside the program folder: that holds no data. Without settings yet, it gets the
 example settings (settings_file.DEFAULTS). Instruments go into App data/scheduler_data.json (as if set in the Combos
 tab); people who already have one keep it unless --replace.
@@ -268,7 +268,7 @@ def make_demo(folder, combos=33, seed=1, force=False):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("folder", type=Path, help="the demo data folder, e.g. ~/Documents/Combo Scheduler demo")
+    ap.add_argument("folder", type=Path, help="the demo data folder, e.g. ~/Documents/Combo Manager demo")
     ap.add_argument("--combos", type=int, default=33)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--force", action="store_true", help="overwrite existing response files")

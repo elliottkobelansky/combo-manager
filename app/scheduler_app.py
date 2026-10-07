@@ -1,9 +1,9 @@
 """One-click window for the director: check the inputs, make the schedule, rebuild the PDF after hand edits (Run
 tab), and change the settings (Settings tab, saved in settings.json).
 
-    Double-click "Make Schedule.bat" (Windows), "Make Schedule.command" (Mac) or "make-schedule.sh" (Linux),
+    Double-click "Combo Manager.bat" (Windows), "Combo Manager.command" (Mac) or "combo-manager.sh" (Linux),
     or run:  python app/scheduler_app.py
-    Packaged (dev/build_exe.py): "Combo Scheduler.exe", with everything included (no Setup screen).
+    Packaged (dev/build_exe.py): "Combo Manager.exe", with everything included (no Setup screen).
     python app/scheduler_app.py --selftest FILE   loads every part the app needs, writes what it found to FILE,
                                                   exit code 0 = all there (used to check a build)
 
@@ -29,12 +29,13 @@ HERE = Path(__file__).resolve().parent
 FROZEN = getattr(sys, "frozen", False)                # the packaged app (PyInstaller): every package is included
 sys.path.insert(0, str(HERE))
 # these three are standard library only: safe before the packages are installed
-from app_config import input_files, is_picked, load_config, pick_input_file, save_config, saved_folder  # noqa: E402
-from data_folder import (APP_DATA, APPROVALS_FILE, CONFLICTS_FILE, OLD_APPROVALS_FILE, SCHEDULE_PDF,  # noqa: E402
-                         SCHEDULE_XLSX, app_data, looks_like_data_folder, problem, settings_path, usual_inputs)
+from app_config import input_files, load_config, save_config, saved_folder  # noqa: E402
+from data_folder import (SCHEDULE_PDF, SCHEDULE_XLSX, looks_like_data_folder, problem,  # noqa: E402
+                         settings_path)
 import shared_folder  # noqa: E402
 import app_log  # noqa: E402
 AUTHOR, EMAIL = "Elliott Kobelansky", "elliottkobelansky@gmail.com"
+APP_NAME = "Combo Manager"
 PACKAGES = {"openpyxl": "openpyxl", "ortools": "ortools", "reportlab": "reportlab"}   # import name -> pip name
 OPTIONAL = {"tkcalendar": "tkcalendar"}   # the pop-up calendars
 
@@ -79,7 +80,7 @@ def run_solve(args, folder, write):
         except SystemExit as e:                       # argparse errors
             return e.code or 0
         except Exception:
-            print("\nSomething went wrong. Please send this to whoever maintains the scheduler (it's in the log "
+            print("\nSomething went wrong. Please send this to whoever maintains Combo Manager (it's in the log "
                   "too: About tab > Open the log):\n")
             traceback.print_exc()
             return 1
@@ -128,6 +129,18 @@ def save_folder(folder):
     save_config(folder=str(folder))
 
 
+def start_folder(folder):
+    """A new data folder's first files: the example settings, and no sheets linked (combos are entered in the app
+    until some are)."""
+    from settings_file import DEFAULTS, save_data
+    from store import Store
+    save_data(settings_path(folder), DEFAULTS)
+    store = Store(folder)
+    for which in ("approvals", "conflicts"):
+        store.set_linked(which, False)
+    store.save()
+
+
 def default_parent():
     """Where to suggest a new data folder or a backup: Documents, else the home folder."""
     docs = Path.home() / "Documents"
@@ -151,32 +164,25 @@ class App:
         self.mode = load_config().get("theme", "light")
         scale = load_config().get("text_size", 1.0)
         self.palette = theme.apply(root, self.mode, scale if scale in theme.SCALES else 1.0)
-        root.title("Combo Scheduler")
+        root.title(APP_NAME)
         root.minsize(940, 640)
 
         shell = ttk.Frame(root, padding=(20, 16, 20, 10))
         shell.pack(fill="both", expand=True)
-
-        # header: title, folder, dark mode
-        head = ttk.Frame(shell)                       # row 1: title and dark mode
+        head = ttk.Frame(shell)                       # row 1: the title (dark mode, text size: Appearance tab)
         head.pack(fill="x")
+        ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
         self.dark = tk.BooleanVar(value=self.mode == "dark")
-        ttk.Checkbutton(head, text="Dark mode", variable=self.dark, command=self.toggle_theme,
-                        style="TCheckbutton").pack(side="right")
-        sizes = ttk.Frame(head)                       # text size: A- 100% A+
-        sizes.pack(side="right", padx=(0, 18))
-        ttk.Button(sizes, text="A\u2212", width=3, command=lambda: self.text_size(-1)).pack(side="left")
-        self.size_label = ttk.Label(sizes, text="", width=5, anchor="center")
-        self.size_label.pack(side="left", padx=4)
-        ttk.Button(sizes, text="A+", width=3, command=lambda: self.text_size(+1)).pack(side="left")
-        ttk.Label(sizes, text="Text size", style="Hint.TLabel").pack(side="left", padx=(8, 0))
-        self.size_label.configure(text=f"{round(theme.SCALE * 100)}%")
-        ttk.Label(head, text="Combo Scheduler", style="Title.TLabel").pack(side="left")
         self.shell = shell
+        self.results = {}                             # "combos" / "schedule": the tabs' results boxes
         self.settings = self.swaps = self.combos = self.schedule = None
         self.buttons, self.runs = [], 0
         self.root.after(100, self.drain)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        try:                                          # a Mac's Cmd+Q / Quit menu: the same "save first?" checks
+            self.root.createcommand("tk::mac::Quit", self.on_close)
+        except tk.TclError:
+            pass
         missing = missing_packages(include_optional=True)
         if missing:
             self.build_setup(missing)
@@ -197,12 +203,13 @@ class App:
                     "connected and finished syncing, then choose it again. Otherwise choose another folder, or "
                     "restore a backup.")
         else:
-            title = "Where should the scheduler keep its files?"
-            text = ("The scheduler keeps everything in one data folder: the two spreadsheets from the forms "
-                    "(Approvals.xlsx and Conflicts.xlsx), the settings, the schedule, the PDFs and the past "
-                    "semesters. The program itself can be installed again any time; the data folder is what matters."
-                    "\n\n\u2022  Only this computer will use the scheduler: any folder on it works, e.g. "
-                    "Documents/Combo Scheduler data. Make a backup now and then (the Backup... button) and keep "
+            title = f"Where should {APP_NAME} keep its files?"
+            text = (f"{APP_NAME} keeps everything in one data folder: the combos and conflicts, the settings, the "
+                    "schedule, its PDF and Excel files, and past semesters (and, if you use them, the sheets the "
+                    "sign-up and conflict forms fill). The program itself can be installed again any time; the data "
+                    "folder is what matters."
+                    f"\n\n\u2022  Only this computer will use it: any folder on it works, e.g. "
+                    f"Documents/{APP_NAME} data. Make a backup now and then (the Backup... button) and keep "
                     "it somewhere else.\n\u2022  Several computers, or someone taking over later: use a folder "
                     "that's shared and kept in sync, e.g. in OneDrive, SharePoint or on a network drive. Each "
                     "computer chooses the same folder once.\n\nThe choice is remembered on this computer; "
@@ -220,23 +227,31 @@ class App:
                 self.build_main(taken=True)
 
         def existing():
-            picked = filedialog.askdirectory(title="The Combo Scheduler data folder",
+            picked = filedialog.askdirectory(title=f"The {APP_NAME} data folder",
                                              initialdir=str(gone.parent if gone and gone.parent.is_dir() else
                                                             default_parent()))
             use(Path(picked) if picked else None)
 
         def new():
-            parent = filedialog.askdirectory(title="Where to make the new 'Combo Scheduler data' folder",
+            parent = filedialog.askdirectory(title=f"Where to make the new '{APP_NAME} data' folder",
                                              initialdir=str(default_parent()))
             if parent:
                 from backup import new_folder
-                folder = new_folder(parent, "Combo Scheduler data")
+                folder = new_folder(parent, f"{APP_NAME} data")
                 try:
                     folder.mkdir()
-                except OSError as e:
+                    start_folder(folder)
+                except (OSError, ValueError) as e:
                     messagebox.showerror("Can't make the folder", f"Can't make {folder}:\n{e}")
                     return
                 use(folder)
+                messagebox.showinfo(
+                    "Your new data folder", f"{folder}\n\nIt's ready, with example settings. Next:\n\n"
+                    "1. Settings tab: the semester's name and dates, the show nights and venues. Save.\n"
+                    "2. Combos tab: the combos. Enter them (right-click > New combo), or link the sheets the "
+                    "sign-up and conflict forms fill (Linked sheets...).\n"
+                    "3. Combos tab: Check combos, and fix what it lists.\n"
+                    "4. Schedule tab: Make schedule.")
 
         def quit_():
             self.closed = True
@@ -256,9 +271,9 @@ class App:
             messagebox.showerror("Can't use this folder", f"{folder}\n\nThis folder can't be the data folder: {why}.")
             return False
         if not looks_like_data_folder(folder) and not messagebox.askyesno(
-                "Use this folder?", f"{folder}\n\nThis folder has other things in it and no scheduler files. The "
-                "scheduler's files would be added among them.\n\nUse it anyway? (Usually better: a folder of its "
-                "own, e.g. 'Combo Scheduler data'.)", icon="warning", default="no"):
+                "Use this folder?", f"{folder}\n\nThis folder has other things in it and no Combo Manager files. The "
+                "app's files would be added among them.\n\nUse it anyway? (Usually better: a folder of its "
+                f"own, e.g. '{APP_NAME} data'.)", icon="warning", default="no"):
             return False
         return self.take_folder(folder)
 
@@ -283,26 +298,29 @@ class App:
 
         self.tabs = ttk.Notebook(shell)
         self.tabs.pack(fill="both", expand=True, pady=(14, 0))
-        run_tab = ttk.Frame(self.tabs, padding=(4, 12, 4, 4))
-        self.tabs.add(run_tab, text="Run")
         from settings_panel import SettingsPanel
         from swap_panel import SwapPanel
         from combos_panel import CombosPanel
+        from schedule_panel import SchedulePanel
         self.combos = CombosPanel(self.tabs, lambda: self.folder, lambda: self.palette, open_path,
                                   on_change=lambda: self.swaps and self.swaps.load(quiet=True),
                                   get_swaps=lambda: self.swaps,
                                   after_schedule_change=lambda message: self.run(
                                       ["--stats", "--export"], "Checking the rules and rebuilding the PDF and xlsx...",
-                                      intro=message))
+                                      intro=message),
+                                  on_check=lambda: self.run(["--check"], "Checking the combos...", target="combos"))
         self.tabs.add(self.combos.frame, text="Combos")
+        self.results["combos"] = self.results_box(self.combos, "Check results: what to look at in the combos and "
+                                                               "conflicts")
         self.swaps = SwapPanel(self.tabs, lambda: self.folder, self.after_swap, lambda: self.palette)
-        self.tabs.add(self.swaps.frame, text="Swaps")
-        from schedule_panel import SchedulePanel
         self.schedule = SchedulePanel(self.tabs, self.swaps, self.goto_swaps,
                                       lambda done: self.run(["--stats", "--export"],
                                                             "Exporting Schedule.pdf and Schedule.xlsx...", on_done=done),
-                                      self.open_file, lambda: self.palette, open_path)
-        self.tabs.insert(1, self.schedule.frame, text="Schedule")
+                                      self.open_file, lambda: self.palette, open_path, make=self.make_schedule,
+                                      check=lambda: self.run(["--stats"], "Checking the schedule..."))
+        self.tabs.add(self.schedule.frame, text="Schedule")
+        self.results["schedule"] = self.results_box(self.schedule, "Results of the last Make schedule or Check")
+        self.tabs.add(self.swaps.frame, text="Swaps")
         self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette, on_save=self.autoload,
                                       on_dirty=lambda dirty: self.settings and self.tabs.tab(
                                           self.settings.frame, text="Settings \u25cf" if dirty else "Settings"))
@@ -310,58 +328,13 @@ class App:
         self.tabs.add(self.settings.frame, text="Settings \u25cf" if self.settings.dirty else "Settings")
         self.current_tab = None
         self.tabs.bind("<<NotebookTabChanged>>", self.tab_changed)
+        self.tabs.add(self.appearance_tab(), text="Appearance")
         self.tabs.add(self.about_tab(), text="About")
-
-        # which input spreadsheets are read (usually the data folder's; Choose... picks another file)
-        sources = ttk.Frame(run_tab)
-        sources.pack(fill="x", pady=(0, 12))
-        self.source_labels = {}
-        for r, (which, title) in enumerate([("approvals", "Approvals"), ("conflicts", "Conflicts")]):
-            ttk.Label(sources, text=title + ":", width=17, anchor="w").grid(row=r, column=0, sticky="w", pady=2)
-            label = ttk.Label(sources, text="", style="Hint.TLabel", anchor="w")
-            label.grid(row=r, column=1, sticky="ew", padx=(0, 8))
-            ttk.Button(sources, text="Choose...", command=lambda w=which: self.choose_input(w)).grid(row=r, column=2, pady=2)
-            reset = ttk.Button(sources, text="Use data folder", command=lambda w=which: self.choose_input(w, reset=True))
-            reset.grid(row=r, column=3, padx=(6, 0), pady=2)
-            self.source_labels[which] = (label, reset)
-        sources.columnconfigure(1, weight=1)
-
-        # the three steps, as cards
-        cards = ttk.Frame(run_tab)
-        cards.pack(fill="x")
-        for col, (num, title, hint, label, cmd) in enumerate([
-            ("1", "Check inputs", "", "Check",             # hint: the input files' names (show_sources)
-             lambda: self.run(["--check"], "Checking the inputs...")),
-            ("2", "Make schedule", "Makes a new schedule (and Schedule.pdf and Schedule.xlsx). Once per semester.",
-             "Make schedule", self.make_schedule),
-            ("3", "Check the schedule", "Rule check and stats for the schedule as it is now (after swaps). "
-             "Export the PDF or xlsx from the Schedule tab.", "Check",
-             lambda: self.run(["--stats"], "Checking the schedule...")),
-        ]):
-            card = ttk.Frame(cards, style="Card.TFrame", padding=(16, 14))
-            card.grid(row=0, column=col, sticky="nsew", padx=(0 if col == 0 else 6, 0 if col == 2 else 6))
-            cards.columnconfigure(col, weight=1, uniform="card")
-            ttk.Label(card, text=f"Step {num}", style="Step.TLabel").pack(anchor="w")
-            ttk.Label(card, text=title, style="CardTitle.TLabel").pack(anchor="w", pady=(2, 4))
-            hint_label = ttk.Label(card, text=hint, style="Hint.TLabel", justify="left")
-            hint_label.pack(anchor="w", fill="x")
-            if num == "1":
-                self.step1_hint = hint_label
-            card.bind("<Configure>", lambda e, l=hint_label: l.configure(wraplength=max(e.width - 34, 120)))
-            b = ttk.Button(card, text=label, style="Accent.TButton", command=cmd)
-            b.pack(anchor="w", pady=(12, 0))
-            self.buttons.append(b)
-        self.show_sources()
-
-        files = ttk.Frame(run_tab)
-        files.pack(fill="x", pady=(14, 8))
-        for name in (SCHEDULE_PDF, SCHEDULE_XLSX):
-            ttk.Button(files, text=f"Open {name}", command=lambda n=name: self.open_file(n)).pack(side="left", padx=(0, 8))
-
-        self.output_panel(run_tab)
+        self.out = self.results["schedule"].text
+        self.color_output()
+        self.buttons += [self.schedule.make_button, self.schedule.check_button, self.combos.check_button]
         self.status = ttk.Label(shell, text="Ready.", style="Hint.TLabel")
         self.status.pack(fill="x", pady=(8, 0))
-        self.write("Ready. Make sure the two spreadsheets above are the latest, then start with step 1.\n")
         self.root.after(300, self.autoload)
         self.root.after(shared_folder.REFRESH * 1000, self.keep_folder)
         self.root.after(800, self.check_copies)
@@ -372,7 +345,7 @@ class App:
         anyway. False = don't."""
         other = shared_folder.holder(folder)
         if other and not messagebox.askyesno(
-                "Data folder in use", f"This data folder is open in the Combo Scheduler on "
+                "Data folder in use", f"This data folder is open in {APP_NAME} on "
                 f"{shared_folder.describe(other)}.\n\nTwo computers changing it at the same time can lose changes: "
                 "best close the app there first.\n\nOpen it here anyway?", icon="warning", default="no"):
             return False
@@ -405,6 +378,27 @@ class App:
                 f"saved them at the same time:\n\n{lines}\n\nThe app only reads the file with the usual name. Open "
                 "the data folder, compare the two, keep the right one under the usual name and delete the other.")
 
+    def results_box(self, panel, title):
+        """A tab's fold-out results box, just above its bottom bar."""
+        box = self.theme.ResultsBox(panel.frame, title)
+        box.pack(fill="x", pady=(8, 0), before=panel.bottom)
+        return box
+
+    def appearance_tab(self):
+        tab = ttk.Frame(self.tabs, padding=(28, 24))
+        ttk.Label(tab, text="Appearance", style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(tab, text="Remembered on this computer.", style="Hint.TLabel").pack(anchor="w", pady=(2, 18))
+        sizes = ttk.Frame(tab)
+        sizes.pack(anchor="w")
+        ttk.Label(sizes, text="Text size", width=12).pack(side="left")
+        ttk.Button(sizes, text="A\u2212", width=3, command=lambda: self.text_size(-1)).pack(side="left")
+        self.size_label = ttk.Label(sizes, text=f"{round(self.theme.SCALE * 100)}%", width=6, anchor="center")
+        self.size_label.pack(side="left", padx=4)
+        ttk.Button(sizes, text="A+", width=3, command=lambda: self.text_size(+1)).pack(side="left")
+        ttk.Checkbutton(tab, text="Dark mode", variable=self.dark, command=self.toggle_theme).pack(anchor="w",
+                                                                                                pady=(16, 0))
+        return tab
+
     def output_panel(self, parent):
         """The box that shows what a step printed (self.out)."""
         box = ttk.Frame(parent, style="Card.TFrame", padding=1)
@@ -426,9 +420,9 @@ class App:
         self.tabs.add(tab, text="Setup")
         self.tabs.add(self.about_tab(), text="About")
         ttk.Label(tab, text="One-time setup", style="CardTitle.TLabel").pack(anchor="w")
-        ttk.Label(tab, text="The scheduler needs a few free add-ons for Python (" + ", ".join(missing) + "). "
+        ttk.Label(tab, text=f"{APP_NAME} needs a few free add-ons for Python (" + ", ".join(missing) + "). "
                             "Installing them takes about a minute and needs an internet connection. This happens "
-                            "only once on this computer, and the scheduler opens by itself when it's done.",
+                            "only once on this computer, and the app opens by itself when it's done.",
                   wraplength=760, justify="left").pack(anchor="w", pady=(8, 16))
         row = ttk.Frame(tab)
         row.pack(anchor="w", pady=(0, 16))
@@ -453,7 +447,7 @@ class App:
 
     def after_install(self, code):
         if code == 0 and not missing_packages(include_optional=True):
-            self.write("\nInstalled. Opening the scheduler...\n")
+            self.write("\nInstalled. Opening the app...\n")
             self.root.after(800, self.restart)
             return
         self.write("\nInstalling didn't work (see above). Check the internet connection and try again, or get in "
@@ -514,7 +508,7 @@ class App:
 
     def about_tab(self):
         tab = ttk.Frame(self.tabs, padding=(28, 28))
-        ttk.Label(tab, text="Combo Scheduler", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(tab, text=APP_NAME, style="Title.TLabel").pack(anchor="w")
         ttk.Label(tab, text=f"Made by {AUTHOR}.", style="CardTitle.TLabel").pack(anchor="w", pady=(10, 0))
         ttk.Label(tab, text="Questions, ideas, or something not working the way it should? Get in touch, happy to "
                             "help:", wraplength=640, justify="left").pack(anchor="w", pady=(14, 4))
@@ -556,51 +550,8 @@ class App:
         """An error in the window (a button that crashed): into the log, and said once, plainly."""
         app_log.error("in the window", value)
         where = f"\n\nThe details are in the log ({app_log.path(self.folder)}): please send that file to whoever " \
-                "maintains the scheduler (About tab)." if self.folder else ""
+                "maintains the app (About tab)." if self.folder else ""
         messagebox.showerror("Something went wrong", f"{value}{where}")
-
-    def show_sources(self):
-        """The Run tab's two input lines: which file each one is, and whether it's there; and Step 1 names them."""
-        files = input_files(self.folder)
-        self.step1_hint.configure(text=f"Reads {files['approvals'].name} and {files['conflicts'].name} and lists "
-                                       "anything to look at. Changes nothing.")
-        for which, (label, reset) in self.source_labels.items():
-            path, picked = files[which], is_picked(self.folder, which)
-            try:                                      # any name; in the data folder (or a folder in it), or anywhere
-                text = f"{path.relative_to(self.folder).as_posix()} in the data folder"
-            except ValueError:
-                text = shorten(str(path), 70)
-            if not path.exists():                     # 'App data' sounds like the place for it, but isn't
-                text += (f"   (not there: it's in {APP_DATA}, move it up one level)"
-                         if not picked and (app_data(self.folder) / path.name).exists() else "   (not there yet)")
-            label.configure(text=text)
-            if picked:
-                reset.grid()
-            else:
-                reset.grid_remove()
-
-    def choose_input(self, which, reset=False):
-        if reset:
-            pick_input_file(self.folder, which, None)
-        else:
-            current = input_files(self.folder)[which]
-            picked = filedialog.askopenfilename(
-                title="Approvals spreadsheet" if which == "approvals" else "Conflicts spreadsheet",
-                initialdir=str(current.parent if current.parent.is_dir() else self.folder),
-                filetypes=[("Excel workbook", "*.xlsx"), ("All files", "*.*")])
-            if not picked:
-                return
-            picked = Path(picked)
-            other = "conflicts" if which == "approvals" else "approvals"
-            others = [CONFLICTS_FILE] if which == "approvals" else [APPROVALS_FILE, OLD_APPROVALS_FILE]
-            if picked.name.lower() in [n.lower() for n in others] or picked == input_files(self.folder)[other]:
-                messagebox.showerror("Wrong spreadsheet", f"{picked.name} is the {other} spreadsheet. Choose the "
-                                     + ("approvals" if which == "approvals" else "conflicts") + " one here.")
-                return
-            usual = usual_inputs(self.folder)[which]
-            pick_input_file(self.folder, which, None if picked == usual else picked)   # the usual file: nothing to remember
-        self.show_sources()
-        self.autoload()
 
     def folder_text(self, room=60):
         """The data folder, shortened in the middle when long: 'Data folder:  /home/.../Shared/Combos'."""
@@ -608,11 +559,13 @@ class App:
 
     def color_output(self):
         p, mono, size = self.palette, self.theme.mono_font(), self.theme.size(10)
-        self.out.configure(font=(mono, size), background=p["panel"], foreground=p["text"], insertbackground=p["text"],
-                           selectbackground=p["accent"], selectforeground=p["accent_text"])
-        self.out.tag_configure("warn", foreground=p["warn"])
-        self.out.tag_configure("bad", foreground=p["bad"], font=(mono, size, "bold"))
-        self.out.tag_configure("good", foreground=p["good"], font=(mono, size, "bold"))
+        boxes = [b.text for b in self.results.values()] or [self.out]
+        for out in boxes:
+            out.configure(font=(mono, size), background=p["panel"], foreground=p["text"], insertbackground=p["text"],
+                          selectbackground=p["accent"], selectforeground=p["accent_text"])
+            out.tag_configure("warn", foreground=p["warn"])
+            out.tag_configure("bad", foreground=p["bad"], font=(mono, size, "bold"))
+            out.tag_configure("good", foreground=p["good"], font=(mono, size, "bold"))
 
     def text_size(self, step):
         """A- / A+: the next smaller or bigger text size; remembered on this computer."""
@@ -659,7 +612,7 @@ class App:
                 for line in item.splitlines(keepends=True):
                     tag = ("bad" if ("PROBLEM" in line or "Can't continue" in line or "went wrong" in line) else
                            "warn" if ("WARN" in line) else
-                           "good" if ("All hard rules hold" in line or line.startswith(("Wrote", "Saved the schedule"))) else None)
+                           "good" if ("All hard rules hold" in line or line.startswith(("Wrote", "Saved the schedule", "Made a schedule"))) else None)
                     self.out.insert("end", line, tag)
                 self.out.see("end")
                 self.out.configure(state="disabled")
@@ -675,7 +628,7 @@ class App:
         if self.combos and not self.combos.ask_to_save():
             self.tabs.select(self.combos.frame)
             return
-        picked = filedialog.askdirectory(initialdir=str(self.folder), title="The Combo Scheduler data folder")
+        picked = filedialog.askdirectory(initialdir=str(self.folder), title=f"The {APP_NAME} data folder")
         if picked:
             self.switch_folder(Path(picked))
 
@@ -687,7 +640,8 @@ class App:
         self.folder = folder
         self.folder_label.configure(text=self.folder_text())
         save_folder(self.folder)
-        self.show_sources()
+        if self.combos:
+            self.combos.show_links()
         if self.settings:
             self.settings.reload()
         self.autoload()
@@ -780,7 +734,7 @@ class App:
         change.grid(row=6, column=2, sticky="ne", pady=(4, 0))
 
         def target():
-            return new_folder(dest_parent[0], f"Combo Scheduler data (restored {datetime.now():%Y-%m-%d})")
+            return new_folder(dest_parent[0], f"{APP_NAME} data (restored {datetime.now():%Y-%m-%d})")
 
         def update():
             new = mode.get() == "new"
@@ -883,7 +837,8 @@ class App:
         if self.swaps:
             self.swaps.pending = []
             self.swaps.refresh_pending()
-        self.show_sources()
+        if self.combos:
+            self.combos.show_links()
         if self.settings:
             self.settings.reload()
         self.autoload()
@@ -904,7 +859,9 @@ class App:
             messagebox.showinfo("Not there yet", f"There is no {name} in the data folder yet.")
 
     def make_schedule(self):
-        from schedule_file import has_schedule
+        """Makes a brand-new schedule. Once one exists it says what would be lost, and it's off entirely while the
+        schedule is marked as sent to students (Schedule tab)."""
+        from schedule_file import has_schedule, summary
         other = self.other_semester()
         if other is not None:                         # last semester's files: filed away, nothing is lost
             if not messagebox.askyesno(
@@ -912,12 +869,26 @@ class App:
                     f"Its files (schedule, PDFs, contact lists, backups) will be moved into "
                     f"'Archive/{other or 'Old schedule'}' in the data folder, then a new schedule is made.\n\nGo ahead?"):
                 return
-        elif has_schedule(self.folder) and not messagebox.askyesno(
-                "Replace the schedule?",
-                "There is a schedule already. It will be REPLACED by a brand-new one, and any swaps or text made in "
-                "it won't be in the new one (a copy goes to 'App data/Schedule backups').\n\nAfter the schedule is "
-                "published, use button 3 instead.\n\nMake a new schedule?", icon="warning", default="no"):
-            return
+        elif has_schedule(self.folder):
+            info = summary(self.folder)
+            if info.get("published"):
+                messagebox.showinfo("Make a new schedule", "The schedule is marked as sent to students, so a new one "
+                                    "can't be made. Use swaps for changes (Swaps tab). To really start over, untick "
+                                    "'Sent to students' on the Schedule tab first.")
+                return
+            made = info.get("made", "")
+            when = f" (made {datetime.fromisoformat(made):%a %b %d at %H:%M})" if made else ""
+            lost = ["\u2022 Every combo's shows are worked out again from scratch: most will move."]
+            if info.get("changes"):
+                lost.append(f"\u2022 {info['changes']} change(s) saved since it was made (swaps, give-aways, "
+                            "withdrawn combos) won't be in the new one.")
+            if info.get("typed"):
+                lost.append(f"\u2022 {info['typed']} set(s) with text typed in (e.g. Jam session) will be empty.")
+            if not messagebox.askyesno(
+                    "Replace the schedule?", f"This replaces the current schedule{when}:\n\n" + "\n".join(lost)
+                    + "\n\nA copy is kept in App data > Schedule backups. Only do this before the schedule goes to "
+                    "students; after that, use swaps.\n\nMake a new schedule?", icon="warning", default="no"):
+                return
         self.run(["-y", "--export"], "Making the schedule (this can take up to a minute)...", ticker=True)
 
     def other_semester(self):
@@ -943,16 +914,21 @@ class App:
         self.run(["--stats", "--export"], "Checking the rules and rebuilding the PDF and xlsx...", intro=message,
                  on_done=on_done)
 
-    def run(self, args, message, intro="", on_done=None, ticker=False):
-        """Runs solve.py with these arguments in the background, its output in the box. ticker: a 'still working'
-        line every 10 seconds, so a long solve doesn't look frozen."""
+    def run(self, args, message, intro="", on_done=None, ticker=False, target="schedule"):
+        """Runs a step (solve.py's main with these arguments) in the background, its output in a tab's results box
+        (target: "combos" or "schedule"), opened. ticker: a 'still working' line every 10 seconds, so a long solve
+        doesn't look frozen."""
         missing = missing_packages()
         if missing:
             messagebox.showwarning("Missing packages", f"Install these first: {', '.join(missing)}.")
             return
-        self.out.configure(state="normal")
-        self.out.delete("1.0", "end")
-        self.out.configure(state="disabled")
+        if self.busy:
+            return
+        box = self.results.get(target)
+        if box:
+            self.out = box.text
+            box.clear()
+            box.show(True)
         if intro:
             self.write(intro)
 
@@ -992,7 +968,8 @@ class App:
 
     def finish(self):
         self.busy = False
-        self.show_sources()
+        if self.combos:
+            self.combos.show_links()
         self.autoload()                               # the schedule may have changed
         self.status.configure(text="Ready.")
         for b in self.buttons:
@@ -1041,7 +1018,7 @@ def selftest(out):
     def pdf():
         from reportlab.pdfgen import canvas
         c = canvas.Canvas(str(tmp / "t.pdf"))
-        c.drawString(72, 720, "Combo Scheduler")
+        c.drawString(72, 720, APP_NAME)
         c.save()
     step("a PDF (reportlab)", pdf)
 
@@ -1049,7 +1026,7 @@ def selftest(out):
         from openpyxl import Workbook
         from shared_folder import save_workbook
         wb = Workbook()
-        wb.active["A1"] = "Combo Scheduler"
+        wb.active["A1"] = APP_NAME
         save_workbook(wb, tmp / "t.xlsx")
     step("an Excel file (openpyxl)", xlsx)
 

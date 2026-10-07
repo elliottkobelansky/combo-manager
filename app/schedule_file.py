@@ -8,6 +8,7 @@ and never read back, so editing them changes nothing.
      "sets":   {"2026-09-29": {"1": "Combo 28", "2": "Combo 30"}, ...},     combo names; a set not listed is open
      "typed":  {"2026-09-29": {"4": "Jam session"}},                        text in a set (it then counts as taken)
      "report": [["warn", "..."], ...],                                      what the solver said when it was made
+     "published": true,                                                     sent to students: Make schedule is off
      "history": [{"saved": "2026-10-20T15:02:11", "computer": "OFFICE-PC", "what": ["Trade with Combo 12: ..."],
                   "changes": [{"night": "2026-10-13", "set": 2, "before": "Combo 05", "after": "Combo 12"}]}, ...]}
                                                                             every change since it was made
@@ -50,6 +51,8 @@ class Schedule:
     problems: List[str] = field(default_factory=list)   # combos in it that aren't accepted any more, ...
     report: List[list] = field(default_factory=list)
     history: List[dict] = field(default_factory=list)   # every change since it was made, oldest first
+    published: bool = False                       # sent to students: a new schedule can't be made (Schedule tab)
+    made: str = ""                                # when it was made (ISO date and time)
     converted: bool = False                       # just made from an old Schedule.xlsx
 
 
@@ -131,8 +134,9 @@ def load(folder, combos, settings):
             typed[d] = texts
     supervised = ({date.fromisoformat(n["date"]) for n in data.get("nights", []) if n.get("supervised")}
                   if data.get("supervision", True) else None)
-    return Schedule(data.get("semester", ""), nights, sets, typed, supervised, problems, data.get("report", []),
-                    data.get("history", []), converted)
+    return Schedule(data.get("semester", ""), nights, sets, typed, supervised, problems, report=data.get("report", []),
+                    history=data.get("history", []), converted=converted, published=bool(data.get("published")),
+                    made=data.get("made", ""))
 
 
 def entries(schedule):
@@ -192,6 +196,28 @@ def save_new(folder, result, settings):
         "sets": {d.isoformat(): {str(k): result.combos[c].name for k, c in enumerate(cs, start=1)}
                  for d, cs in sorted(result.lineup.items()) if cs},
         "typed": {}, "report": [list(r) for r in result.report], "history": [_entry(["Schedule made"])]})
+
+
+def summary(folder):
+    """What a new schedule would replace: {made, changes (saved changes since it was made), typed (sets with text),
+    published}; {} when there's no schedule.json."""
+    data = _read(folder)
+    if data is None:
+        return {}
+    return dict(made=data.get("made", ""), published=bool(data.get("published")),
+                changes=sum(1 for h in data.get("history", []) if h.get("changes")),
+                typed=sum(len(r) for r in data.get("typed", {}).values()))
+
+
+def set_published(folder, on):
+    """Marks the schedule as sent to students (or not). While it is, Make schedule is off. Kept in the history."""
+    data = _read(folder)
+    if data is None or bool(data.get("published")) == bool(on):
+        return
+    data["published"] = bool(on)
+    data.setdefault("history", []).append(_entry(["Marked as sent to students" if on else
+                                                  "Unmarked as sent to students"]))
+    _write(folder, data)
 
 
 def save_changes(folder, combos, sets=None, typed=None, what=()):

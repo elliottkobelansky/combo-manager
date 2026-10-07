@@ -56,14 +56,17 @@ class InputError(Exception):
 class EmailRules:
     """The settings' email rules. norm(): lowercase and correct a domain slip (email_domain_fixes, e.g. mcgill.ca ->
     mail.mcgill.ca); any other address (e.g. Gmail for a member from elsewhere) is kept as typed. is_student(): on
-    student_email_domain (always True when that's blank)."""
+    student_email_domain (always True when that's blank). is_professor(): on professor_email_domain (True when blank)."""
 
-    def __init__(self, domain="", fixes=None):
-        self.domain, self.fixes = domain, fixes or {}
+    def __init__(self, domain="", fixes=None, prof_domain=""):
+        self.domain, self.fixes, self.prof_domain = domain, fixes or {}, prof_domain
 
     @classmethod
     def from_settings(cls, settings):
-        return cls(settings.student_email_domain, settings.email_domain_fixes)
+        return cls(settings.student_email_domain, settings.email_domain_fixes, settings.professor_email_domain)
+
+    def is_professor(self, e):
+        return not self.prof_domain or e.endswith("@" + self.prof_domain)
 
     def norm(self, e):
         e = str(e or "").strip().lower()
@@ -172,6 +175,30 @@ def not_emails(text):
     return [x for x in pieces if x and not EMAIL_RE.search(x) and len(re.findall(r"[A-Za-z]", x)) >= 2]
 
 
+def email_warnings(e, rules, known=(), supervisor=False):
+    """Why an email typed into the app might be wrong (New combo, Add a member): a domain that looks like a typo of
+    the student or professor domain, a supervisor with a student address or not on the professor domain, and someone
+    already known with the same name part at another address. -> [sentences]."""
+    from difflib import SequenceMatcher
+    out = []
+    local, _, dom = e.partition("@")
+    domains = [d for d in (rules.domain, rules.prof_domain) if d]
+    typo = next((d for d in domains if dom not in domains and SequenceMatcher(None, dom, d).ratio() >= 0.85), None)
+    if typo:
+        out.append(f"{e}: '{dom}' looks like a typo of '{typo}'.")
+    elif supervisor and rules.domain and rules.is_student(e):
+        out.append(f"{e} is a student address, not a supervisor's.")
+    elif supervisor and not rules.is_professor(e):
+        out.append(f"{e} isn't a {rules.prof_domain} address.")
+
+    def key(x):
+        return re.sub(r"[^a-z0-9]", "", x.split("@")[0].lower())
+    twins = sorted(k for k in known if k != e and key(k) == key(e))
+    if twins:
+        out.append(f"{e}: the same person as {twins[0]}, already known with that address?")
+    return out
+
+
 def check_addresses(combos, blocked, rules, notes):
     """Address problems that make the scheduler miss someone: a domain that looks like a typo of the student domain
     (mail.mcgil.ca), the same person under two addresses in the combos, and conflicts sent from an address no combo
@@ -179,14 +206,18 @@ def check_addresses(combos, blocked, rules, notes):
     from difflib import SequenceMatcher
     members = {e: c for c in combos for e in c.members}
     everyone = sorted(set(members) | set(blocked))
+    if rules.domain and rules.prof_domain and rules.prof_domain != rules.domain:
+        for e in sorted(members):                     # a student who typed the staff domain (mcgill.ca for mail.mcgill.ca)
+            if e.endswith("@" + rules.prof_domain):
+                notes.append(("warn", f"{e} ({members[e].name}): a student on the professors' domain? Students use "
+                                      f"{rules.domain}: if so, fix it (Combos tab: Change email)."))
     if rules.domain:
         for e in everyone:
             dom = e.split("@")[1]
             if dom != rules.domain and SequenceMatcher(None, dom, rules.domain).ratio() >= 0.85:
                 where = members[e].name if e in members else "the conflict form"
                 notes.append(("warn", f"{e} ({where}): is '{dom}' a typo of '{rules.domain}'? If so, fix the email "
-                                      "(Combos tab: Change email) or add the slip to Student email domain fixes "
-                                      "(Settings)."))
+                                      "(Combos tab: Change email)."))
 
     def key(e):
         return re.sub(r"[^a-z0-9]", "", e.split("@")[0].lower())
@@ -210,15 +241,18 @@ def parse_conflicts(path, sheet, semester, notes, fix=lambda e: e, rules=EmailRu
     """-> {email: {dates}}. overruled = {email: {dates}} overruled in the app (Combos tab): they don't count;
     added = {email: {dates}} added in the app: they count like the form's."""
     what = "Conflicts"
-    headers, rows = read_export(path, sheet, DEFAULT_CONFLICT_HEADERS, what, notes)
-    sem_i = col(headers, "semester")
-    login_i = col(headers, "email", exact=True)
-    typed_i = next((i for i, h in enumerate(headers) if "email" in h.lower() and i != login_i), None)
-    date_is = [i for i, h in enumerate(headers) if "date" in h.lower()]
-    status_i = col(headers, "status")
-    if sem_i is None or not date_is or (login_i is None and typed_i is None):
-        raise InputError(f"Conflicts export: couldn't find the Semester, email and date columns.\n  Headers seen: {headers}")
-    rows = semester_filter(rows, sem_i, semester, what, notes)
+    if path is None:                               # no conflicts sheet linked: only the conflicts added in the app
+        rows, login_i, typed_i, date_is, status_i = [], None, None, [], None
+    else:
+        headers, rows = read_export(path, sheet, DEFAULT_CONFLICT_HEADERS, what, notes)
+        sem_i = col(headers, "semester")
+        login_i = col(headers, "email", exact=True)
+        typed_i = next((i for i, h in enumerate(headers) if "email" in h.lower() and i != login_i), None)
+        date_is = [i for i, h in enumerate(headers) if "date" in h.lower()]
+        status_i = col(headers, "status")
+        if sem_i is None or not date_is or (login_i is None and typed_i is None):
+            raise InputError(f"Conflicts export: couldn't find the Semester, email and date columns.\n  Headers seen: {headers}")
+        rows = semester_filter(rows, sem_i, semester, what, notes)
 
     best, submissions = {}, 0
     for xl, key, r in rows:
@@ -279,25 +313,30 @@ ACCEPTED, REJECTED, WITHDRAWN = ("accepted",), ("rejected",), ("withdrawn",)
 
 
 def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use_first_year=True):
-    """The approvals table -> accepted Combos, numbered with (and adding to) store's numbers for this semester."""
+    """The approvals table (path None: none linked) and the combos made in the app -> accepted Combos, numbered with
+    (and adding to) store's numbers for this semester."""
     what = "Approvals"
-    headers, rows = read_export(path, sheet, None, what, notes, needs=("status", "members"))
-    sem_i, members_i, status_i = col(headers, "semester"), col(headers, "member"), col(headers, "status")
-    if sem_i is None or members_i is None or status_i is None:
-        raise InputError(f"{what}: couldn't find the Semester, Members and Status columns in {Path(path).name}.\n"
-                         f"  Headers seen: {headers}")
-    liaison_i = col(headers, "liaison")
-    prof_i = col(headers, "supervisor", "professor")
-    fy_i = col(headers, "first year", "first-year")
-    name_i = next((i for i, h in enumerate(headers) if "combo" in h.lower() and "name" in h.lower()), None)
-    id_i = next((i for i, h in enumerate(headers) if h.lower() in ("id", "response id")), None)
-    if id_i is None:
-        notes.append(("warn", f"{what}: no 'Response Id' column; combos are numbered by row order instead."))
-    seen_sems = sorted({str(cell(r, sem_i)).strip() for _, _, r in rows if not blank(cell(r, sem_i))})
-    rows = semester_filter(rows, sem_i, semester, what, notes)
-    if not rows:
-        notes.append(("warn", f"{what}: no submissions for {semester}. Semesters in the table: "
-                              f"{', '.join(seen_sems) or 'none'}. Is semester_name in the settings right?"))
+    if path is None:                               # no approvals sheet linked: only the combos made in the app
+        rows, sem_i = [], None
+        members_i = status_i = liaison_i = prof_i = fy_i = name_i = id_i = None
+    else:
+        headers, rows = read_export(path, sheet, None, what, notes, needs=("status", "members"))
+        sem_i, members_i, status_i = col(headers, "semester"), col(headers, "member"), col(headers, "status")
+        if sem_i is None or members_i is None or status_i is None:
+            raise InputError(f"{what}: couldn't find the Semester, Members and Status columns in {Path(path).name}.\n"
+                             f"  Headers seen: {headers}")
+        liaison_i = col(headers, "liaison")
+        prof_i = col(headers, "supervisor", "professor")
+        fy_i = col(headers, "first year", "first-year")
+        name_i = next((i for i, h in enumerate(headers) if "combo" in h.lower() and "name" in h.lower()), None)
+        id_i = next((i for i, h in enumerate(headers) if h.lower() in ("id", "response id")), None)
+        if id_i is None:
+            notes.append(("warn", f"{what}: no 'Response Id' column; combos are numbered by row order instead."))
+        seen_sems = sorted({str(cell(r, sem_i)).strip() for _, _, r in rows if not blank(cell(r, sem_i))})
+        rows = semester_filter(rows, sem_i, semester, what, notes)
+        if not rows:
+            notes.append(("warn", f"{what}: no submissions for {semester}. Semesters in the table: "
+                                  f"{', '.join(seen_sems) or 'none'}. Is semester_name in the settings right?"))
 
     found, pending, rejected, withdrawn, seen_refs, outside, edited = [], [], [], [], set(), set(), {}
     app_withdrawn, waiting = [], []                # accepted but withdrawn in the app; waiting for a decision
@@ -349,6 +388,8 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
             notes.append(("warn", f"{what} {who}: no supervisor email."))
         elif rules.domain and rules.is_student(prof):
             notes.append(("warn", f"{what} {who}: supervisor '{prof}' is a student address. A mistake?"))
+        elif prof and not rules.is_professor(prof):
+            notes.append(("warn", f"{what} {who}: supervisor '{prof}' isn't a {rules.prof_domain} address. A typo?"))
         (app_withdrawn if changes["withdrawn"] else found).append(
             dict(xl=xl, key=key, ref=ref, members=frozenset(members), liaison=liaison, prof=prof, name=name,
                  fy=use_first_year and (changes["first_year"] if changes["first_year"] is not None else fy)))
@@ -494,9 +535,11 @@ def load_input(folder, settings, approvals=APPROVALS_FILE, conflicts=CONFLICTS_F
         raise InputError(str(e))
     notes = []
     rules = EmailRules.from_settings(settings)
-    blocked = parse_conflicts(folder / conflicts, conflicts_sheet, settings.semester_name, notes, store.fix_email, rules,
+    approvals = folder / approvals if store.linked("approvals") else None   # sheets are optional (Combos tab)
+    conflicts = folder / conflicts if store.linked("conflicts") else None
+    blocked = parse_conflicts(conflicts, conflicts_sheet, settings.semester_name, notes, store.fix_email, rules,
                               store.overruled(settings.semester_name), store.added_conflicts(settings.semester_name))
-    combos, withdrawn, waiting = parse_approvals(folder / approvals, approvals_sheet, settings.semester_name, notes, store, rules,
+    combos, withdrawn, waiting = parse_approvals(approvals, approvals_sheet, settings.semester_name, notes, store, rules,
                              settings.use_first_year)
     check_addresses(combos + waiting, blocked, rules, notes)
     if store.changed:

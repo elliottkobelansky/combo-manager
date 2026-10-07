@@ -4,7 +4,7 @@ PDF.
 
 Corrected names, instruments (per person per combo: someone can play piano in one combo and bass in another) and
 member changes are kept in scheduler_data.json in the data folder (store.py), so the PDFs, the checks and the Swaps
-tab all use them. The approvals spreadsheet itself is never changed.
+tab all use them. The linked sheets themselves are never changed.
 """
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
@@ -13,7 +13,7 @@ import app_log
 from app_config import input_files
 from core.model import make_label
 from data_folder import COMBOS_PDF, COMBOS_XLSX, settings_path
-from inputs import EMAIL_RE, EmailRules, InputError, load_input, name_from_email
+from inputs import EMAIL_RE, EmailRules, InputError, email_warnings, load_input, name_from_email
 from schedule_file import ScheduleFileError, has_schedule, load as load_schedule, open_sets_of
 from settings_file import SettingsError, load_settings
 from store import Store
@@ -24,11 +24,12 @@ from util import INSTRUMENTS, by_instrument
 
 class CombosPanel:
     def __init__(self, parent, get_folder, get_palette=lambda: {}, open_path=None, on_change=None,
-                 get_swaps=lambda: None, after_schedule_change=None):
+                 get_swaps=lambda: None, after_schedule_change=None, on_check=None):
         self.get_folder, self.get_palette, self.open_path = get_folder, get_palette, open_path
         self.on_change = on_change                        # reloads the other tabs after an email fix
         self.get_swaps = get_swaps                        # the Swaps tab (its pending changes)
         self.after_schedule_change = after_schedule_change  # rebuilds the PDF and xlsx after the schedule changed
+        self.on_check = on_check or (lambda: None)       # Check combos (the warnings, in the results box below)
         self.people = {}                                  # tree item id -> (combo name, email); combo None = supervisor
         self.removed = {}                                 # tree item id -> (combo name, email) of a removed member
         self.combo_items = {}                             # tree item id -> combo name
@@ -37,10 +38,18 @@ class CombosPanel:
         self.pending = []                                 # edits not saved yet (queue): shown as if done
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
 
+        # the sheets the forms fill (optional): which are linked, Sync to read them again
+        links = ttk.Frame(self.frame, style="Card.TFrame", padding=(10, 6))
+        links.pack(fill="x", pady=(0, 10))
+        self.links_label = ttk.Label(links, text="")
+        self.links_label.pack(side="left")
+        ttk.Button(links, text="Linked sheets...", command=lambda: LinkDialog(self)).pack(side="right")
+        self.sync_button = ttk.Button(links, text="Sync", command=self.reload)
+        self.sync_button.pack(side="right", padx=(0, 6))
+
         top = ttk.Frame(self.frame)
         top.pack(fill="x")
-        ttk.Button(top, text="Reload", command=self.reload).pack(side="left")
-        ttk.Label(top, text="Search").pack(side="left", padx=(16, 6))
+        ttk.Label(top, text="Search").pack(side="left", padx=(0, 6))
         self.search = tk.StringVar()
         self.search.trace_add("write", lambda *_: self.fill())
         ttk.Entry(top, textvariable=self.search, width=28).pack(side="left")
@@ -48,8 +57,8 @@ class CombosPanel:
         self.info.pack(side="left", padx=12)
 
         hint = ttk.Label(self.frame, text="Click an instrument to change it; double-click a name or email to fix it. "
-                                          "Right-click (or Actions) for everything else. Nothing is saved until "
-                                          "Confirm changes.",
+                                          "Right-click anywhere (or Actions) for everything else, including a new "
+                                          "combo. Nothing is saved until Confirm changes.",
                          style="Hint.TLabel", justify="left")
         hint.pack(anchor="w", fill="x", pady=(8, 0))
         self.frame.bind("<Configure>", lambda e: hint.configure(wraplength=max(e.width - 20, 200)), add="+")
@@ -73,6 +82,9 @@ class CombosPanel:
         ttk.Button(self.pending_box, text="Confirm changes", style="Accent.TButton",
                    command=self.confirm).pack(side="right")
         self.bottom = bottom
+        self.check_button = ttk.Button(bottom, text="Check combos", style="Accent.TButton",
+                                       command=lambda: self.on_check())
+        self.check_button.pack(side="left", padx=(0, 12))
         ttk.Button(bottom, text="Expand all", command=lambda: self.expand(True)).pack(side="left")
         ttk.Button(bottom, text="Collapse all", command=lambda: self.expand(False)).pack(side="left", padx=6)
         self.actions = ttk.Button(bottom, text="Actions \u25be", command=self.actions_menu)   # = the right-click menu
@@ -80,9 +92,9 @@ class CombosPanel:
         self.actions_hint = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.actions_hint.pack(side="left", padx=10)
         self.tree.bind("<<TreeviewSelect>>", lambda _: self.show_actions_hint(), add="+")
-        ttk.Button(bottom, text="Export Excel", style="Accent.TButton",
+        ttk.Button(bottom, text="Open Excel", style="Accent.TButton",
                    command=self.export_xlsx).pack(side="right")
-        ttk.Button(bottom, text="Export PDF", style="Accent.TButton",
+        ttk.Button(bottom, text="Open PDF", style="Accent.TButton",
                    command=self.export_pdf).pack(side="right", padx=(0, 6))
 
         self.data = None
@@ -129,10 +141,28 @@ class CombosPanel:
                          blocked=inp.blocked,
                          instruments=self.store.instruments(settings.semester_name, combos.values()), settings=settings,
                          rules=EmailRules.from_settings(settings))
+        self.show_links()
         n_people = len({e for c in combos.values() for e in c.members})
         self.info.configure(text=f"{len(combos)} combos, {n_people} students." + (
             " * = supervised night." if shows else " (No schedule yet: shows aren't listed.)"))
         self.fill()
+
+    def show_links(self):
+        """The linked-sheets bar: which sheets are read (Sync reads them again)."""
+        try:
+            store = Store(self.get_folder())
+        except (OSError, ValueError):
+            return
+        files = input_files(self.get_folder())
+        on = [files[w].name for w in ("approvals", "conflicts") if store.linked(w)]
+        if on:
+            self.links_label.configure(text="Linked sheets: " + ", ".join(on) + "   (new sign-ups and conflicts come "
+                                       "in on Sync)")
+            self.sync_button.pack(side="right", padx=(0, 6))
+        else:
+            self.links_label.configure(text="No sheets linked: combos and conflicts are entered here (right-click > "
+                                       "New combo, Edit conflicts).")
+            self.sync_button.pack_forget()
 
     def name(self, email):
         return self.data["names"].get(email) or name_from_email(email)
@@ -291,8 +321,8 @@ class CombosPanel:
                                                    "too).")
             return
         new = simpledialog.askstring(
-            "Change email", f"Correct email for {self.name(email)}:\n(The spreadsheets aren't changed; the fix is "
-            "applied whenever they're read, to the combos and the conflicts.)", initialvalue=email, parent=self.frame)
+            "Change email", f"Correct email for {self.name(email)}:\n(Used everywhere: their combos and their "
+            "conflicts.)", initialvalue=email, parent=self.frame)
         if new is None:
             return
         new = new.strip().lower()
@@ -397,9 +427,10 @@ class CombosPanel:
 
     def context_menu(self, event):
         item = self.tree.identify_row(event.y)
-        if not item:
-            return
-        self.tree.selection_set(item)
+        if item:
+            self.tree.selection_set(item)
+        else:                                             # empty space: what fits nothing picked (New combo...)
+            self.tree.selection_set(())
         menu = self.build_menu()
         menu.update_idletasks()
         win = self.frame.winfo_toplevel()                 # the window's edges, not the screen's: with two monitors
@@ -444,7 +475,7 @@ class CombosPanel:
             menu.add_command(label="Change email...", command=self.edit_email)
             menu.add_command(label="Set instrument...", command=lambda: self.edit_instrument(item))
             n = sum(1 for _, counts in self.conflict_dates(email).values() if counts)
-            menu.add_command(label=f"Conflicts ({n})..." if n else "Conflicts... (none: add one)",
+            menu.add_command(label=f"Edit conflicts ({n})..." if n else "Edit conflicts... (none yet)",
                              command=lambda: ConflictsDialog(self, email))
             menu.add_separator()
             menu.add_command(label=f"Remove from {combo.name}...", command=self.remove_member)
@@ -477,7 +508,7 @@ class CombosPanel:
             menu.add_command(label=f"Withdraw {combo.name}...", command=self.withdraw)
         if self.data:
             menu.add_separator()
-            menu.add_command(label="New combo... (one not in the approvals)", command=self.new_combo)
+            menu.add_command(label="New combo...", command=self.new_combo)
         self.menu = menu                              # (kept for tests)
         return menu
 
@@ -623,7 +654,8 @@ class CombosPanel:
         if self.on_change:
             self.on_change()
         self.info.configure(text=f"Saved {n} change(s)." + (f" {len(opened)} set(s) opened." if opened else ""))
-        if opened and self.after_schedule_change:
+        self.write_exports()
+        if self.after_schedule_change and has_schedule(folder):    # names, instruments, members show there too
             self.after_schedule_change("Opened " + ", ".join(f"{make_label(d)} set {k} ({name})" for name, d, k in
                                                               opened) + f". Backup of the schedule before: {backup}\n")
         return True
@@ -653,7 +685,7 @@ class CombosPanel:
         elif few and len(rest) < few:
             warn = f"\n\n{combo.name} will have {len(rest)} member{'s' if len(rest) != 1 else ''}, fewer than {few}."
         if not messagebox.askyesno("Remove a member", f"Remove {self.name(email)} from {combo.name}?{warn}\n\n"
-                                   "The approvals spreadsheet isn't changed; you can put them back here."):
+                                   "You can put them back here."):
             return
         def change(s):
             s.remove_member(sem, combo.ref, email)
@@ -714,7 +746,7 @@ class CombosPanel:
         if sup:
             text += ("\n\n\u26a0 " + ", ".join(make_label(d) for d in sup) + (" is a supervised night" if len(sup) == 1
                      else " are supervised nights") + ", which must be full: give that set to another combo.")
-        text += "\n\nThe approvals spreadsheet isn't changed; you can put the combo back here."
+        text += "\n\nYou can put the combo back here."
         if not messagebox.askyesno("Withdraw a combo", text, icon="warning"):
             return
         settings = self.data["settings"]
@@ -779,6 +811,21 @@ class CombosPanel:
             if twice:
                 out.append(f"Would play twice on {make_label(d)} (also with {', '.join(twice)}).")
         return out
+
+    def write_exports(self):
+        """Combos.pdf and Combos.xlsx brought up to date (after saved changes), quietly: one open elsewhere is left."""
+        from outputs.combos_xlsx import write_combos_xlsx
+        combos = sorted(self.data["combos"].values(), key=lambda c: c.name)
+        args = (combos, self.name, self.data["settings"].semester_name, self.data["instruments"])
+        try:
+            write_combos_xlsx(self.get_folder() / COMBOS_XLSX, *args, self.data["shows"])
+        except (OSError, PermissionError):
+            pass
+        try:
+            from outputs.combos_pdf import write_combos_pdf
+            write_combos_pdf(self.get_folder() / COMBOS_PDF, *args)
+        except (ImportError, OSError, PermissionError):
+            pass
 
     def saved_first(self):
         """Before an export with pending changes: save them first? True = saved, go ahead."""
@@ -908,7 +955,8 @@ class AddMemberDialog:
             if e in self.combo.members:
                 warnings = [f"Already in {self.combo.name}."]
             else:
-                warnings = self.panel.warnings_for(self.combo, e)
+                warnings = (email_warnings(e, self.panel.data["rules"], self.known)
+                            + self.panel.warnings_for(self.combo, e))
         self.warn.configure(text="\n".join(warnings))
 
     def add(self):
@@ -919,6 +967,10 @@ class AddMemberDialog:
             return
         if e in self.combo.members:
             messagebox.showinfo("Add a member", f"{panel.name(e)} is already in {self.combo.name}.", parent=self.win)
+            return
+        typos = email_warnings(e, panel.data["rules"], self.known)
+        if typos and not messagebox.askyesno("Add a member", "\n".join(typos) + "\n\nAdd them anyway?",
+                                             icon="warning", default="no", parent=self.win):
             return
         sem, name, instrument = panel.data["settings"].semester_name, self.name.get().strip(), self.instrument.get().strip()
 
@@ -946,8 +998,8 @@ class NewComboDialog:
         box = ttk.Frame(win, padding=16)
         box.pack(fill="both", expand=True)
         ttk.Label(box, text="New combo", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
-        ttk.Label(box, text="For a combo that isn't in the approvals spreadsheet (e.g. accepted after the form "
-                            "closed). It gets the next number.", style="Hint.TLabel", wraplength=440,
+        ttk.Label(box, text="Its liaison, other members and supervisor by email. It gets the next number.",
+                  style="Hint.TLabel", wraplength=440,
                   justify="left").grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 10))
         self.liaison, self.supervisor = ttk.Entry(box, width=46), ttk.Entry(box, width=46)
         self.members = tk.Text(box, width=46, height=6, relief="solid", borderwidth=1, wrap="word")
@@ -987,6 +1039,16 @@ class NewComboDialog:
             return
         liaison, sup, fy = liaison[0], sup[0] if sup else "", self.first_year.get()
         sem = p.data["settings"].semester_name
+        known, rules = p.known_people(), p.data["rules"]
+        warns = [w for e in [liaison] + members for w in email_warnings(e, rules, known)]
+        warns += email_warnings(sup, rules, known, supervisor=True) if sup else []
+        few = p.data["settings"].min_members_per_combo
+        if few and 1 + len(members) < few:
+            warns.append(f"{1 + len(members)} member(s): fewer than the {few} the settings expect.")
+        if warns and not messagebox.askyesno("New combo", "Check these first:\n\n" + "\n".join(
+                f"\u2022 {w}" for w in warns) + "\n\nAdd the combo anyway?", icon="warning", default="no",
+                parent=self.win):
+            return
         others = sorted({c.name for c in p.data["combos"].values() for e in [liaison] + members if e in c.members})
         self.win.destroy()
         n = 1 + max((int(r[3:]) for r in p.store.new_combos(sem) if r[3:].isdigit()), default=0)
@@ -1006,7 +1068,7 @@ class NewComboDialog:
 class ConflictsDialog:
     """Someone's conflicts: the conflict form's dates, each with a 'counts' tick (untick to overrule it, e.g. they can
     make it after all), dates added in the app (untick to take one back), and a night to add (told to the director,
-    not sent through the form). A pending change; the conflicts spreadsheet isn't changed."""
+    not sent through the form). A pending change."""
 
     def __init__(self, panel, email):
         self.panel, self.email = panel, email
@@ -1023,7 +1085,7 @@ class ConflictsDialog:
         box.pack(fill="both", expand=True)
         ttk.Label(box, text=f"Conflicts of {panel.name(email)}", style="CardTitle.TLabel").pack(anchor="w")
         ttk.Label(box, text="Ticked nights count as nights they can't play. Untick one to overrule it (e.g. they can "
-                            "make it after all). The conflicts spreadsheet isn't changed.", style="Hint.TLabel",
+                            "make it after all).", style="Hint.TLabel",
                   wraplength=440, justify="left").pack(anchor="w", pady=(2, 10))
         self.rows = ttk.Frame(box)
         self.rows.pack(fill="x")
@@ -1084,3 +1146,103 @@ class ConflictsDialog:
         words = ([f"{make_label(d)} {'overruled' if on else 'counts again'}" for d, on in sorted(overrule.items())]
                  + [f"{make_label(d)} {'added' if on else 'taken back'}" for d, on in sorted(added.items())])
         p.queue(change, f"{p.name(email)}'s conflicts: {', '.join(words)}.", combo=p.combos_of(email))
+
+
+class LinkDialog:
+    """Which sheets the forms fill are read: Approvals (accepted combos) and Conflicts. Each can be linked or not
+    (not: combos and conflicts are only the ones entered in the app). Each is the data folder's file with the usual
+    name until another is chosen (any file, any name). Linking is kept for the data folder (every computer); a chosen
+    file is this computer's (the same file has another path on each computer)."""
+
+    WHAT = {"approvals": ("Approvals", "the combos accepted through the sign-up form"),
+            "conflicts": ("Conflicts", "the nights students said they can't play, from the conflict form")}
+
+    def __init__(self, panel):
+        from app_config import is_picked
+        self.panel = panel
+        folder = panel.get_folder()
+        store = Store(folder)
+        self.files = input_files(folder)
+        self.picked = {w: is_picked(folder, w) for w in self.WHAT}
+        self.vars = {w: tk.BooleanVar(value=store.linked(w)) for w in self.WHAT}
+        win = self.win = tk.Toplevel(panel.frame)
+        win.title("Linked sheets")
+        win.transient(panel.frame.winfo_toplevel())
+        box = ttk.Frame(win, padding=18)
+        box.pack(fill="both", expand=True)
+        ttk.Label(box, text="Linked sheets", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=3, sticky="w")
+        ttk.Label(box, text="The forms can fill two sheets. Linked ones are read on Sync and their combos and conflicts "
+                            "show up here, along with the ones entered in the app. Not linked: only what's entered "
+                            "here. The sheets themselves are never changed.", style="Hint.TLabel", wraplength=520,
+                  justify="left").grid(row=1, column=0, columnspan=3, sticky="w", pady=(2, 12))
+        self.labels = {}
+        for r, (which, (title, about)) in enumerate(self.WHAT.items()):
+            row = 2 + 3 * r
+            ttk.Checkbutton(box, text=f"Link the {title} sheet: {about}", variable=self.vars[which]).grid(
+                row=row, column=0, columnspan=3, sticky="w", pady=(8, 0))
+            self.labels[which] = ttk.Label(box, text="", style="Hint.TLabel")
+            self.labels[which].grid(row=row + 1, column=0, sticky="w", padx=(26, 0))
+            ttk.Button(box, text="Choose...", command=lambda w=which: self.choose(w)).grid(row=row + 1, column=2,
+                                                                                         padx=(8, 0))
+        bar = ttk.Frame(box)
+        bar.grid(row=9, column=0, columnspan=3, sticky="e", pady=(16, 0))
+        ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(bar, text="OK", style="Accent.TButton", command=self.ok).pack(side="right", padx=(0, 6))
+        box.columnconfigure(0, weight=1)
+        self.show()
+        win.grab_set()
+
+    def show(self):
+        folder = self.panel.get_folder()
+        for which, label in self.labels.items():
+            path = self.files[which]
+            try:
+                text = f"{path.relative_to(folder).as_posix()} in the data folder"
+            except ValueError:
+                text = str(path)
+            label.configure(text=text + ("" if path.exists() else "   (not there yet)"))
+
+    def choose(self, which):
+        from tkinter import filedialog
+        from data_folder import APPROVALS_FILE, CONFLICTS_FILE, OLD_APPROVALS_FILE
+        current = self.files[which]
+        path = filedialog.askopenfilename(parent=self.win, title=f"The {self.WHAT[which][0]} sheet",
+                                          initialdir=str(current.parent if current.parent.is_dir() else
+                                                         self.panel.get_folder()),
+                                          filetypes=[("Excel workbook", "*.xlsx"), ("All files", "*.*")])
+        if not path:
+            return
+        from pathlib import Path
+        path = Path(path)
+        other = "conflicts" if which == "approvals" else "approvals"
+        others = [CONFLICTS_FILE] if which == "approvals" else [APPROVALS_FILE, OLD_APPROVALS_FILE]
+        if path.name.lower() in [n.lower() for n in others] or path == self.files[other]:
+            messagebox.showerror("Wrong sheet", f"{path.name} is the {other} sheet. Choose the "
+                                 f"{self.WHAT[which][0].lower()} one here.", parent=self.win)
+            return
+        self.files[which], self.picked[which] = path, True
+        self.vars[which].set(True)
+        self.show()
+
+    def ok(self):
+        from app_config import pick_input_file
+        from data_folder import usual_inputs
+        folder = self.panel.get_folder()
+        try:
+            store = Store(folder)
+            for which, var in self.vars.items():
+                store.set_linked(which, var.get())
+            store.save()
+        except (OSError, ValueError) as e:
+            messagebox.showerror("Linked sheets", str(e), parent=self.win)
+            return
+        for which in self.WHAT:
+            usual = usual_inputs(folder)[which]
+            pick_input_file(folder, which, None if not self.picked[which] or self.files[which] == usual
+                            else self.files[which])
+        app_log.write("Linked sheets: " + ", ".join(f"{w} {'on' if v.get() else 'off'} ({self.files[w]})"
+                                                    for w, v in self.vars.items()))
+        self.win.destroy()
+        self.panel.load()
+        if self.panel.on_change:
+            self.panel.on_change()

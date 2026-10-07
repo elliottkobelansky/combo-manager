@@ -27,21 +27,21 @@ GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, 
     ("start_date", "First possible show day", "date"),
     ("end_date", "Last possible show day", "date"),
     (None, "Shows per combo", "section"),
-    ("extra_slot_policy", "Leftover sets", "policy"),
     ("min_shows_per_combo", "Minimum shows per combo", "int"),
     ("max_shows_per_combo", "Maximum shows per combo", "int?"),
+    ("extra_slot_policy", "Leftover sets", "policy"),
     ("min_days_between_shows", "Ideal days between shows", "int"),
     (None, "First-year combos", "section"),
     ("use_first_year", "First-year combos", "bool"),
     ("first_year_earliest_date", "First-year combos play from", "date"),
     ("first_year_first_show_supervised", "First show supervised", "bool"),
     (None, "Supervision", "section"),
-    ("every_combo_supervised", "Supervised nights", "bool"),
-    ("max_supervised_nights", "Max supervised nights (all profs)", "int?"),
+    ("min_supervised_per_combo", "Supervised nights per combo", "int"),
+    ("max_supervised_nights", "Max supervised nights (all professors)", "int?"),
     ("supervision_timing", "Supervised nights preferred", "timing"),
     (None, "Emails", "section"),
     ("student_email_domain", "Student email domain", "text"),
-    ("email_domain_fixes", "Student email domain fixes", "wide"),
+    ("professor_email_domain", "Professor email domain", "text"),
     (None, "Warnings and solver", "section"),
     ("max_blocked_dates_per_person", "Warn: conflicts per person", "int?"),
     ("min_usable_nights_per_combo", "Warn: usable nights per combo", "int?"),
@@ -67,18 +67,21 @@ class ScrollFrame(ttk.Frame):
         window = self.canvas.create_window(0, 0, window=self.inner, anchor="nw")
         self.inner.bind("<Configure>", lambda _: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(window, width=e.width))
-        self.bind("<Enter>", lambda _: self.wheel(True))
-        self.bind("<Leave>", lambda _: self.wheel(False))
-
-    def wheel(self, on):
-        events = ("<MouseWheel>", "<Button-4>", "<Button-5>")
-        for ev in events:
-            if on:
-                self.bind_all(ev, self.scroll)
-            else:
-                self.unbind_all(ev)
+        for ev in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.bind_all(ev, self.scroll, add="+")
 
     def scroll(self, e):
+        """The wheel or trackpad, anywhere over this frame (always listening: on a Mac, moving onto a field inside
+        it counts as leaving it, so switching the wheel on and off by entering and leaving didn't work there).
+        Tables and text boxes inside scroll themselves."""
+        try:
+            under = self.winfo_containing(e.x_root, e.y_root)
+        except (KeyError, tk.TclError):               # e.g. over a pop-up menu
+            return
+        if under is None or not self.winfo_ismapped() or not str(under).startswith(str(self)):
+            return
+        if under.winfo_class() in ("Treeview", "Text", "Listbox", "TCombobox"):
+            return
         if self.canvas.yview() == (0.0, 1.0):
             return                                    # everything fits: nothing to scroll
         step = -1 if getattr(e, "num", 0) == 4 else 1 if getattr(e, "num", 0) == 5 else \
@@ -387,6 +390,8 @@ class SettingsPanel:
             data, note = dict(DEFAULTS), "No settings yet: these are example values. Check them, then Save."
         for key, (w, kind) in self.widgets.items():
             v = data.get(key, DEFAULTS.get(key))
+            if key == "min_supervised_per_combo" and key not in data:   # settings from before: on (1) or off (0)
+                v = 1 if data.get("every_combo_supervised", True) else 0
             if kind in ("date", "date?"):
                 w.var.set(v or "")
             elif kind in MENUS:
@@ -397,6 +402,8 @@ class SettingsPanel:
             else:
                 w.delete(0, "end")
                 w.insert(0, "" if v is None else str(v))
+        lists = ("show_days", "skip_dates", "extra_dates")
+        self.extra = {k: v for k, v in data.items() if k not in self.widgets and k not in lists}   # kept on save
         self.show_days.set(data.get("show_days") or [])
         self.skip_dates.set(data.get("skip_dates") or [])
         self.extra_dates.set(data.get("extra_dates") or [])
@@ -409,7 +416,10 @@ class SettingsPanel:
         """Greys out the settings that have no effect with the others as they are."""
         w = {key: widget for key, (widget, _) in self.widgets.items()}
         set_enabled(w["first_year_earliest_date"], w["use_first_year"].var.get())
-        supervised = w["every_combo_supervised"].var.get()
+        try:
+            supervised = int(w["min_supervised_per_combo"].get().strip() or 0) > 0
+        except ValueError:
+            supervised = True
         set_enabled(w["max_supervised_nights"], supervised)
         set_enabled(w["supervision_timing"], supervised)
         set_enabled(w["first_year_first_show_supervised"], supervised and w["use_first_year"].var.get())
@@ -431,6 +441,7 @@ class SettingsPanel:
                 data[key] = next(k for k, shown in MENUS[kind][0].items() if shown == w.get())
             else:
                 data[key] = w.get().strip() or None
+        data = {**{k: v for k, v in getattr(self, "extra", {}).items() if k != "every_combo_supervised"}, **data}
         data["show_days"] = self.show_days.rows
         data["skip_dates"] = self.skip_dates.rows
         data["extra_dates"] = self.extra_dates.rows

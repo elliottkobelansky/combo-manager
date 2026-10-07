@@ -16,14 +16,35 @@ from theme import in_background, popup, scrolled_tree
 
 
 class SchedulePanel:
-    def __init__(self, parent, swaps, goto_swaps, export, open_export, get_palette=lambda: {}, open_file=None):
-        """export(done): rebuilds Schedule.pdf and .xlsx, then done(code); open_export(name) opens one of them."""
+    def __init__(self, parent, swaps, goto_swaps, export, open_export, get_palette=lambda: {}, open_file=None,
+                 make=None, check=None):
+        """export(done): rebuilds Schedule.pdf and .xlsx, then done(code); open_export(name) opens one of them;
+        make / check: the Make schedule and Check schedule steps."""
         self.swaps, self.goto_swaps, self.export, self.open_export = swaps, goto_swaps, export, open_export
+        self.make, self.check = make or (lambda: None), check or (lambda: None)
         self.open_file = open_file or (lambda path: None)
         self.get_palette = get_palette
         self.rows = {}                                    # tree item -> (night, set number)
         self.night_rows = {}                              # tree item -> night (the bold rows)
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
+
+        # the steps: make (once), check (any time), the lock once it's out, and the files
+        tools = ttk.Frame(self.frame)
+        tools.pack(fill="x", pady=(0, 12))
+        self.make_button = ttk.Button(tools, text="Make schedule", style="Accent.TButton", command=self.make)
+        self.make_button.pack(side="left")
+        self.check_button = ttk.Button(tools, text="Check schedule", command=self.check)
+        self.check_button.pack(side="left", padx=(6, 0))
+        self.sent = tk.BooleanVar()
+        self.sent_box = ttk.Checkbutton(tools, text="Sent to students (no new schedule can be made)",
+                                        variable=self.sent, command=self.set_sent)
+        self.sent_box.pack(side="left", padx=(16, 0))
+        ttk.Button(tools, text="Open Excel", style="Accent.TButton",
+                   command=lambda: self.export_file(SCHEDULE_XLSX)).pack(side="right")
+        ttk.Button(tools, text="Open PDF", style="Accent.TButton",
+                   command=lambda: self.export_file(SCHEDULE_PDF)).pack(side="right", padx=(0, 6))
+        self.tools_hint = ttk.Label(self.frame, text="", style="Hint.TLabel")   # shown while it's locked
+        self.tools_anchor = tools
 
         top = ttk.Frame(self.frame)
         top.pack(fill="x")
@@ -59,12 +80,8 @@ class SchedulePanel:
         self.tree.bind("<Double-1>", self.double_click)
         self.tree.bind("<Button-3>", self.right_click)
 
-        bottom = ttk.Frame(self.frame)
+        bottom = self.bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
-        ttk.Button(bottom, text="Export Excel", style="Accent.TButton",
-                   command=lambda: self.export_file(SCHEDULE_XLSX)).pack(side="right")
-        ttk.Button(bottom, text="Export PDF", style="Accent.TButton",
-                   command=lambda: self.export_file(SCHEDULE_PDF)).pack(side="right", padx=(0, 6))
         ttk.Button(bottom, text="Expand all", command=lambda: self.expand(True)).pack(side="left")
         ttk.Button(bottom, text="Collapse all", command=lambda: self.expand(False)).pack(side="left", padx=6)
         ttk.Button(bottom, text="Export contact lists", command=self.export_contacts).pack(side="left", padx=(12, 0))
@@ -92,6 +109,7 @@ class SchedulePanel:
         self.tree.delete(*self.tree.get_children())
         self.rows.clear()
         self.night_rows.clear()
+        self.refresh_tools()
         if not st:
             self.info.configure(text=self.swaps.info.cget("text"))
             self.pending_bar.pack_forget()
@@ -143,6 +161,46 @@ class SchedulePanel:
             self.pending_bar.pack_forget()
         self.info.configure(text=f"{shown} of {len(st['nights'])} nights · {open_total} open sets"
                                  + (f" · {pending} unsaved change(s)" if pending else ""))
+
+    def refresh_tools(self):
+        """The Make button is the main one only before there's a schedule; after that it's a plain 'Make a new
+        schedule...', and off while the schedule is marked as sent to students."""
+        st = self.swaps.state
+        exists, sent = bool(st), bool(st and st.get("published"))
+        self.sent.set(sent)
+        self.sent_box.configure(state="normal" if exists else "disabled")
+        self.make_button.configure(text="Make a new schedule..." if exists else "Make schedule",
+                                   style="TButton" if exists else "Accent.TButton",
+                                   state="disabled" if sent else "normal")
+        self.check_button.configure(style="Accent.TButton" if exists else "TButton",
+                                    state="normal" if exists else "disabled")
+        if sent:
+            self.tools_hint.configure(text="The schedule is out: Make a new schedule is off. Changes from now on: "
+                                           "Swaps tab (or untick 'Sent to students' to start over).")
+            self.tools_hint.pack(fill="x", pady=(0, 8), after=self.tools_anchor)
+        else:
+            self.tools_hint.pack_forget()
+
+    def set_sent(self):
+        """The 'Sent to students' tick: saved with the schedule (every computer sees it). Unticking asks first: it
+        lets a new schedule be made again."""
+        from schedule_file import set_published
+        if not self.sent.get() and not messagebox.askyesno(
+                "Unlock the schedule?", "The schedule is marked as sent to students. Unticking this lets a brand-new "
+                "schedule be made again, which would replace the one students have: almost every show would move.\n\n"
+                "For changes to the schedule students already have, use the Swaps tab instead.\n\nUnlock it anyway?",
+                icon="warning", default="no"):
+            self.sent.set(True)
+            return
+        try:
+            set_published(self.swaps.get_folder(), self.sent.get())
+        except OSError as e:
+            messagebox.showerror("Couldn't save", str(e))
+        if self.swaps.state:
+            self.swaps.state["published"] = self.sent.get()
+        app_log.write("Schedule marked as sent to students" if self.sent.get() else
+                      "Schedule unmarked as sent to students")
+        self.refresh_tools()
 
     def expand(self, yes):
         for i in self.tree.get_children():

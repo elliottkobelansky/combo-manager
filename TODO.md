@@ -1,5 +1,7 @@
 # TODO
 
+(The app is called **Combo Manager** since 2026-10-07; the name may still change.)
+
 Where the combo scheduler stands, and what's left. First real use: **Winter 2027**. (Tidied 2026-10-05.)
 
 ## Where it stands
@@ -81,7 +83,13 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [ ] Maybe: change a published night's set times or venue in the app (also only possible in the old
   `Schedule.xlsx`). Rare.
 
-### 6. Wording
+### 6. Later from testing (2026-10-07)
+- [ ] **Instrument restrictions** in Check combos (e.g. horn players in at most 1 combo, rhythm section in 2):
+  see "Per-instrument limits" under Later.
+- [ ] **The Windows crash log** emailed on 2026-10-06: go through it.
+- [ ] **The name:** "Combo Manager" for now.
+
+### 7. Wording
 - [ ] **Decide on the summary wording** for the night and swap summaries (Schedule tab "Copy night summary", Swaps
   tab "Copy swap summary"): what to call the person at a supervised night and what they do there: professor vs
   combo cop vs supervisor vs "supervised" vs feedback, etc. Today: the night summary says "(a professor attends)";

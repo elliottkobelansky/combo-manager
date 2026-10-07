@@ -18,6 +18,8 @@
     overruled    {semester: {email: ["2026-10-13", ...]}}   conflict dates overruled in the app: they don't count
     added_conflicts {semester: {email: ["2026-10-13", ...]}} conflicts added in the app (told to the director, not
                                                             sent through the form): they count like the form's
+    linked       {"approvals": bool, "conflicts": bool}     which sheets are read (Combos tab > Linked sheets); a
+                                                            folder from before has both (missing = linked)
 
 Written by the app and by solve.py (when a new combo gets its number), in the data folder's App data
 (data_folder.py), next to the other files.
@@ -39,7 +41,7 @@ class Store:
         except ValueError:
             raise ValueError(f"{self.path} is damaged. Restore it from {DATA_FILE}.bak next to it, or from a backup.")
         for key in ("numbers", "names", "instruments", "emails", "members", "new_combos", "overruled",
-                    "added_conflicts", "last_instrument"):
+                    "added_conflicts", "last_instrument", "linked"):
             self.data.setdefault(key, {})
         self.changed = False
 
@@ -163,6 +165,15 @@ class Store:
         if ch["liaison"] == email:
             ch["liaison"] = ""
         self._save_changes(semester, ref, ch)
+
+    # the sheets the forms fill: optional
+    def linked(self, which):
+        """Is the 'approvals' / 'conflicts' sheet read? (Missing = yes: folders from before had both.)"""
+        return bool(self.data["linked"].get(which, True))
+
+    def set_linked(self, which, on):
+        self.data["linked"][which] = bool(on)
+        self.changed = True
 
     # combos made in the app (not in the approvals)
     def new_combos(self, semester):

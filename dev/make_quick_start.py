@@ -64,7 +64,7 @@ def build(md, pdf):
     flush()
     pages = []
     doc = SimpleDocTemplate(str(pdf), pagesize=letter, leftMargin=0.7 * inch, rightMargin=0.7 * inch,
-                            topMargin=0.55 * inch, bottomMargin=0.5 * inch, title="Combo Scheduler: Quick Start")
+                            topMargin=0.55 * inch, bottomMargin=0.5 * inch, title="Combo Manager: Quick Start")
     doc.build(story, onFirstPage=lambda c, d: pages.append(1), onLaterPages=lambda c, d: pages.append(1))
     return len(pages)
 

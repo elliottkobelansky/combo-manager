@@ -5,6 +5,7 @@ apply(root, mode) sets the look and returns the palette (colours for the parts t
 its highlighted lines, hint text, menus and the calendar pop-up).
 """
 import sys
+import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import ttk
 
@@ -117,6 +118,10 @@ def apply(root, mode="light", scale=None):
                     darkcolor=border, arrowcolor=muted, gripcount=0)
     style.map("TScrollbar", background=[("active", muted)])
     style.configure("Card.TFrame", background=bg, bordercolor=border, relief="solid", borderwidth=1)
+    style.configure("Fold.TButton", anchor="w", background=bg, bordercolor=border, lightcolor=bg, darkcolor=bg,
+                    foreground=muted)
+    style.map("Fold.TButton", background=[("active", p["hover"])], lightcolor=[("active", p["hover"])],
+              darkcolor=[("active", p["hover"])])
     style.configure("TSeparator", background=border)
     # text styles
     style.configure("Title.TLabel", font=(family, size(18), "bold"))
@@ -218,3 +223,34 @@ def calendar_colors(p):
                 othermonthforeground=p["muted"], othermonthwebackground=p["bg"], othermonthweforeground=p["muted"],
                 selectbackground=p["accent"], selectforeground=p["accent_text"], bordercolor=p["border"],
                 font=(ui_font(), size(10)))
+
+
+class ResultsBox(ttk.Frame):
+    """A fold-out box for what a check or a run printed: just a title bar until something runs (show())."""
+
+    def __init__(self, parent, title, height=12):
+        super().__init__(parent)
+        self.title, self.is_open = title, False
+        self.toggle = ttk.Button(self, style="Fold.TButton", command=lambda: self.show(not self.is_open))
+        self.toggle.pack(fill="x")
+        self.body = ttk.Frame(self, style="Card.TFrame", padding=1)
+        bar = ttk.Scrollbar(self.body, orient="vertical")
+        bar.pack(side="right", fill="y")
+        self.text = tk.Text(self.body, wrap="word", state="disabled", relief="flat", borderwidth=0,
+                            highlightthickness=0, padx=14, pady=10, height=height, yscrollcommand=bar.set)
+        self.text.pack(side="left", fill="both", expand=True)
+        bar.configure(command=self.text.yview)
+        self.show(False)
+
+    def show(self, on=True):
+        self.is_open = on
+        self.toggle.configure(text=("\u25be  " if on else "\u25b8  ") + self.title)
+        if on:
+            self.body.pack(fill="both", expand=True)
+        else:
+            self.body.pack_forget()
+
+    def clear(self):
+        self.text.configure(state="normal")
+        self.text.delete("1.0", "end")
+        self.text.configure(state="disabled")

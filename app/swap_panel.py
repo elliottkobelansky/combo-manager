@@ -33,10 +33,8 @@ class SwapPanel:
 
         top = ttk.Frame(self.frame)
         top.pack(fill="x")
-        ttk.Button(top, text="Reload", command=self.load).pack(side="left")
-        self.info = ttk.Label(top, text="Reads the schedule as it is now (with earlier swaps), plus the approvals and "
-                                        "Conflicts.", style="Hint.TLabel")
-        self.info.pack(side="left", padx=12)
+        self.info = ttk.Label(top, text="", style="Hint.TLabel")
+        self.info.pack(side="left")
 
         body = ttk.Frame(self.frame)
         body.pack(fill="both", expand=True, pady=(12, 0))
@@ -60,7 +58,7 @@ class SwapPanel:
         mode = ttk.Frame(right)
         mode.pack(fill="x")
         self.mode = tk.StringVar(value="swap")
-        for value, text in (("swap", "Can't make it"), ("give", "Give it away"), ("claim", "Claim an open set")):
+        for value, text in (("swap", "Swap"), ("give", "Give away"), ("claim", "Claim")):
             ttk.Radiobutton(mode, text=text, value=value, variable=self.mode,
                             command=self.list_options).pack(side="left", padx=(0, 16))
         ttk.Label(right, text="Legal options, best first", style="CardTitle.TLabel").pack(anchor="w", pady=(10, 0))
@@ -173,7 +171,8 @@ class SwapPanel:
         if not keep:
             self.base_sets = {d: dict(row) for d, row in sets.items()}
         self.state = dict(settings=settings, inp=inp, combos=combos, sets=sets, supervised=supervised, typed=typed,
-                          nights=sched.nights if not keep else self.state["nights"], name_of=name_of)
+                          nights=sched.nights if not keep else self.state["nights"], name_of=name_of,
+                          published=sched.published if not keep else self.state.get("published", False))
         # "Combo 07 (Ana Ruiz)": the liaison, so the director recognises the combo
         def who(e):                           # the liaison's name, or their email if the name isn't unique
             n = plain.get(e) or name_from_email(e)

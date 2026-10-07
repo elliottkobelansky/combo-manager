@@ -114,7 +114,8 @@ def check_status(inp):
 
 def main():
     tmp = Path(tempfile.mkdtemp())
-    base, _ = validate(DEFAULTS)
+    # (the fake sign-ups have @mcgill.ca slips, corrected by the domain fixes older settings may still have)
+    base, _ = validate({**DEFAULTS, "email_domain_fixes": "mcgill.ca -> mail.mcgill.ca"})
     base = replace(base, solver_time_limit_sec=10)
     nights = generate_nights(base)
     failures = 0
@@ -418,7 +419,7 @@ def main():
         print("FAIL  max_supervised_nights too small was accepted")
         failures += 1
     except ScheduleError as e:
-        ok = "max_supervised_nights" in str(e)
+        ok = "supervised nights" in str(e) and "Max supervised nights" in str(e)
         print(f"{'PASS' if ok else 'FAIL'}  too-small supervision cap is explained")
         failures += not ok
 
@@ -444,6 +445,14 @@ def main():
     print(f"{'PASS' if ok else 'FAIL'}  first-year first show supervised; supervised nights earlier / later on request")
     for b_ in bad:
         print("      -", b_)
+    failures += not ok
+
+    # Supervised nights per combo: 2 each when asked (the cap raised so it fits).
+    two = replace(base, extra_slot_policy="auto", min_supervised_per_combo=2, max_supervised_nights=None)
+    res2 = run_schedule(inp, two)
+    per = {c: sum(1 for d, cs in res2.lineup.items() if c in cs and d in res2.supervised) for c in res2.combos}
+    ok = min(per.values()) >= 2 and not check(res2, inp, two)
+    print(f"{'PASS' if ok else 'FAIL'}  2 supervised nights per combo: every combo on at least {min(per.values())}")
     failures += not ok
 
     # Switches: supervision off = no supervised nights and nothing about them in the rule check; first-year off =
@@ -491,10 +500,21 @@ def main():
     rules = EmailRules("mail.mcgill.ca", {"gmial.com": "gmail.com"})
     if rules.norm(" Ana.Ruiz@GMIAL.com ") != "ana.ruiz@gmail.com" or rules.norm("prof@mcgill.ca") != "prof@mcgill.ca":
         bad.append("EmailRules.norm")
-    legacy = {k: v for k, v in DEFAULTS.items() if k not in ("student_email_domain", "email_domain_fixes")}
+    legacy = {k: v for k, v in DEFAULTS.items() if k not in ("student_email_domain", "professor_email_domain")}
     old, _ = validate(legacy)
-    if old.student_email_domain != "mail.mcgill.ca" or old.email_domain_fixes != {"mcgill.ca": "mail.mcgill.ca"}:
-        bad.append("settings saved before the email settings existed lost McGill's rules")
+    if old.student_email_domain != "mail.mcgill.ca" or old.professor_email_domain != "mcgill.ca" \
+            or old.email_domain_fixes:
+        bad.append("settings saved before the email settings existed lost McGill's domains (or got domain fixes)")
+    kept, _ = validate({**DEFAULTS, "email_domain_fixes": "mcgill.ca -> mail.mcgill.ca"})
+    if kept.email_domain_fixes != {"mcgill.ca": "mail.mcgill.ca"}:
+        bad.append("domain fixes an older settings file has were dropped")
+    notes_ = []                                      # a student on the professors' domain: pointed out
+    from core.model import Combo as C_
+    from inputs import check_addresses as ca_
+    ca_([C_("Combo 01", "Combo 01", frozenset({"ana.ruiz@mcgill.ca", "ben.li@mail.mcgill.ca"}))], {},
+        EmailRules("mail.mcgill.ca", prof_domain="mcgill.ca"), notes_)
+    if not any("ana.ruiz@mcgill.ca" in t for _, t in notes_):
+        bad.append("a member on the professors' domain isn't pointed out")
     try:
         validate({**DEFAULTS, "email_domain_fixes": "nonsense"})
         bad.append("validate accepted unreadable email_domain_fixes")
@@ -890,6 +910,19 @@ def main():
     st.set_instrument("Winter 2027", "Combo 01", "kai.drums@mail.mcgill.ca", "")
     if st.instruments("Winter 2027", later):
         bad.append("'No instrument' was filled in with the usual one again")
+    st = Store(tmp)                                        # no sheets linked: only the combos made in the app
+    st.set_linked("approvals", False)
+    st.set_linked("conflicts", False)
+    st.save()
+    alone = load_input(tmp, base, "a.xlsx", "f.xlsx")
+    if alone.combos or [c.ref for c in alone.withdrawn] != [ref] or alone.blocked != {free: {nights[0].date}} \
+            or any("Approvals:" in t or "Conflicts row" in t for _, t in alone.notes):
+        bad.append(f"unlinked sheets were still read: {[c.ref for c in alone.combos]} active, "
+                   f"{[c.ref for c in alone.withdrawn]} withdrawn, {len(alone.blocked)} with conflicts")
+    st = Store(tmp)
+    st.set_linked("approvals", True)
+    st.set_linked("conflicts", True)
+    st.save()
     logdir = tmp / "log test"
     logdir.mkdir()
     app_log.set_folder(logdir)
@@ -907,7 +940,8 @@ def main():
     app_log.write("nowhere")                                # no folder: nothing, no error
     ok = not bad
     print(f"{'PASS' if ok else 'FAIL'}  combos made in the app (numbered next, edited, withdrawn), conflicts "
-          "overruled or added in the app, Check flags bad addresses, instruments carried over, the log")
+          "overruled or added in the app, sheets unlinked, Check flags bad addresses, instruments carried over, "
+          "the log")
     for b_ in bad:
         print("      -", b_)
     failures += not ok

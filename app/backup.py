@@ -23,7 +23,8 @@ from data_folder import (APP_DATA, APPROVALS_FILE, CONFLICTS_FILE, LOCK_FILE, OL
                          usual_inputs)
 
 INFO = "backup-info.json"
-PREFIX = "Combo Scheduler backup"
+PREFIX = "Combo Manager backup"
+PREFIXES = (PREFIX, "Combo Scheduler backup")       # (the name before 2026-10-07)
 BEFORE_RESTORE = "Before restore"                     # in App data: the folder as it was before each in-place restore
 INPUTS = (APPROVALS_FILE, OLD_APPROVALS_FILE, CONFLICTS_FILE)   # written by the forms' flows: kept by default
 KEPT_HERE = (LOCK_FILE, "Logs", BEFORE_RESTORE)       # in App data: this folder's own, never taken from a backup
@@ -34,7 +35,7 @@ class BackupError(ValueError):
 
 
 def backup_name(now=None):
-    """'Combo Scheduler backup 2026-10-06 1405.zip'"""
+    """'Combo Manager backup 2026-10-06 1405.zip'"""
     return f"{PREFIX} {(now or datetime.now()):%Y-%m-%d %H%M}.zip"
 
 
@@ -42,7 +43,7 @@ def _left_out(rel):
     """The lock file, half-written temp files, hidden files and earlier backups saved in the folder."""
     name = rel.name
     return (name == LOCK_FILE or name.startswith(".") or name.endswith(".tmp")
-            or (name.startswith(PREFIX) and name.endswith(".zip")))
+            or (name.startswith(PREFIXES) and name.endswith(".zip")))
 
 
 def create_backup(folder, dest, inputs=None):
@@ -86,7 +87,7 @@ def read_backup(path):
         with zipfile.ZipFile(path) as zf:
             names = zf.namelist()
             if INFO not in names and not any(n.startswith(APP_DATA + "/") for n in names):
-                raise BackupError(f"{Path(path).name} isn't a Combo Scheduler backup.")
+                raise BackupError(f"{Path(path).name} isn't a Combo Manager backup.")
             bad = [n for n in names if PurePosixPath(n).is_absolute() or ".." in PurePosixPath(n).parts or ":" in n]
             if bad:
                 raise BackupError(f"{Path(path).name} has files that would land outside the folder: {bad[0]}")
@@ -160,7 +161,7 @@ def restore_in_place(path, folder, keep_inputs=True):
 
     def ours(p):
         """Stays as it is: hidden, a backup zip, the lock / logs / safety backups, the inputs (when kept)."""
-        return (p.name.startswith(".") or (p.name.startswith(PREFIX) and p.name.endswith(".zip"))
+        return (p.name.startswith(".") or (p.name.startswith(PREFIXES) and p.name.endswith(".zip"))
                 or (p.parent == app and p.name in KEPT_HERE) or (keep_inputs and p.parent == folder
                                                                  and p.name in INPUTS))
     try:

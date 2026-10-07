@@ -1,10 +1,10 @@
-"""Builds the packaged app with PyInstaller: dist/Combo Scheduler/, a folder with the program (Combo Scheduler.exe
+"""Builds the packaged app with PyInstaller: dist/Combo Manager/, a folder with the program (Combo Manager.exe
 on Windows) and everything it needs, so no Python install and no Setup screen. Plus the Quick Start, and a zip of the
 folder to hand out. Build on the system it's for (Windows for the .exe); GitHub Actions does it on every push
 (.github/workflows/build.yml).
 
     pip install -r requirements.txt pyinstaller
-    python dev/build_exe.py            # then check it:  "dist/Combo Scheduler/Combo Scheduler.exe" --selftest t.txt
+    python dev/build_exe.py            # then check it:  "dist/Combo Manager/Combo Manager.exe" --selftest t.txt
 
 A folder, not a single .exe: it starts faster and antivirus programs flag it less.
 
@@ -22,7 +22,7 @@ from pathlib import Path
 import PyInstaller.__main__
 
 ROOT = Path(__file__).resolve().parent.parent
-NAME = "Combo Scheduler"
+NAME = "Combo Manager"
 DIST, BUILD = ROOT / "dist", ROOT / "build"
 # The Microsoft C++ runtime (app-local copies are allowed): PyInstaller leaves out what it finds in System32
 MSVC_RUNTIME = ["msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll", "vcruntime140.dll", "vcruntime140_1.dll"]
@@ -91,7 +91,7 @@ def main():
         print("Every DLL in the build has what it needs.")
     shutil.copy2(ROOT / "Quick Start.pdf", folder / "Quick Start.pdf")
     system = {"Windows": "windows", "Darwin": "mac"}.get(platform.system(), platform.system().lower())
-    zip_path = shutil.make_archive(str(DIST / f"Combo-Scheduler-{system}"), "zip", DIST, NAME)
+    zip_path = shutil.make_archive(str(DIST / f"Combo-Manager-{system}"), "zip", DIST, NAME)
     size = sum(p.stat().st_size for p in folder.rglob("*") if p.is_file()) // 2**20
     print(f"\nBuilt {folder} ({size} MB) and {zip_path}.")
 

@@ -57,7 +57,8 @@ class Settings:
                                                 # Required in settings.json; None only for a hand-built Settings
     extra_slot_policy: str = "auto"       # "auto": fill every set. "open": leave extras for volunteers
     solver_time_limit_sec: float = 90
-    every_combo_supervised: bool = True   # every combo plays at least one night a professor attends (off = no supervision)
+    every_combo_supervised: bool = True   # every combo plays nights a professor attends (off = no supervision)
+    min_supervised_per_combo: int = 1     # ...at least this many each (with supervision on)
     max_supervised_nights: Optional[int] = None   # cap on those nights (None = no cap); within it, as few as possible
     supervision_timing: str = "none"      # supervised nights preferred "early" or "late" in the semester, or "none"
     first_year_first_show_supervised: bool = True   # a first-year combo's first show on a supervised night (soft)
@@ -66,6 +67,7 @@ class Settings:
     # and domain typos to correct, {typed domain: real domain}.
     student_email_domain: str = ""
     email_domain_fixes: Dict[str, str] = field(default_factory=dict)
+    professor_email_domain: str = ""
 
 
 @dataclass(frozen=True)

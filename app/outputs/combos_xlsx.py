@@ -37,7 +37,7 @@ def write_combos_xlsx(path, combos, name_of, semester, instruments=None, shows=N
     ws.title = "Combos"
     ws.append([f"{semester}: combos"])
     ws["A1"].font = font(bold=True, size=14)
-    ws.append([f"Exported from the Combo Scheduler on {datetime.now():%Y-%m-%d %H:%M}. Editing this file changes "
+    ws.append([f"Exported from Combo Manager on {datetime.now():%Y-%m-%d %H:%M}. Editing this file changes "
                "nothing: make changes in the app (Combos tab), then export again."])
     ws["A2"].font = font(italic=True, color=GREY)
     for c in combos:
