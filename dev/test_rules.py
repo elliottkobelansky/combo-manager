@@ -955,6 +955,18 @@ def main():
     st.set_instrument("Winter 2027", "Combo 01", "kai.drums@mail.mcgill.ca", "")
     if st.instruments("Winter 2027", later):
         bad.append("'No instrument' was filled in with the usual one again")
+    from core.checks import instrument_limits                   # combos per player: rhythm section vs the rest
+    from util import RHYTHM
+    lim, _ = validate({**DEFAULTS, "max_combos_rhythm": 2, "max_combos_other": 1})
+    many = [Combo(f"Combo 0{i}", f"Combo 0{i}", frozenset({"kai.drums@mail.mcgill.ca", "sam.guest@gmail.com"}))
+            for i in (1, 2, 3)]
+    inst = {(c.name, "kai.drums@mail.mcgill.ca"): "Drums" for c in many} | {
+        ("Combo 01", "sam.guest@gmail.com"): "Trumpet", ("Combo 02", "sam.guest@gmail.com"): "Trumpet"}
+    said = instrument_limits(many, inst, lim, RHYTHM)
+    if len(said) != 2 or "rhythm-section players is 2" not in said[0] or "other players is 1" not in said[1]:
+        bad.append(f"combos-per-player limits: {said}")
+    if instrument_limits(many, {}, lim, RHYTHM):
+        bad.append("combos-per-player limits flag people with no instrument set")
     st = Store(tmp)                                        # no sheets linked: only the combos made in the app
     st.set_linked("approvals", False)
     st.set_linked("conflicts", False)

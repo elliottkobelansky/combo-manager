@@ -5,6 +5,7 @@ from datetime import date, datetime, time, timedelta
 # Instruments in the order members are listed (Combos tab and Combos.pdf): any other instrument first, then these;
 # people with no instrument set yet last.
 INSTRUMENTS = ["Voice", "Trumpet", "Saxophone", "Trombone", "Guitar", "Piano", "Bass", "Drums"]
+RHYTHM = {"Guitar", "Piano", "Bass", "Drums"}      # the rhythm section (Semester tab: "Warn: combos per rhythm player")
 
 
 def by_instrument(emails, instrument_of, name_of):

@@ -40,23 +40,21 @@ First real use: **Winter 2027**.
   missing supervisor...), so the director can decide in Outlook knowing that.
 - [ ] **Move supervised nights** without making a new schedule: mark a night supervised or not, with the rule check
   (every combo still on one, supervised nights full, the cap), like a swap.
-- [ ] **Instrument limits** in Check combos, the Combos tab and Add member (e.g. horn players in at most 1 combo,
-  rhythm section in at most 2), set by group on the Semester tab. Open questions: count all of a student's combos
-  or only those on that instrument? Voice and Other: what limit?
+- [ ] **Guitarists:** rhythm section or not, for "Warn: combos per rhythm player"? (Today: rhythm section, with
+  piano, bass and drums.)
 - [ ] **Summary wording:** what to call the person at a supervised night (professor, supervisor, "combo cop"...), and
   use the same word everywhere: the night and swap summaries, the tabs, the PDFs. Today it's a mix.
 
 ## Later (ideas)
 
 - **Ready-to-send emails** once the schedule is final (per combo: its dates, the swap policy, contacts).
-- **Swap requests:** a swap-request form shown as an inbox in the Swaps tab.
 - **Supervisors:** which professor attends each supervised night, and their availability.
 - **Messy form entries:** point out member entries that aren't emails ("TBD", a name alone), domain typos, and the
   same person under two addresses.
 - **Warnings** when an approvals row changes after the combo was edited in the app.
 - **Night changes on an existing schedule:** add a night as open sets, or cancel one and name the combos that lose a
   show; change a night's times or venue.
-- **Instruments:** venue rules (no drum kit at a venue), counts per instrument in `Combos.pdf`.
+- **Instruments:** counts per instrument in `Combos.pdf`.
 - **Web app** after Winter 2027, if it's worth it.
 
 ## Decisions (so they aren't re-opened)

@@ -28,6 +28,8 @@ DEFAULTS = {
     "max_blocked_dates_per_person": 3,
     "min_usable_nights_per_combo": 3,
     "min_members_per_combo": 4,
+    "max_combos_rhythm": 2,
+    "max_combos_other": 1,
     "extra_slot_policy": "open",
     "min_shows_per_combo": 2,
     "max_shows_per_combo": 4,
@@ -65,6 +67,10 @@ HELP = {
     "min_usable_nights_per_combo": "Warning only: flags combos whose members' conflicts leave fewer usable nights.",
     "min_members_per_combo": "Warning only: flags combos with fewer members than this (e.g. after someone is "
                              "removed in the Combos tab). Blank = no warning.",
+    "max_combos_rhythm": "Warning only: flags piano, guitar, bass and drum players in more combos than this. "
+                         "Blank = no warning.",
+    "max_combos_other": "Warning only: flags other players (horns, voice, ...) in more combos than this. Only "
+                        "people whose instrument is set are checked. Blank = no warning.",
     "extra_slot_policy": "Leave open: each combo gets its shows; the sets left over stay open for volunteers, or you "
                          "fill them by hand (Schedule or Swaps tab). Fill every set: some combos get extra shows.",
     "min_shows_per_combo": "Every combo gets at least this many shows, at any venues (each venue's minimum still "
@@ -126,7 +132,8 @@ LABELS = {"semester_name": "Semester name", "start_date": "First possible show d
           "student_email_domain": "Student email domain", "professor_email_domain": "Professor email domain",
           "max_blocked_dates_per_person": "Warn: conflicts per person",
           "min_usable_nights_per_combo": "Warn: usable nights per combo",
-          "min_members_per_combo": "Warn: members per combo", "solver_time_limit_sec": "Solver time (seconds)"}
+          "min_members_per_combo": "Warn: members per combo", "solver_time_limit_sec": "Solver time (seconds)",
+          "max_combos_rhythm": "Warn: combos per rhythm player", "max_combos_other": "Warn: combos per other player"}
 
 
 def label(key):
@@ -296,6 +303,8 @@ def validate(data):
         max_blocked_dates_per_person=get_int("max_blocked_dates_per_person", low=0),
         min_usable_nights_per_combo=get_int("min_usable_nights_per_combo", low=0),
         min_members_per_combo=get_int("min_members_per_combo", low=1) if "min_members_per_combo" in data else 4,
+        max_combos_rhythm=get_int("max_combos_rhythm", low=1) if "max_combos_rhythm" in data else 2,
+        max_combos_other=get_int("max_combos_other", low=1) if "max_combos_other" in data else 1,
         max_shows_per_combo=max_total,
         min_shows_per_combo=min_total,
         extra_slot_policy=policy,

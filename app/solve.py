@@ -21,7 +21,7 @@ from pathlib import Path
 from statistics import median
 
 from core import ScheduleError, generate_nights, run_schedule
-from core.checks import analyze
+from core.checks import analyze, instrument_limits
 from core.stats import schedule_stats
 from inputs import InputError, load_input, name_from_email
 from store import Store
@@ -30,6 +30,7 @@ from data_folder import SCHEDULE_PDF, SCHEDULE_XLSX, export_path, problem, sched
 from schedule_file import (ScheduleFileError, archive_semester, check_semester, entries, has_schedule, load,
                            save_new, semester_of)
 from settings_file import SettingsError, load_settings
+from util import RHYTHM
 
 
 def show(report, levels=("warn",)):
@@ -180,6 +181,10 @@ def main(argv=None):
         warnings = [t for lvl, t in inp.notes if lvl in ("pending", "warn")]
         if a.check:                                   # short: a summary line, then only what to look at
             _, report = analyze(inp, settings, nights)
+            store = Store(f)
+            report += [("warn", t) for t in instrument_limits(
+                inp.combos, store.instruments(settings.semester_name, inp.combos), settings, RHYTHM,
+                lambda e: store.names.get(e) or name_from_email(e))]
             look = list(dict.fromkeys(setting_warnings + warnings + [t for lvl, t in report if lvl == "warn"]))
             print(f"{len(inp.combos)} combos, {len(inp.blocked)} students with conflicts, {len(nights)} show nights "
                   f"({sum(n.n_slots for n in nights)} sets).\n")

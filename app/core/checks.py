@@ -50,3 +50,25 @@ def analyze(inp: ScheduleInput, settings: Settings, nights: List[Night]):
                                    "duplicate submission?"))
         seen_sets.setdefault(c.members, c.name)
     return allowed, report
+
+
+def instrument_limits(combos, instruments, settings: Settings, rhythm, name_of=lambda e: e):
+    """Warnings for players in more combos than the Semester tab allows: max_combos_rhythm for anyone playing a
+    rhythm-section instrument (rhythm: a set of names) in one of their combos, max_combos_other for the rest. People
+    with no instrument set aren't checked. instruments: {(combo name, email): instrument}."""
+    where: Dict[str, List[str]] = {}
+    for c in sorted(combos, key=lambda c: c.name):
+        for e in c.members:
+            where.setdefault(e, []).append(c.name)
+    out = []
+    for e, names in sorted(where.items(), key=lambda x: name_of(x[0]).lower()):
+        played = {instruments[(n, e)] for n in names if instruments.get((n, e))}
+        if not played:
+            continue
+        is_rhythm = bool(played & set(rhythm))
+        limit = settings.max_combos_rhythm if is_rhythm else settings.max_combos_other
+        if limit and len(names) > limit:
+            out.append(f"{name_of(e)} ({', '.join(sorted(played))}) is in {len(names)} combos "
+                       f"({', '.join(names)}): the limit for {'rhythm-section' if is_rhythm else 'other'} players is "
+                       f"{limit}.")
+    return out
