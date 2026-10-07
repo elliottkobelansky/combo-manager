@@ -175,6 +175,7 @@ class CombosPanel:
         q = self.search.get().strip().lower()
         combos = self.data["combos"]
         touched = {n for p in self.pending for n in p["combos"]}   # combos with changes not saved yet
+        touched_people = {(n, e) for p in self.pending for n in p["combos"] for e in p.get("people", ())}
         member_of = {}
         for c in combos.values():
             for e in c.members:
@@ -207,10 +208,14 @@ class CombosPanel:
                                        values=("", self.cell(self.data["instruments"].get((c.name, e), "")),
                                                ", ".join(others), n_conf or "", self.mail(e)), tags=(shade,))
                 self.people[pid] = (c.name, e)
+                if (c.name, e) in touched_people:
+                    self.mark(pid)
             for e in changes["remove"]:
                 pid = self.tree.insert(item, "end", text=f"    {self.name(e)}  \u00b7 removed (Actions: put back)",
                                        values=("", "", "", "", e), tags=(shade, "removed"))
                 self.removed[pid] = (c.name, e)
+                if (c.name, e) in touched_people:
+                    self.mark(pid)
             if c.professor:
                 pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (supervisor)",
                                        values=("", "", "", "", self.mail(c.professor)), tags=(shade,))
@@ -253,7 +258,7 @@ class CombosPanel:
     UNSAVED = "   \u25cf unsaved changes"
 
     def mark(self, item):
-        """Marks a combo's row: it has changes not saved yet."""
+        """Marks a combo's or a member's row: it has changes not saved yet."""
         text = self.tree.item(item, "text")
         if not text.endswith(self.UNSAVED):
             self.tree.item(item, text=text + self.UNSAVED, tags=tuple(self.tree.item(item, "tags")) + ("pending",))
@@ -327,7 +332,7 @@ class CombosPanel:
         back = new in self.store.emails and self.store.emails.get(new) == email   # typing an original back
         self.queue(lambda s: s.set_email(email, new), f"{email} becomes {new}" + (" (back to the original)" if back
                                                                                   else "") + ".",
-                   combo=self.combos_of(email))
+                   combo=self.combos_of(email), people=[email, new])
 
     def edit_instrument(self, item=None):
         """Opens the instrument menu at the person's Instrument cell; picking an item saves it straight away."""
@@ -373,7 +378,8 @@ class CombosPanel:
             return
         sem = self.data["settings"].semester_name
         self.queue(lambda s: s.set_instrument(sem, combo, email, value),
-                   f"{self.name(email)} plays {value or 'no instrument'} in {combo}.", combo=combo, view="none")
+                   f"{self.name(email)} plays {value or 'no instrument'} in {combo}.", combo=combo, view="none",
+                   people=[email])
         self.tree.set(item, "instrument", self.cell(value))
 
     def rename(self):
@@ -388,7 +394,7 @@ class CombosPanel:
             return
         old = self.name(email)
         self.queue(lambda s: s.set_name(email, new.strip()), f"{old} is now called '{new.strip()}'.", view="fill",
-                   combo=self.combos_of(email))
+                   combo=self.combos_of(email), people=[email])
 
     def combos_of(self, email):
         """The names of the combos email is in (or supervises), withdrawn ones too."""
@@ -565,14 +571,14 @@ class CombosPanel:
         self.last_copied = "; ".join(emails)          # (kept for tests)
 
     # ------------------------------------------------------------ pending changes
-    def queue(self, change, message, combo=None, view="load", withdraw=None):
+    def queue(self, change, message, combo=None, view="load", withdraw=None, people=()):
         """Adds an edit to the pending changes (nothing is saved until Confirm changes) and shows the tab as if it
         were done. change(store) applies it to scheduler_data.json; combo: the name(s) of the combo(s) it touches,
         marked while pending; view: 'load' (members change: read everything again), 'fill' (only names /
         instruments) or 'none' (the caller updates the cell; the combo's row is marked here); withdraw: (name, ref)
-        of a combo withdrawn (its sets open on Confirm)."""
+        of a combo withdrawn (its sets open on Confirm); people: the emails of the members it's about, marked too."""
         names = [combo] if isinstance(combo, str) else list(combo or [])
-        self.pending.append(dict(change=change, text=message, combos=names, withdraw=withdraw))
+        self.pending.append(dict(change=change, text=message, combos=names, withdraw=withdraw, people=list(people)))
         if view == "load":
             self.load(quiet=True)
         else:
@@ -585,6 +591,9 @@ class CombosPanel:
             else:
                 for item, cid in self.combo_items.items():
                     if self.data["combos"][cid].name in names:
+                        self.mark(item)
+                for item, (cname, e) in self.people.items():
+                    if cname in names and e in people:
                         self.mark(item)
         self.refresh_pending()
         self.info.configure(text=f"Not saved yet: {message} (Confirm changes, below)")
@@ -710,14 +719,15 @@ class CombosPanel:
             if new_liaison:
                 s.set_liaison(sem, combo.ref, new_liaison)
         self.queue(change, f"Remove {self.name(email)} from {combo.name}"
-                   + (f"; {self.name(new_liaison)} becomes the liaison" if new_liaison else "") + ".", combo=combo.name)
+                   + (f"; {self.name(new_liaison)} becomes the liaison" if new_liaison else "") + ".", combo=combo.name,
+                   people=[email, new_liaison])
 
     def restore_member(self):
         kind, combo, email = self.selected()
         if kind != "removed":
             return
         self.queue(lambda s: s.add_member(self.data["settings"].semester_name, combo.ref, email),
-                   f"Put {self.name(email)} back in {combo.name}.", combo=combo.name)
+                   f"Put {self.name(email)} back in {combo.name}.", combo=combo.name, people=[email])
 
     def make_liaison(self):
         kind, combo, email = self.selected()
@@ -729,7 +739,8 @@ class CombosPanel:
         if not email or email == combo.liaison:
             return
         self.queue(lambda s: s.set_liaison(self.data["settings"].semester_name, combo.ref, email),
-                   f"{self.name(email)} becomes the liaison of {combo.name}.", combo=combo.name)
+                   f"{self.name(email)} becomes the liaison of {combo.name}.", combo=combo.name,
+                   people=[email, combo.liaison])
 
     def set_first_year(self, combo, value):
         """Tags or untags a first-year combo (kept in scheduler_data.json; wins over the approvals' First year)."""
@@ -1001,7 +1012,7 @@ class AddMemberDialog:
         clashes = panel.warnings_for(self.combo, e)
         self.win.destroy()
         panel.queue(change, f"Add {name or panel.name(e)} to {self.combo.name}."
-                    + (f" Note: {' '.join(clashes)}" if clashes else ""), combo=self.combo.name)
+                    + (f" Note: {' '.join(clashes)}" if clashes else ""), combo=self.combo.name, people=[e])
 
 
 class NewComboDialog:
@@ -1167,7 +1178,8 @@ class ConflictsDialog:
                 s.set_added_conflict(sem, email, d, on)
         words = ([f"{make_label(d)} {'overruled' if on else 'counts again'}" for d, on in sorted(overrule.items())]
                  + [f"{make_label(d)} {'added' if on else 'taken back'}" for d, on in sorted(added.items())])
-        p.queue(change, f"{p.name(email)}'s conflicts: {', '.join(words)}.", combo=p.combos_of(email))
+        p.queue(change, f"{p.name(email)}'s conflicts: {', '.join(words)}.", combo=p.combos_of(email),
+                people=[email])
 
 
 class LinkDialog:
