@@ -85,6 +85,9 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   `Schedule.xlsx`). Rare.
 
 ### 6. Later from testing (2026-10-07)
+- [ ] **Check a pending combo before approving it:** show combos waiting for a decision with their members, and a
+  right-click **Check this combo** that says whether it would break a rule (members in too many combos, conflicts
+  leaving too few nights, a missing supervisor...), so the director can decide in Outlook knowing that.
 - [ ] **Instrument restrictions** in Check combos (e.g. horn players in at most 1 combo, rhythm section in 2):
   see "Per-instrument limits" under Later.
 - [ ] **The Windows crash log** emailed on 2026-10-06: go through it.

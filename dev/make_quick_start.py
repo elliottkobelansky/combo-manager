@@ -21,8 +21,9 @@ BLUE, GREY = colors.HexColor("#1F4E79"), colors.HexColor("#444444")
 TITLE = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=17, leading=21, textColor=BLUE, spaceAfter=4)
 HEAD = ParagraphStyle("h", fontName="Helvetica-Bold", fontSize=12.5, leading=15, textColor=BLUE, spaceBefore=11,
                       spaceAfter=3)
-BODY = ParagraphStyle("b", fontName="Helvetica", fontSize=10.6, leading=13.8, alignment=TA_LEFT)
-INTRO = ParagraphStyle("i", parent=BODY, textColor=GREY)
+BODY = ParagraphStyle("b", fontName="Helvetica", fontSize=10.6, leading=13.8, alignment=TA_LEFT, spaceBefore=5)
+INTRO = ParagraphStyle("i", parent=BODY, textColor=GREY, spaceBefore=0)
+ITEM = ParagraphStyle("li", parent=BODY, spaceBefore=0)
 
 
 def inline(text):
@@ -38,7 +39,7 @@ def build(md, pdf):
         nonlocal items, kind
         if items:
             story.append(ListFlowable(
-                [ListItem(Paragraph(inline(t), BODY), leftIndent=14, spaceAfter=3) for t in items],
+                [ListItem(Paragraph(inline(t), ITEM), leftIndent=14, spaceAfter=3) for t in items],
                 bulletType="1" if kind == "num" else "bullet", start="1" if kind == "num" else "•",
                 bulletFormat="%s." if kind == "num" else None,
                 leftIndent=14, bulletFontSize=10.6 if kind == "num" else 11, bulletColor=BLUE))
