@@ -36,7 +36,7 @@ class SchedulePanel:
         self.check_button = ttk.Button(tools, text="Check schedule", command=self.check)
         self.check_button.pack(side="left", padx=(6, 0))
         self.sent = tk.BooleanVar()
-        self.sent_box = ttk.Checkbutton(tools, text="Sent to students (no new schedule can be made)",
+        self.sent_box = ttk.Checkbutton(tools, text="Sent to students",
                                         variable=self.sent, command=self.set_sent)
         self.sent_box.pack(side="left", padx=(16, 0))
         ttk.Button(tools, text="Open Excel", style="Accent.TButton",
@@ -68,22 +68,20 @@ class SchedulePanel:
         self.pending_anchor = ttk.Frame(self.frame)      # keeps the bar's place between the search row and the hint
         self.pending_anchor.pack(fill="x")
 
-        hint = ttk.Label(self.frame, text="Double-click a combo's set to find swaps for it; double-click an open set to "
-                                          "see who could take it; right-click a night to copy its emails or a summary, or an open set to type text "
-                                          "in it (e.g. Jam session). Changes not saved yet are highlighted.", style="Hint.TLabel", justify="left")
-        hint.pack(anchor="w", fill="x", pady=(8, 0))
-        self.frame.bind("<Configure>", lambda e: hint.configure(wraplength=max(e.width - 20, 200)), add="+")
 
         table, self.tree = scrolled_tree(self.frame, [("#0", "Night / set", 230, False), ("time", "Time", 120, False),
                                                       ("who", "Playing", 320, True), ("note", "", 200, True)])
         table.pack(fill="both", expand=True, pady=(6, 0))
         self.tree.bind("<Double-1>", self.double_click)
-        self.tree.bind("<Button-3>", self.right_click)
+        for ev in ("<Button-3>", "<Button-2>", "<Control-Button-1>"):        # right-click (Mac: also Ctrl-click)
+            self.tree.bind(ev, self.right_click)
 
         bottom = self.bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
         ttk.Button(bottom, text="Expand all", command=lambda: self.expand(True)).pack(side="left")
         ttk.Button(bottom, text="Collapse all", command=lambda: self.expand(False)).pack(side="left", padx=6)
+        self.actions = ttk.Button(bottom, text="Actions \u25be", command=self.actions_menu)   # = the right-click menu
+        self.actions.pack(side="left", padx=(6, 0))
         ttk.Button(bottom, text="Export contact lists", command=self.export_contacts).pack(side="left", padx=(12, 0))
         self.status = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.status.pack(side="left", padx=10)
@@ -235,9 +233,27 @@ class SchedulePanel:
 
     def right_click(self, event):
         item, slot = self.slot(event)
+        menu = self.build_menu(item, slot)
+        if menu:
+            popup(menu, event.x_root, event.y_root)
+
+    def actions_menu(self):
+        """The Actions button: the right-click menu for the picked night or set, opened above the button."""
+        item, slot = self.slot()
+        menu = self.build_menu(item, slot)
+        if menu is None:
+            menu = self.menu()
+            menu.add_command(label="Pick a night or a set in the list first", state="disabled")
+        menu.update_idletasks()
+        b = self.actions
+        popup(menu, b.winfo_rootx(), max(0, b.winfo_rooty() - menu.winfo_reqheight()))
+
+    def build_menu(self, item, slot):
+        """What can be done with a night (copy its emails or a summary) or a set (swaps, who could take it, text
+        in it). None when nothing is picked."""
         night = self.night_rows.get(item) or (slot[0] if slot else None)
         if not night:
-            return
+            return None
         menu = self.menu()
         label = make_label(night)
         menu.add_command(label=f"Copy liaison emails ({label})", command=lambda: self.copy(night, "liaisons"))
@@ -245,8 +261,7 @@ class SchedulePanel:
                          command=lambda: self.copy(night, "everyone"))
         menu.add_command(label=f"Copy night summary ({label})", command=lambda: self.copy(night, "summary"))
         if not slot:
-            popup(menu, event.x_root, event.y_root)
-            return
+            return menu
         menu.add_separator()
         d, k = slot
         st = self.swaps.state
@@ -268,7 +283,7 @@ class SchedulePanel:
             else:
                 menu.add_command(label="Type text in this set (e.g. Jam session)...",
                                  command=lambda: self.edit_text(d, k))
-        popup(menu, event.x_root, event.y_root)
+        return menu
 
     def edit_text(self, d, k, clear=False):
         """Types text into an open set (it's shown on the calendar and the set counts as taken), changes it, or

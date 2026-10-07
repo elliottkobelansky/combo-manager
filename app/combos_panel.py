@@ -56,12 +56,6 @@ class CombosPanel:
         self.info = ttk.Label(top, text="", style="Hint.TLabel")
         self.info.pack(side="left", padx=12)
 
-        hint = ttk.Label(self.frame, text="Click an instrument to change it; double-click a name or email to fix it. "
-                                          "Right-click anywhere (or Actions) for everything else, including a new "
-                                          "combo. Nothing is saved until Confirm changes.",
-                         style="Hint.TLabel", justify="left")
-        hint.pack(anchor="w", fill="x", pady=(8, 0))
-        self.frame.bind("<Configure>", lambda e: hint.configure(wraplength=max(e.width - 20, 200)), add="+")
         table, self.tree = scrolled_tree(self.frame, [
             ("#0", "Combo / person", 330, True), ("shows", "Shows", 210, True), ("instrument", "Instrument", 120, False),
             ("also", "Also in", 70, False), ("conflicts", "Conflicts", 75, False), ("email", "Email", 200, True)])
@@ -156,12 +150,10 @@ class CombosPanel:
         files = input_files(self.get_folder())
         on = [files[w].name for w in ("approvals", "conflicts") if store.linked(w)]
         if on:
-            self.links_label.configure(text="Linked sheets: " + ", ".join(on) + "   (new sign-ups and conflicts come "
-                                       "in on Sync)")
+            self.links_label.configure(text="Linked sheets: " + ", ".join(on))
             self.sync_button.pack(side="right", padx=(0, 6))
         else:
-            self.links_label.configure(text="No sheets linked: combos and conflicts are entered here (right-click > "
-                                       "New combo, Edit conflicts).")
+            self.links_label.configure(text="No sheets linked")
             self.sync_button.pack_forget()
 
     def name(self, email):
