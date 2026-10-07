@@ -21,12 +21,24 @@ from settings_file import SettingsError, load_settings
 from theme import in_background, popup
 
 
+class TextChange:
+    """An unsaved change of the text in a set (Schedule tab: Add text / Edit text / Clear text); it sits in the
+    pending list next to the swaps and is confirmed with them. text "" = cleared (the set is open again)."""
+    breaks = warnings = ()
+
+    def __init__(self, d, k, text):
+        self.d, self.k, self.text = d, k, text.strip()
+        self.title = (f"Text in {make_label(d)} set {k}: '{self.text}'" if self.text else
+                      f"Text in {make_label(d)} set {k} cleared")
+
+
 class SwapPanel:
     def __init__(self, parent, get_folder, after_apply, get_palette=lambda: {}):
         self.get_folder, self.after_apply, self.get_palette = get_folder, after_apply, get_palette
         self.state, self.options, self.shows, self.visible = None, [], [], []
         self.labels, self.by_name = {}, {}
         self.pending, self.base_sets = [], None       # changes not saved yet; the schedule as it is on disk
+        self.base_typed = {}                          # ...and the text in its sets, on disk
         self.search_id = 0                            # the latest option search (an older one's results are dropped)
         self.listeners = []                           # called whenever the (pending) schedule changes
         self.is_busy = lambda: False                  # set by the app: a step is running in the background
@@ -170,6 +182,7 @@ class SwapPanel:
             return f"{n} ({e})" if n in clash else n
         if not keep:
             self.base_sets = {d: dict(row) for d, row in sets.items()}
+            self.base_typed = {d: dict(row) for d, row in typed.items()}
         self.state = dict(settings=settings, inp=inp, combos=combos, sets=sets, supervised=supervised, typed=typed,
                           nights=sched.nights if not keep else self.state["nights"], name_of=name_of,
                           published=sched.published if not keep else self.state.get("published", False))
@@ -397,13 +410,28 @@ class SwapPanel:
         self.state["sets"] = apply_option(self.state["sets"], option)
         self.after_change(message or f"Added: {option.title}")
 
+    def add_text(self, d, k, text):
+        """Text typed into a set (or cleared), as an unsaved change."""
+        change = TextChange(d, k, text)
+        self.pending.append(change)
+        self.rebuild_sets()
+        self.after_change(f"Added: {change.title}")
+
+    def typed_changes(self):
+        """{(night, set): text ('' = cleared)} where the text differs from the saved schedule."""
+        typed, base = self.state["typed"], self.base_typed
+        return {(d, k): typed.get(d, {}).get(k, "") for d in set(typed) | set(base)
+                for k in set(typed.get(d, {})) | set(base.get(d, {}))
+                if typed.get(d, {}).get(k, "") != base.get(d, {}).get(k, "")}
+
     def changed_cells(self):
-        """(night, set) of every set that differs from the saved schedule because of pending changes."""
+        """(night, set) of every set that differs from the saved schedule because of pending changes (its combo or
+        its text)."""
         if not self.state or self.base_sets is None:
             return set()
         sets = self.state["sets"]
         return {(d, k) for d in set(sets) | set(self.base_sets) for k in set(sets.get(d, {})) | set(self.base_sets.get(d, {}))
-                if sets.get(d, {}).get(k) != self.base_sets.get(d, {}).get(k)}
+                if sets.get(d, {}).get(k) != self.base_sets.get(d, {}).get(k)} | set(self.typed_changes())
 
     def preselect(self, cid, d, k, mode="swap"):
         """Shows the options for combo cid's show on night d, set k (used by the Schedule tab)."""
@@ -442,9 +470,17 @@ class SwapPanel:
 
     def rebuild_sets(self):
         sets = {d: dict(row) for d, row in self.base_sets.items()}
+        typed = {d: dict(row) for d, row in self.base_typed.items()}
         for o in self.pending:
-            sets = apply_option(sets, o)
+            if isinstance(o, TextChange):
+                if o.text:
+                    typed.setdefault(o.d, {})[o.k] = o.text
+                else:
+                    typed.get(o.d, {}).pop(o.k, None)
+            else:
+                sets = apply_option(sets, o)
         self.state["sets"] = sets
+        self.state["typed"] = {d: row for d, row in typed.items() if row}
 
     def undo_last(self):
         if self.pending:
@@ -467,23 +503,23 @@ class SwapPanel:
             return
         changes = {(d, k): c for d, row in st["sets"].items() for k, c in row.items()
                    if self.base_sets.get(d, {}).get(k) != c}
-        if not changes:
+        texts = self.typed_changes()
+        if not changes and not texts:
             messagebox.showinfo("Nothing to save", "The unsaved changes cancel each other out.")
             self.pending = []
             self.after_change("Nothing to save.")
             return
         warns = sum(1 for o in self.pending if o.warnings)
         breaks = sum(1 for o in self.pending if o.breaks)
-        if not messagebox.askyesno("Confirm changes?", f"Save {len(self.pending)} change(s) into the schedule "
-                                   f"({len(changes)} set(s) change)?" + (f"\n\n{warns} of them have a heads-up (\u26a0)."
-                                                                       if warns else "")
-                                   + (f"\n\n\u2716 {breaks} of them break a hard rule (agreed)." if breaks else "")
+        if not messagebox.askyesno("Confirm changes?", "Save the unsaved changes into the schedule?"
+                                   + ("\n\nSome of them have a heads-up (\u26a0)." if warns else "")
+                                   + ("\n\n\u2716 Some of them break a hard rule (agreed)." if breaks else "")
                                    + "\n\nA copy of the schedule as it is goes to 'AppFiles/ScheduleBackups' first."):
             return
         if not self.same_as_on_disk():
             return
         try:
-            backup = save_changes(self.get_folder(), st["combos"], sets=changes,
+            backup = save_changes(self.get_folder(), st["combos"], sets=changes, typed=texts,
                                   what=[("\u2716 rule overridden: " if o.breaks else "") + o.title for o in self.pending])
         except ScheduleFileError as e:
             messagebox.showerror("Couldn't save", str(e))
@@ -503,11 +539,11 @@ class SwapPanel:
         computer saved it and the sync brought it in) says so, and offers to reload."""
         st = self.state
         try:
-            now = load_schedule(self.get_folder(), st["combos"], st["settings"]).sets
+            sched = load_schedule(self.get_folder(), st["combos"], st["settings"])
         except ScheduleFileError as e:
             messagebox.showerror("Couldn't save", str(e))
             return False
-        if now == self.base_sets:
+        if sched.sets == self.base_sets and sched.typed == self.base_typed:
             return True
         if messagebox.askyesno(
                 "Schedule changed elsewhere", "The schedule was changed since these changes were planned (on "

@@ -650,8 +650,8 @@ class CombosPanel:
         withdrawals = [p["withdraw"] for p in self.pending if p["withdraw"]]
         swaps = self.get_swaps()
         if withdrawals and swaps and swaps.pending:
-            messagebox.showinfo("Confirm changes", f"A combo is withdrawn, and there are {len(swaps.pending)} unsaved "
-                                "swap change(s). Confirm or discard those first (Swaps tab), then confirm here.")
+            messagebox.showinfo("Confirm changes", "A combo is withdrawn, and the schedule has unsaved changes "
+                                "(Schedule and Swaps tabs). Confirm or discard those first, then confirm here.")
             return False
         try:
             store = Store(folder)
@@ -762,8 +762,8 @@ class CombosPanel:
             return
         swaps = self.get_swaps()
         if swaps and swaps.pending:
-            messagebox.showinfo("Withdraw a combo", f"There are {len(swaps.pending)} unsaved swap change(s). Confirm "
-                                                   "or discard them first (Swaps tab), then withdraw.")
+            messagebox.showinfo("Withdraw a combo", "The schedule has unsaved changes (Schedule and Swaps tabs). "
+                                                   "Confirm or discard them first, then withdraw.")
             return
         shows = sorted((d, k) for d, row in self.data["sets"].items() for k, c in row.items() if c == combo.id)
         sup = [d for d, _ in shows if d in self.data["supervised"]]

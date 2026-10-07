@@ -529,7 +529,7 @@ class App:
             self.tabs.select(self.combos.frame)
             return
         if self.swaps and self.swaps.pending and not messagebox.askyesno(
-                "Unsaved changes", "Some swap changes (Schedule and Swaps tabs) haven't been saved. "
+                "Unsaved changes", "The schedule has unsaved changes (Schedule and Swaps tabs). "
                 "Close anyway and lose them?", icon="warning"):
             return
         self.let_go()
@@ -882,8 +882,8 @@ class App:
             self.tabs.select(self.combos.frame)
             return
         if self.swaps and self.swaps.pending and not messagebox.askyesno(
-                "Unsaved swaps", f"{len(self.swaps.pending)} swap change(s) haven't been saved: restoring throws "
-                "them away. Go on?", icon="warning"):
+                "Unsaved changes", "The schedule has unsaved changes (Schedule and Swaps tabs): restoring "
+                "throws them away. Go on?", icon="warning"):
             return
         before = self.folder
         got = self.restore()

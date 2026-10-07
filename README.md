@@ -277,13 +277,13 @@ swap); **Sync** (Combos tab) reads the linked sheets and anything synced in from
 unsaved, a bar at the top offers **Confirm changes** (save them into the schedule and rebuild the exports), **Undo
 last** and **Discard all**. Double-click a combo's set to jump to the Swaps tab
 with that show picked (right-click: also "Give it away", and **Go to combo** to see it on the Combos tab); double-click an open set to see **every combo that could
-take it** and add one as a pending change. **Right-click a night** to copy, ready to paste into Outlook: the
+take it** (Fill set...) and add one as an unsaved change. **Right-click a night** to copy, ready to paste into Outlook: the
 liaisons' emails, the combo emails (every student playing, then the supervisors; separated by `;`), or a short
-summary of the night (sets, times, combos, members' names; no emails). **Right-click an open set** to type text into
+summary of the night (sets, times, combos, members' names; no emails). **Right-click an open set** (Add text...) to type text into
 it instead of a combo (e.g. `Jam session`, `Guest: Trio X`): it's shown on the calendar in italics (cut to about 10
 characters there, printed in full under the month) and the set counts as taken; change or clear it the same way.
-Saved straight away (backup first), unlike swaps. The copies use the schedule as shown, including unsaved
-changes. **Export PDF** / **Export Excel** rebuild `Schedule.pdf` and `Schedule.xlsx`
+Like a swap, it's an unsaved change until Confirm changes. The copies use the schedule as shown, including unsaved
+changes. **Open PDF** / **Open Excel** rebuild `Schedule.pdf` and `Schedule.xlsx`
 from the schedule and open one; with unsaved changes they ask: save them first, export the saved schedule only, or
 cancel.
 

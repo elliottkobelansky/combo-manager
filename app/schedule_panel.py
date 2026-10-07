@@ -292,10 +292,8 @@ class SchedulePanel:
 
     def edit_text(self, d, k, clear=False):
         """Types text into an open set (it's shown on the calendar and the set counts as taken), changes it, or
-        clears it. Saved straight away (a backup first), then the exports are rebuilt."""
-        from schedule_file import ScheduleFileError, save_changes
-        st = self.swaps.state
-        current = st["typed"].get(d, {}).get(k, "")
+        clears it: an unsaved change, confirmed with the others (Confirm changes)."""
+        current = self.swaps.state["typed"].get(d, {}).get(k, "")
         if clear:
             text = ""
         else:
@@ -305,23 +303,10 @@ class SchedulePanel:
                 parent=self.frame)
             if text is None or text.strip() == current:
                 return
-        try:
-            save_changes(self.swaps.get_folder(), st["combos"], typed={(d, k): text},
-                         what=[f"Text in {make_label(d)} set {k}: " + (f"'{text.strip()}'" if text.strip() else "cleared")])
-        except ScheduleFileError as e:
-            messagebox.showerror("Couldn't save", str(e))
-            return
-        app_log.write(f"Schedule tab: {make_label(d)} set {k} " + (f"says '{text.strip()}'" if text.strip() else
-                                                                    "is open again"))
-        if text.strip():
-            st["typed"].setdefault(d, {})[k] = text.strip()
-        else:
-            st["typed"].get(d, {}).pop(k, None)
-        self.refresh()
-        self.status.configure(text=(f"Saved: {make_label(d)} set {k} says '{text.strip()}'." if text.strip() else
-                                    f"Saved: {make_label(d)} set {k} is open again.") + " Rebuilding the exports...")
-        self.export(lambda code: self.status.configure(text=self.status.cget("text").replace(
-            " Rebuilding the exports...", " Exports rebuilt.")))
+        self.swaps.add_text(d, k, text)
+        self.status.configure(text=f"Not saved yet: {make_label(d)} set {k} "
+                                   + (f"says '{text.strip()}'." if text.strip() else "is open again.")
+                                   + " (Confirm changes, above)")
 
     # a night's emails and summary (copied)
     def night_info(self, d):
