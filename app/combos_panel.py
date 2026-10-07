@@ -12,7 +12,7 @@ from tkinter import messagebox, simpledialog, ttk
 import app_log
 from app_config import input_files
 from core.model import make_label
-from data_folder import COMBOS_PDF, COMBOS_XLSX, settings_path
+from data_folder import COMBOS_PDF, COMBOS_XLSX, export_path, settings_path
 from inputs import EMAIL_RE, EmailRules, InputError, email_warnings, load_input, name_from_email
 from schedule_file import ScheduleFileError, has_schedule, load as load_schedule, open_sets_of
 from settings_file import SettingsError, load_settings
@@ -491,7 +491,7 @@ class CombosPanel:
             menu.add_command(label=f"Change the liaison of {combo.name}...", command=self.make_liaison)
             menu.add_command(label=f"Add a member to {combo.name}...", command=self.add_member)
             if not self.data["settings"].use_first_year:
-                pass                                  # first-year combos are off (Settings): no tag, no option
+                pass                                  # first-year combos are off (Semester tab): no tag, no option
             elif combo.first_year:
                 menu.add_command(label=f"Remove the first-year tag from {combo.name}",
                                  command=lambda: self.set_first_year(combo, False))
@@ -836,12 +836,12 @@ class CombosPanel:
         combos = sorted(self.data["combos"].values(), key=lambda c: c.name)
         args = (combos, self.name, self.data["settings"].semester_name, self.data["instruments"])
         try:
-            write_combos_xlsx(self.get_folder() / COMBOS_XLSX, *args, self.data["shows"])
+            write_combos_xlsx(export_path(self.get_folder(), COMBOS_XLSX), *args, self.data["shows"])
         except (OSError, PermissionError):
             pass
         try:
             from outputs.combos_pdf import write_combos_pdf
-            write_combos_pdf(self.get_folder() / COMBOS_PDF, *args)
+            write_combos_pdf(export_path(self.get_folder(), COMBOS_PDF), *args)
         except (ImportError, OSError, PermissionError):
             pass
 
@@ -862,7 +862,7 @@ class CombosPanel:
         except ImportError:
             messagebox.showerror("Combo list", "The PDF needs the reportlab package: Run tab > Install missing packages.")
             return
-        path = self.get_folder() / COMBOS_PDF
+        path = export_path(self.get_folder(), COMBOS_PDF)
         combos = sorted(self.data["combos"].values(), key=lambda c: c.name)
         try:
             write_combos_pdf(path, combos, self.name, self.data["settings"].semester_name, self.data["instruments"])
@@ -883,7 +883,7 @@ class CombosPanel:
         if self.pending and not self.saved_first():
             return
         from outputs.combos_xlsx import write_combos_xlsx
-        path = self.get_folder() / COMBOS_XLSX
+        path = export_path(self.get_folder(), COMBOS_XLSX)
         combos = sorted(self.data["combos"].values(), key=lambda c: c.name)
         try:
             write_combos_xlsx(path, combos, self.name, self.data["settings"].semester_name, self.data["instruments"],

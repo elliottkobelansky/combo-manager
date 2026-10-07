@@ -274,7 +274,7 @@ def main():
         print("      -", b_)
     failures += not ok
 
-    # The schedule file (App data/schedule.json): saved and read back unchanged, changes with a backup first, text in
+    # The schedule file (AppFiles/schedule.json): saved and read back unchanged, changes with a backup first, text in
     # a set, a combo that's gone, an old hand-editable Schedule.xlsx converted, the xlsx export, archiving.
     import schedule_file as sf_
     from openpyxl import Workbook, load_workbook as open_wb
@@ -332,7 +332,7 @@ def main():
             or sf_.load(sdir, result.combos, s).sets != sch.sets:
         bad.append(f"the export: sheets {wb.sheetnames}, or it's taken for an old schedule")
     moved = sf_.archive_semester(sdir, s.semester_name)
-    if sf_.has_schedule(sdir) or not (moved / "schedule.json").exists() or not (moved / "Schedule backups").exists():
+    if sf_.has_schedule(sdir) or not (moved / "schedule.json").exists() or not (moved / "ScheduleBackups").exists():
         bad.append("archiving left the schedule behind")
     # an old, hand-editable Schedule.xlsx: converted once (typed text, supervised nights, a typo reported)
     old = Workbook()
@@ -350,8 +350,8 @@ def main():
     if not sch.converted or sch.sets[n0.date].get(1) != sorted(result.combos)[0] \
             or sch.typed.get(n0.date, {}).get(2) != "Jam session" or sch.supervised != {n0.date}:
         bad.append(f"the old Schedule.xlsx wasn't converted right: {sch.sets.get(n0.date)}, {sch.typed}")
-    if (sdir / "Schedule.xlsx").exists() or not any(sf_.schedule_backups(sdir).glob("Schedule (old*.xlsx")):
-        bad.append("the old Schedule.xlsx wasn't moved into Schedule backups")
+    if (sdir / "Schedule.xlsx").exists() or not any(sf_.schedule_backups(sdir).glob("Schedule-old*.xlsx")):
+        bad.append("the old Schedule.xlsx wasn't moved into ScheduleBackups")
     if not any("Combo 999" in t for _, t in sch.report):
         bad.append("the old file's typo isn't in the report")
     if sf_.load(sdir, result.combos, s).converted:
@@ -710,14 +710,52 @@ def main():
     for n in ("Schedule-OFFICE-PC.xlsx", "Conflicts (1).xlsx", "Schedule.xlsx", "Schedule notes.txt",
               "Combos-OFFICE-PC-2.pdf", "Schedule (LAPTOP's conflicted copy 2026-10-06).pdf", "Schedule (draft).pdf"):
         (lock_dir / n).write_text("x")
-    (app_data(lock_dir) / "settings-LAPTOP.json").write_text("{}")
-    (app_data(lock_dir) / "settings.json.bak").write_text("{}")
+    (app_data(lock_dir) / "semester-LAPTOP.json").write_text("{}")
+    (app_data(lock_dir) / "semester.json.bak").write_text("{}")
     copies = sorted(c.name for c, _ in sf.conflict_copies(lock_dir))
     if copies != ["Combos-OFFICE-PC-2.pdf", "Conflicts (1).xlsx", "Schedule (LAPTOP's conflicted copy 2026-10-06).pdf",
-                  "Schedule-OFFICE-PC.xlsx", "settings-LAPTOP.json"]:
+                  "Schedule-OFFICE-PC.xlsx", "semester-LAPTOP.json"]:
         bad.append(f"conflict copies found: {copies}")
     ok = not bad
     print(f"{'PASS' if ok else 'FAIL'}  shared folder: stale saves refused, lock file taken over / left over / released, conflict copies found")
+    for b_ in bad:
+        print("      -", b_)
+    failures += not ok
+    import zipfile
+    # Exports live in Exports/: an older folder's exports at the top are moved in once; an old hand-editable
+    # Schedule.xlsx (no schedule.json yet) stays at the top until it's converted.
+    import data_folder as dfo
+    bad, old_dir = [], Path(tempfile.mkdtemp())
+    for n in (dfo.SCHEDULE_PDF, dfo.COMBOS_XLSX, dfo.SCHEDULE_XLSX):
+        (old_dir / n).write_text(n)
+    dfo.exports(old_dir)
+    if (old_dir / dfo.SCHEDULE_PDF).exists() or (old_dir / "Exports" / dfo.COMBOS_XLSX).read_text() != dfo.COMBOS_XLSX:
+        bad.append("exports at the top weren't moved into Exports")
+    if not (old_dir / dfo.SCHEDULE_XLSX).exists():
+        bad.append("an old Schedule.xlsx was moved before it could be converted")
+    dfo.app_data(old_dir).mkdir(exist_ok=True)
+    dfo.schedule_path(old_dir).write_text("{}")
+    if dfo.export_path(old_dir, dfo.SCHEDULE_XLSX) != old_dir / "Exports" / dfo.SCHEDULE_XLSX or \
+            (old_dir / dfo.SCHEDULE_XLSX).exists():
+        bad.append("Schedule.xlsx (an export, once schedule.json exists) wasn't moved into Exports")
+    # a folder from before 2026-10-07 (names with spaces): renamed when opened; an old backup is still read
+    old_dir = Path(tempfile.mkdtemp())
+    (old_dir / "App data" / "Schedule backups").mkdir(parents=True)
+    (old_dir / "App data" / "Schedule backups" / "Schedule 1.json").write_text("{}")
+    (old_dir / "App data" / "settings.json").write_text(json.dumps({"semester_name": "Fall 2026"}))
+    (old_dir / "App data" / "In use.json").write_text("{}")
+    old_zip = old_dir.parent / f"{old_dir.name}.zip"
+    with zipfile.ZipFile(old_zip, "w") as zf:
+        zf.write(old_dir / "App data" / "settings.json", "App data/settings.json")
+    dfo.app_data(old_dir)
+    got = sorted(p.relative_to(old_dir).as_posix() for p in old_dir.rglob("*") if p.is_file())
+    if got != ["AppFiles/ScheduleBackups/Schedule 1.json", "AppFiles/in_use.json", "AppFiles/semester.json"]:
+        bad.append(f"an older folder wasn't renamed right: {got}")
+    import backup as backup_
+    if backup_.read_backup(old_zip)["semester"] != "Fall 2026":
+        bad.append("an old backup's semester isn't read")
+    ok = not bad
+    print(f"{'PASS' if ok else 'FAIL'}  exports go to Exports/; an older folder's are moved in, and names with spaces renamed")
     for b_ in bad:
         print("      -", b_)
     failures += not ok
@@ -770,8 +808,8 @@ def main():
         bad.append(f"backup: {n} files, info {info}")
     restored = backup.restore_backup(zip_path, backup.new_folder(tmp, "restored"))
     got = sorted(p.relative_to(restored).as_posix() for p in restored.rglob("*") if p.is_file())
-    want = sorted(["App data/Schedule backups/Schedule 2026-10-01 120000.xlsx", "App data/scheduler_data.json",
-                   "App data/settings.json", "App data/settings.json.bak", "Archive/Fall 2026/Schedule.xlsx",
+    want = sorted(["AppFiles/ScheduleBackups/Schedule 2026-10-01 120000.xlsx", "AppFiles/scheduler_data.json",
+                   "AppFiles/semester.json", "AppFiles/semester.json.bak", "Archive/Fall 2026/Schedule.xlsx",
                    "Approvals.xlsx", "Schedule.xlsx"])
     if got != want or (restored / dfo.APPROVALS_FILE).read_text() != "approvals":
         bad.append(f"restored: {got}")
@@ -803,8 +841,8 @@ def main():
     state = {p.relative_to(live).as_posix(): p.read_text() for p in live.rglob("*") if p.is_file()
              and backup.BEFORE_RESTORE not in p.parts}
     want = {"Approvals.xlsx": "new sign-ups", "Conflicts.xlsx": "new conflicts", "Combo Scheduler backup old.zip":
-            "a zip saved here", "App data/schedule.json": "yesterday's schedule", "App data/In use.json": "our lock",
-            "App data/Logs/pc.txt": "today's log", "Archive/Fall 2026/Schedule.xlsx": "past"}
+            "a zip saved here", "AppFiles/schedule.json": "yesterday's schedule", "AppFiles/in_use.json": "our lock",
+            "AppFiles/Logs/pc.txt": "today's log", "Archive/Fall 2026/Schedule.xlsx": "past"}
     if state != want or not safety.exists():
         bad.append(f"restore into the folder in use: {state}")
     backup.restore_in_place(old_zip, live, keep_inputs=False)

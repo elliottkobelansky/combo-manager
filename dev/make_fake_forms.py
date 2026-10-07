@@ -7,7 +7,7 @@ test_rules.py can check inputs.py against it.
     python dev/make_fake_forms.py FOLDER --instruments [--replace]  # only fill in instruments for the combos there
 FOLDER is any folder (made if needed), e.g. ~/Documents/Combo Manager demo; choose it in the app with Change
 folder... to try things. Never inside the program folder: that holds no data. Without settings yet, it gets the
-example settings (settings_file.DEFAULTS). Instruments go into App data/scheduler_data.json (as if set in the Combos
+example settings (settings_file.DEFAULTS). Instruments go into AppFiles/scheduler_data.json (as if set in the Combos
 tab); people who already have one keep it unless --replace.
 """
 import argparse

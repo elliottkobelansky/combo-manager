@@ -21,7 +21,7 @@
     linked       {"approvals": bool, "conflicts": bool}     which sheets are read (Combos tab > Linked sheets); a
                                                             folder from before has both (missing = linked)
 
-Written by the app and by solve.py (when a new combo gets its number), in the data folder's App data
+Written by the app and by solve.py (when a new combo gets its number), in the data folder's AppFiles
 (data_folder.py), next to the other files.
 """
 import json

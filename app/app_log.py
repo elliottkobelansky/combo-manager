@@ -1,5 +1,5 @@
 """The log: what the app did, for "send this to whoever maintains it". One file per computer in the data folder,
-App data/Logs/<computer>.txt (two computers on a shared folder never write the same file): every step's output,
+AppFiles/Logs/<computer>.txt (two computers on a shared folder never write the same file): every step's output,
 saves (swaps, combo changes, text in a set), backups, folder changes, and every error with its details.
 Kept to about LIMIT bytes (the oldest half goes). Writing it never raises: a log must not break the app.
 
@@ -10,7 +10,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from data_folder import app_data
+from data_folder import LOGS, app_data
 
 LIMIT = 1_000_000
 _folder = None
@@ -23,7 +23,7 @@ def set_folder(folder):
 
 
 def path(folder=None):
-    return app_data(folder or _folder) / "Logs" / f"{socket.gethostname()}.txt"
+    return app_data(folder or _folder) / LOGS / f"{socket.gethostname()}.txt"
 
 
 def write(text):

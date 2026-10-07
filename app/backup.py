@@ -1,10 +1,10 @@
-"""Backups of the data folder: one zip with everything in it (the spreadsheets, App data with the settings, combo
-numbers, .bak copies and Schedule backups, and Archive), plus backup-info.json saying when and where it was made.
+"""Backups of the data folder: one zip with everything in it (the spreadsheets, AppFiles with the settings, combo
+numbers, .bak copies and ScheduleBackups, and Archive), plus backup-info.json saying when and where it was made.
 
     create_backup     the data folder -> a zip, written through a temp file renamed at the end (all or nothing)
     read_backup       checks a zip is one of ours and whole; -> its backup-info and what it holds
     restore_in_place  a zip -> the data folder in use (the usual case: something went wrong, go back): it's backed up
-                      first (App data/Before restore), and the input spreadsheets the forms write are kept, so the
+                      first (AppFiles/BeforeRestore), and the input spreadsheets the forms write are kept, so the
                       same folder stays in use by every computer and by the flows
     restore_backup    a zip -> a new folder (when the data folder itself is lost; never into one with things in it)
 
@@ -19,15 +19,15 @@ import zipfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from data_folder import (APP_DATA, APPROVALS_FILE, CONFLICTS_FILE, LOCK_FILE, OLD_APPROVALS_FILE, app_data,
-                         usual_inputs)
+from data_folder import (APP_DATA, APPROVALS_FILE, BEFORE_RESTORE, CONFLICTS_FILE, LOCK_FILE, LOGS, OLD_APP_DATA,
+                         OLD_APPROVALS_FILE, SETTINGS_FILE, app_data, exports, usual_inputs)
 
 INFO = "backup-info.json"
-PREFIX = "Combo Manager backup"
-PREFIXES = (PREFIX, "Combo Scheduler backup")       # (the name before 2026-10-07)
-BEFORE_RESTORE = "Before restore"                     # in App data: the folder as it was before each in-place restore
+PREFIX = "ComboManager-backup"
+PREFIXES = (PREFIX, "Combo Manager backup", "Combo Scheduler backup")   # (the names before 2026-10-07)
+# in AppFiles: BEFORE_RESTORE, the folder as it was before each in-place restore
 INPUTS = (APPROVALS_FILE, OLD_APPROVALS_FILE, CONFLICTS_FILE)   # written by the forms' flows: kept by default
-KEPT_HERE = (LOCK_FILE, "Logs", BEFORE_RESTORE)       # in App data: this folder's own, never taken from a backup
+KEPT_HERE = (LOCK_FILE, LOGS, BEFORE_RESTORE)         # in AppFiles: this folder's own, never taken from a backup
 
 
 class BackupError(ValueError):
@@ -35,8 +35,8 @@ class BackupError(ValueError):
 
 
 def backup_name(now=None):
-    """'Combo Manager backup 2026-10-06 1405.zip'"""
-    return f"{PREFIX} {(now or datetime.now()):%Y-%m-%d %H%M}.zip"
+    """'ComboManager-backup-2026-10-06-1405.zip'"""
+    return f"{PREFIX}-{(now or datetime.now()):%Y-%m-%d-%H%M}.zip"
 
 
 def _left_out(rel):
@@ -86,7 +86,7 @@ def read_backup(path):
     try:
         with zipfile.ZipFile(path) as zf:
             names = zf.namelist()
-            if INFO not in names and not any(n.startswith(APP_DATA + "/") for n in names):
+            if INFO not in names and not any(n.startswith((APP_DATA + "/", OLD_APP_DATA + "/")) for n in names):
                 raise BackupError(f"{Path(path).name} isn't a Combo Manager backup.")
             bad = [n for n in names if PurePosixPath(n).is_absolute() or ".." in PurePosixPath(n).parts or ":" in n]
             if bad:
@@ -99,15 +99,20 @@ def read_backup(path):
             except ValueError:
                 info = {}
 
-            def inside(name, key):
-                try:
-                    return json.loads(zf.read(f"{APP_DATA}/{name}")).get(key) if f"{APP_DATA}/{name}" in names else None
-                except (ValueError, AttributeError):
-                    return None
+            def inside(name, key, old_name=None):
+                """A value from a JSON file in the backup's AppFiles (or 'AppFiles', with the old name: older
+                backups)."""
+                for where in (f"{APP_DATA}/{name}", f"{OLD_APP_DATA}/{old_name or name}"):
+                    if where in names:
+                        try:
+                            return json.loads(zf.read(where)).get(key)
+                        except (ValueError, AttributeError):
+                            return None
+                return None
             past = sorted({PurePosixPath(n).parts[1] for n in names if n.startswith("Archive/")
                            and len(PurePosixPath(n).parts) > 2})
             return {**info, "files": len([n for n in names if n != INFO and not n.endswith("/")]),
-                    "semester": inside("settings.json", "semester_name"),
+                    "semester": inside(SETTINGS_FILE, "semester_name", "settings.json"),
                     "schedule": inside("schedule.json", "semester") or (
                         "(old format)" if "Schedule.xlsx" in names else None), "past": past}
     except (zipfile.BadZipFile, OSError) as e:
@@ -115,10 +120,10 @@ def read_backup(path):
 
 
 def new_folder(parent, name):
-    """parent/name, or 'name (2)', 'name (3)', ... when that's taken."""
+    """parent/name, or 'name-2', 'name-3', ... when that's taken."""
     dest, n = Path(parent) / name, 2
     while dest.exists():
-        dest, n = Path(parent) / f"{name} ({n})", n + 1
+        dest, n = Path(parent) / f"{name}-{n}", n + 1
     return dest
 
 
@@ -134,6 +139,8 @@ def restore_backup(path, dest):
     try:
         with zipfile.ZipFile(path) as zf:
             zf.extractall(work, [n for n in zf.namelist() if n != INFO])
+        app_data(work)                                # an older backup: its names as they are now
+        exports(work)
         if dest.exists():
             dest.rmdir()
         os.replace(work, dest)
@@ -144,17 +151,17 @@ def restore_backup(path, dest):
 
 def restore_in_place(path, folder, keep_inputs=True):
     """Puts the backup's files into the data folder in use, replacing the scheduler's own (settings, combo edits, the
-    schedule and its history and backups, Archive, the exports). First the folder as it is now is backed up into App
-    data/Before restore (restoring that zip undoes this). Kept: the input spreadsheets (unless keep_inputs is False:
+    schedule and its history and backups, Archive, the exports). First the folder as it is now is backed up into
+    AppFiles/BeforeRestore (restoring that zip undoes this). Kept: the input spreadsheets (unless keep_inputs is False:
     an old copy would lose sign-ups the forms added since), the lock, the logs, and backup zips saved in the folder.
     The backup is unpacked beside it first, so a damaged zip changes nothing. -> the safety backup's path."""
     read_backup(path)
     folder = Path(folder)
     app = app_data(folder)
-    stem, n = backup_name().replace(".zip", " (before restoring)"), 2
+    stem, n = backup_name().replace(".zip", "-before-restoring"), 2
     safety = app / BEFORE_RESTORE / f"{stem}.zip"
     while safety.exists() or safety == Path(path):     # never over an earlier one (or the zip being restored)
-        safety, n = app / BEFORE_RESTORE / f"{stem} {n}.zip", n + 1
+        safety, n = app / BEFORE_RESTORE / f"{stem}-{n}.zip", n + 1
     create_backup(folder, safety)
     work = app / f".restoring.{os.getpid()}"
     shutil.rmtree(work, ignore_errors=True)

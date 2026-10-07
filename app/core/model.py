@@ -54,7 +54,7 @@ class Settings:
     min_members_per_combo: Optional[int] = 4      # warning only: combos with fewer members are flagged
     max_shows_per_combo: Optional[int] = 4
     min_shows_per_combo: Optional[int] = None   # total, at any venues (venue minimums still apply); open mode: exactly.
-                                                # Required in settings.json; None only for a hand-built Settings
+                                                # Required in semester.json; None only for a hand-built Settings
     extra_slot_policy: str = "auto"       # "auto": fill every set. "open": leave extras for volunteers
     solver_time_limit_sec: float = 90
     every_combo_supervised: bool = True   # every combo plays nights a professor attends (off = no supervision)

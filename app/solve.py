@@ -1,4 +1,4 @@
-"""settings.json + Approvals.xlsx + Conflicts.xlsx -> the schedule (App data/schedule.json, see schedule_file.py)
+"""semester.json + Approvals.xlsx + Conflicts.xlsx -> the schedule (AppFiles/schedule.json, see schedule_file.py)
 
     python app/solve.py                  # build a new schedule (asks to confirm first; add -y to skip the question)
     python app/solve.py --export         # ...and write Schedule.pdf and Schedule.xlsx from it (--pdf: the same)
@@ -26,7 +26,7 @@ from core.stats import schedule_stats
 from inputs import InputError, load_input, name_from_email
 from store import Store
 from app_config import saved_folder
-from data_folder import SCHEDULE_PDF, SCHEDULE_XLSX, problem, schedule_path, settings_path, usual_inputs
+from data_folder import SCHEDULE_PDF, SCHEDULE_XLSX, export_path, problem, schedule_path, settings_path, usual_inputs
 from schedule_file import (ScheduleFileError, archive_semester, check_semester, entries, has_schedule, load,
                            save_new, semester_of)
 from settings_file import SettingsError, load_settings
@@ -55,7 +55,7 @@ def compare_gaps(inp, settings, values):
         else:
             print(f"{v:>7} d | no combo has two shows | {filled}/{result.stats['total_sets']} | {result.stats['status']}")
     print("\nPick the smallest value where 'closest' stops improving and the solver still says OPTIMAL.\n"
-          "Then set it in the Settings tab ('Ideal days between shows') and make the schedule.")
+          "Then set it in the Semester tab ('Ideal days between shows') and make the schedule.")
 
 
 def write_exports(folder, sched, combos, settings, store):
@@ -65,9 +65,9 @@ def write_exports(folder, sched, combos, settings, store):
         return store.names.get(e) or name_from_email(e)
     try:
         from outputs.schedule_pdf import write_schedule_pdf
-        write_schedule_pdf(folder / SCHEDULE_PDF, sched.nights, entries(sched), combos, sched.supervised or set(),
+        write_schedule_pdf(export_path(folder, SCHEDULE_PDF), sched.nights, entries(sched), combos, sched.supervised or set(),
                            settings)
-        print(f"Wrote {folder / SCHEDULE_PDF}")
+        print(f"Wrote {export_path(folder, SCHEDULE_PDF)}")
     except ImportError:
         print("Can't write the PDF: run  pip install reportlab")
     except PermissionError:
@@ -75,9 +75,9 @@ def write_exports(folder, sched, combos, settings, store):
               "saved). Close it, then Export again (Schedule tab).")
     from outputs.excel_schedule import write_schedule_xlsx
     try:
-        write_schedule_xlsx(folder / SCHEDULE_XLSX, sched, combos, settings, name_of,
+        write_schedule_xlsx(export_path(folder, SCHEDULE_XLSX), sched, combos, settings, name_of,
                             store.instruments(settings.semester_name, combos.values()))
-        print(f"Wrote {folder / SCHEDULE_XLSX}")
+        print(f"Wrote {export_path(folder, SCHEDULE_XLSX)}")
     except PermissionError:
         print(f"  \u26a0 {SCHEDULE_XLSX} is open in Excel, so it wasn't updated (the schedule itself is saved). "
               "Close it, then Export again (Schedule tab).")
@@ -93,8 +93,8 @@ def print_stats(folder, sched, inp, settings, store, export=False, full=False, t
     sections, problems = schedule_stats(sched.sets, sched.nights, combos, inp, settings, sched.supervised,
                                         lambda e: store.names.get(e) or name_from_email(e), sched.typed)
     if sched.converted:
-        print("The old Schedule.xlsx was turned into the app's own schedule file (the old file is in App data > "
-              "Schedule backups).\n")
+        print("The old Schedule.xlsx was turned into the app's own schedule file (the old file is in AppFiles > "
+              "ScheduleBackups).\n")
     problems = sched.problems + problems
     if problems:
         print(f"{len(problems)} problem{'s' if len(problems) > 1 else ''} with the rules:")
@@ -135,7 +135,7 @@ def confirm(folder):
     if schedule_path(folder).exists():
         when = datetime.fromtimestamp(schedule_path(folder).stat().st_mtime).strftime("%Y-%m-%d %H:%M")
         print(f"  \u26a0 There is a schedule already (last saved {when}); it will be replaced (a copy goes to "
-              "App data/Schedule backups).\n  Any swaps made in it won't be in the new one.\n"
+              "AppFiles/ScheduleBackups).\n  Any swaps made in it won't be in the new one.\n"
               "  To just check the existing schedule: Check schedule.")
     if not sys.stdin.isatty():
         print("Not running interactively: add -y to confirm.")
@@ -149,7 +149,7 @@ def confirm(folder):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--folder", help="the data folder (default: the one picked in the app on this computer)")
-    ap.add_argument("--settings", help="default: App data/settings.json in the folder")
+    ap.add_argument("--settings", help="default: AppFiles/semester.json in the folder")
     ap.add_argument("--approvals", help="default: Approvals.xlsx in the folder")
     ap.add_argument("--conflicts", help="default: Conflicts.xlsx in the folder")
     ap.add_argument("--conflicts-sheet")
@@ -225,7 +225,7 @@ def main(argv=None):
     filled, total = result.stats["total_sets"] - result.stats["empty_sets"], result.stats["total_sets"]
     print(f"\nMade a schedule: {filled} of {total} sets filled. " + (
         "It's the best one for these settings." if result.stats["status"] == "OPTIMAL" else
-        "It's a good one, but the time ran out before it was proven the best: a longer 'Solver time' (Settings tab) "
+        "It's a good one, but the time ran out before it was proven the best: a longer 'Solver time' (Semester tab) "
         "may improve it."))
     show(result.report)
     print("\nSaved the schedule. Check schedule (Schedule tab) shows the details.")

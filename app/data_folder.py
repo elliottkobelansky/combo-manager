@@ -5,16 +5,16 @@ counts (and backup.py zips it).
 
     Approvals.xlsx, Conflicts.xlsx          the inputs (Microsoft Forms / Power Automate fill them; the Run tab can
                                             pick other files, under any name, anywhere)
-    Schedule.xlsx, Schedule.pdf             this semester's schedule to read and print: exports of
-                                            App data/schedule.json, rebuilt after every change, never read back
-    Combos.pdf, Combos.xlsx                 the combo list, exported from the Combos tab (rebuilt any time)
-    Contact lists.xlsx                      exported from the Schedule tab (rebuilt any time)
+    Exports/                                what the app makes for people to read (share this folder alone):
+      Schedule.xlsx, Schedule.pdf             this semester's schedule: exports of AppFiles/schedule.json, rebuilt
+                                              after every change, never read back
+      Combos.pdf, Combos.xlsx                 the combo list (Combos tab; rebuilt any time)
     Archive/<semester>/                     past semesters' files
-    App data/settings.json                  the settings (Settings tab), with settings.json.bak
-    App data/scheduler_data.json            combo numbers, corrected names and emails, ... (store.py), with .bak
-    App data/schedule.json                  the schedule itself: who plays which set (schedule_file.py)
-    App data/Schedule backups/              schedule.json as it was before each change
-    App data/In use.json                    which computer has the folder open (shared_folder.py)
+    AppFiles/semester.json                  the settings (Semester tab), with semester.json.bak
+    AppFiles/scheduler_data.json            combo numbers, corrected names and emails, ... (store.py), with .bak
+    AppFiles/schedule.json                  the schedule itself: who plays which set (schedule_file.py)
+    AppFiles/ScheduleBackups/               schedule.json as it was before each change
+    AppFiles/in_use.json                    which computer has the folder open (shared_folder.py)
 
 Every path into the data folder is made here. Standard library only: the app uses this before checking that the
 other packages are installed.
@@ -26,31 +26,80 @@ from pathlib import Path
 APPROVALS_FILE, CONFLICTS_FILE = "Approvals.xlsx", "Conflicts.xlsx"
 OLD_APPROVALS_FILE = "Combo Approvals.xlsx"     # the usual name before 2026-10-06: still read when it's the only one
 SCHEDULE_XLSX, SCHEDULE_PDF = "Schedule.xlsx", "Schedule.pdf"
-COMBOS_PDF, COMBOS_XLSX, CONTACTS_XLSX = "Combos.pdf", "Combos.xlsx", "Contact lists.xlsx"
+COMBOS_PDF, COMBOS_XLSX = "Combos.pdf", "Combos.xlsx"
 ARCHIVE = "Archive"
+EXPORTS = "Exports"
+EXPORT_FILES = [SCHEDULE_XLSX, SCHEDULE_PDF, COMBOS_PDF, COMBOS_XLSX]
 # The program's own files live in a subfolder, so the top shows only what people open.
-APP_DATA = "App data"
-SETTINGS_FILE, STORE_FILE, LOCK_FILE = "settings.json", "scheduler_data.json", "In use.json"
+APP_DATA = "AppFiles"
+SETTINGS_FILE, STORE_FILE, LOCK_FILE = "semester.json", "scheduler_data.json", "in_use.json"
 SCHEDULE_FILE = "schedule.json"
-SCHEDULE_BACKUPS = "Schedule backups"
+SCHEDULE_BACKUPS = "ScheduleBackups"
+BEFORE_RESTORE, LOGS = "BeforeRestore", "Logs"
+DEFAULT_NAME = "ComboManagerData"                 # a new data folder's suggested name
+# Names before 2026-10-07 (with spaces): a folder that has them is renamed the first time it's opened
+OLD_APP_DATA = "App data"
+RENAMED = {"settings.json": SETTINGS_FILE, "settings.json.bak": SETTINGS_FILE + ".bak",
+           "Schedule backups": SCHEDULE_BACKUPS, "Before restore": BEFORE_RESTORE, "In use.json": LOCK_FILE}
 
-TOP_FILES = [APPROVALS_FILE, OLD_APPROVALS_FILE, CONFLICTS_FILE, SCHEDULE_XLSX, SCHEDULE_PDF, COMBOS_PDF, COMBOS_XLSX,
-             CONTACTS_XLSX]
+TOP_FILES = [APPROVALS_FILE, OLD_APPROVALS_FILE, CONFLICTS_FILE]
 APP_DATA_FILES = [SETTINGS_FILE, STORE_FILE, SCHEDULE_FILE]
-_MOVED_IN = (SETTINGS_FILE, SETTINGS_FILE + ".bak", STORE_FILE, STORE_FILE + ".bak", SCHEDULE_BACKUPS)
+_MOVED_IN = ("settings.json", "settings.json.bak", STORE_FILE, STORE_FILE + ".bak", "Schedule backups")
+
+
+def _move(old, new):
+    """old -> new when new isn't there yet; a folder into one that is: what's in it, one by one."""
+    if not old.exists():
+        return
+    if not new.exists():
+        new.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(old), str(new))
+    elif old.is_dir() and new.is_dir():
+        for p in list(old.iterdir()):
+            _move(p, new / p.name)
+        try:
+            old.rmdir()                                   # (left when something in it couldn't move)
+        except OSError:
+            pass
 
 
 def app_data(folder):
-    """folder/App data. In a data folder from before (those files at the top), they're moved in the first time.
-    Writers create the folder."""
+    """folder/AppFiles, the program's own files. A data folder from before is tidied the first time: files at the
+    top moved in (the oldest layout), 'AppFiles' renamed, and the names with spaces renamed (RENAMED). Writers create
+    the folder."""
     folder = Path(folder)
     sub = folder / APP_DATA
-    for name in _MOVED_IN:
-        old, new = folder / name, sub / name
-        if old.exists() and not new.exists():
-            sub.mkdir(exist_ok=True)
-            shutil.move(str(old), str(new))
+    try:
+        for name in _MOVED_IN:
+            _move(folder / name, sub / RENAMED.get(name, name))
+        _move(folder / OLD_APP_DATA, sub)
+        for old, new in RENAMED.items():
+            _move(sub / old, sub / new)
+    except OSError:
+        pass                                              # (a file in use: tried again next time)
     return sub
+
+
+def exports(folder):
+    """folder/Exports (made if needed). In a data folder from before (the exports at the top), they're moved in the
+    first time; one open in Excel is left where it is, and made again in Exports. An old hand-editable
+    Schedule.xlsx (no schedule.json yet) stays at the top until it's converted."""
+    folder = Path(folder)
+    sub = folder / EXPORTS
+    sub.mkdir(exist_ok=True)
+    for name in EXPORT_FILES:
+        old, new = folder / name, sub / name
+        if old.exists() and not new.exists() and (name != SCHEDULE_XLSX or schedule_path(folder).exists()):
+            try:
+                shutil.move(str(old), str(new))
+            except OSError:
+                pass
+    return sub
+
+
+def export_path(folder, name):
+    """Where an export (EXPORT_FILES) goes: folder/Exports/name."""
+    return exports(folder) / name
 
 
 def usual_inputs(folder):
@@ -117,4 +166,4 @@ def looks_like_data_folder(folder):
         names = {p.name for p in folder.iterdir() if not p.name.startswith(".")}
     except OSError:
         return False
-    return not names or bool(names & {APP_DATA, ARCHIVE, *TOP_FILES})
+    return not names or bool(names & {APP_DATA, OLD_APP_DATA, ARCHIVE, EXPORTS, *TOP_FILES, *EXPORT_FILES})

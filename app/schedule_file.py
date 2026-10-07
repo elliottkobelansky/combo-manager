@@ -1,4 +1,4 @@
-"""The schedule: App data/schedule.json in the data folder. Written only by the app and solve.py (a new schedule,
+"""The schedule: AppFiles/schedule.json in the data folder. Written only by the app and solve.py (a new schedule,
 swaps, give-aways, text typed into a set, withdrawn combos); Schedule.xlsx and Schedule.pdf are exports made from it
 and never read back, so editing them changes nothing.
 
@@ -17,7 +17,7 @@ Once a schedule exists it decides the nights (dates, venues, sets, times): chang
 next schedule made. "Supervised nights preferred here" still comes from the settings' show days.
 
 Before 2026-10-06 the schedule lived in Schedule.xlsx (hand-editable). A data folder with only that is converted
-the first time the schedule is loaded; the old file goes to App data/Schedule backups.
+the first time the schedule is loaded; the old file goes to AppFiles/ScheduleBackups.
 """
 import json
 import re
@@ -29,12 +29,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 from core.model import Night
-from data_folder import (ARCHIVE, COMBOS_PDF, COMBOS_XLSX, CONTACTS_XLSX, SCHEDULE_BACKUPS, SCHEDULE_FILE, SCHEDULE_PDF,
-                         SCHEDULE_XLSX, app_data, schedule_backups, schedule_path)
+from data_folder import (ARCHIVE, EXPORT_FILES, SCHEDULE_BACKUPS, SCHEDULE_FILE, SCHEDULE_XLSX, app_data, exports,
+                         schedule_backups, schedule_path)
 from shared_folder import write_text
 
 # A semester's files: moved together into Archive/<semester>/ when a new semester starts (archive_semester).
-SEMESTER_FILES = [SCHEDULE_XLSX, SCHEDULE_PDF, COMBOS_PDF, COMBOS_XLSX, CONTACTS_XLSX, SCHEDULE_FILE, SCHEDULE_BACKUPS]
+SEMESTER_FILES = EXPORT_FILES + [SCHEDULE_FILE, SCHEDULE_BACKUPS]
 
 
 class ScheduleFileError(Exception):
@@ -69,7 +69,7 @@ def _read(folder):
     except FileNotFoundError:
         return None
     except ValueError:
-        raise ScheduleFileError(f"{schedule_path(folder)} is damaged. Restore it from App data/Schedule backups "
+        raise ScheduleFileError(f"{schedule_path(folder)} is damaged. Restore it from AppFiles/ScheduleBackups "
                                 "(the newest copy), or from a backup.")
     return data if isinstance(data, dict) else {}
 
@@ -174,13 +174,13 @@ def _write(folder, data):
 
 
 def backup(folder):
-    """Copies schedule.json into App data/Schedule backups (timestamped). -> the copy, or None (nothing to copy)."""
+    """Copies schedule.json into AppFiles/ScheduleBackups (timestamped). -> the copy, or None (nothing to copy)."""
     path = schedule_path(folder)
     if not path.exists():
         return None
     dest = schedule_backups(folder)
     dest.mkdir(parents=True, exist_ok=True)
-    copy = dest / f"Schedule {datetime.now():%Y-%m-%d %H%M%S}.json"
+    copy = dest / f"Schedule-{datetime.now():%Y-%m-%d-%H%M%S}.json"
     shutil.copy2(path, copy)
     return copy
 
@@ -223,7 +223,7 @@ def set_published(folder, on):
 def save_changes(folder, combos, sets=None, typed=None, what=()):
     """Changes some sets: sets = {(date, set): combo id or None (open)}, typed = {(date, set): text or None (open)};
     what: what was done, in words (e.g. the swaps' titles), for the history. Reads the file again first, so changes
-    saved meanwhile elsewhere (other sets) are kept; a backup goes into App data/Schedule backups first. -> the
+    saved meanwhile elsewhere (other sets) are kept; a backup goes into AppFiles/ScheduleBackups first. -> the
     backup's path. Raises ScheduleFileError (nothing changed) for a set that isn't in the schedule."""
     data = _read(folder)
     if data is None:
@@ -280,7 +280,8 @@ def open_sets_of(folder, name, what=()):
 def semester_paths(folder):
     """The SEMESTER_FILES that are there."""
     folder = Path(folder)
-    paths = [app_data(folder) / n if n in (SCHEDULE_FILE, SCHEDULE_BACKUPS) else folder / n for n in SEMESTER_FILES]
+    paths = [app_data(folder) / n if n in (SCHEDULE_FILE, SCHEDULE_BACKUPS) else exports(folder) / n
+             for n in SEMESTER_FILES]
     return [p for p in paths if p.exists()]
 
 
@@ -291,10 +292,10 @@ def archive_semester(folder, semester):
     present = semester_paths(folder)
     if not present:
         return None
-    name = re.sub(r'[\\/:*?"<>|]+', "-", str(semester or "Old schedule")).strip() or "Old schedule"
+    name = re.sub(r'[\\/:*?"<>|\s]+', "-", str(semester or "").strip()).strip("-") or "OldSchedule"
     dest, n = folder / ARCHIVE / name, 2
     while dest.exists():
-        dest, n = folder / ARCHIVE / f"{name} ({n})", n + 1
+        dest, n = folder / ARCHIVE / f"{name}-{n}", n + 1
     dest.mkdir(parents=True)
     for p in present:
         shutil.move(str(p), str(dest / p.name))
@@ -312,7 +313,7 @@ def _old_xlsx(folder):
 
 def convert_old(folder, combos, settings):
     """Turns an old Schedule.xlsx into schedule.json (its sets, typed text, supervised nights and nights), then moves
-    the old file into App data/Schedule backups. What couldn't be read goes into the report."""
+    the old file into AppFiles/ScheduleBackups. What couldn't be read goes into the report."""
     from outputs.excel_schedule import old_schedule_nights, read_old_schedule
     old = _old_xlsx(folder)
     sets, problems, supervised, typed = read_old_schedule(old, combos)
@@ -328,4 +329,4 @@ def convert_old(folder, combos, settings):
         "history": [_entry(["Converted from the old, hand-editable Schedule.xlsx"])]})
     dest = schedule_backups(folder)
     dest.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(old), str(dest / f"Schedule (old hand-editable file, {datetime.now():%Y-%m-%d}).xlsx"))
+    shutil.move(str(old), str(dest / f"Schedule-old-hand-editable-{datetime.now():%Y-%m-%d}.xlsx"))

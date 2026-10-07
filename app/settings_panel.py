@@ -1,4 +1,4 @@
-"""The Settings tab of scheduler_app.py: edits settings.json (see settings_file.py) with forms and lists.
+"""The Semester tab of scheduler_app.py: edits semester.json (see settings_file.py) with forms and lists.
 
 Dates use a pop-up calendar when the tkcalendar package is installed (the app's Install button adds it); without
 it, dates are typed as YYYY-MM-DD.
@@ -48,7 +48,7 @@ GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, 
     ("min_members_per_combo", "Warn: members per combo", "int?"),
     ("solver_time_limit_sec", "Solver time (seconds)", "int"),
 ]
-POLICIES = {"open": "Leave open", "auto": "Fill every set"}      # settings.json value -> what the menu shows
+POLICIES = {"open": "Leave open", "auto": "Fill every set"}      # semester.json value -> what the menu shows
 TIMINGS = {"none": "Any time", "early": "Earlier in the semester", "late": "Later in the semester"}
 MENUS = {"policy": (POLICIES, "open", 14), "timing": (TIMINGS, "none", 22)}   # kind -> (choices, default, width)
 
@@ -294,7 +294,7 @@ class SettingsPanel:
     def __init__(self, parent, get_folder, get_palette=lambda: {}, on_save=None, on_dirty=None):
         self.get_folder = get_folder
         self.on_save = on_save                            # reloads the other tabs (they read the settings too)
-        self.on_dirty = on_dirty                          # on_dirty(True/False): marks the tab "Settings •"
+        self.on_dirty = on_dirty                          # on_dirty(True/False): marks the tab "Semester •"
         self.saved, self.dirty = None, False              # what was last loaded or saved; differs from it now?
         PALETTE.update(get_palette())
         self.get_palette = get_palette
@@ -362,7 +362,7 @@ class SettingsPanel:
 
         bar = ttk.Frame(self.frame)
         bar.pack(fill="x", pady=(12, 0))
-        ttk.Button(bar, text="Save settings", style="Accent.TButton", command=self.save).pack(side="left")
+        ttk.Button(bar, text="Save", style="Accent.TButton", command=self.save).pack(side="left")
         ttk.Button(bar, text="Undo changes", command=self.reload).pack(side="left", padx=6)
         self.unsaved = ttk.Label(bar, text="", style="Warn.TLabel")
         self.unsaved.pack(side="left", padx=(10, 0))
@@ -384,7 +384,7 @@ class SettingsPanel:
             try:
                 data = read_data(self.path)
             except SettingsError as e:
-                messagebox.showerror("Settings", str(e))
+                messagebox.showerror("Semester", str(e))
                 data = dict(DEFAULTS)
         else:
             data, note = dict(DEFAULTS), "No settings yet: these are example values. Check them, then Save."
@@ -409,7 +409,7 @@ class SettingsPanel:
         self.extra_dates.set(data.get("extra_dates") or [])
         self.update_dependents()
         self.status.configure(text=note)
-        self.saved = self.snapshot() if self.path.exists() else None    # no settings.json yet: unsaved
+        self.saved = self.snapshot() if self.path.exists() else None    # no semester.json yet: unsaved
         self.check_unsaved()
 
     def update_dependents(self):
@@ -459,7 +459,7 @@ class SettingsPanel:
         dirty = self.saved is None or self.snapshot() != self.saved
         if dirty != self.dirty:
             self.dirty = dirty
-            self.unsaved.configure(text="\u25cf Unsaved changes: click Save settings" if dirty else "")
+            self.unsaved.configure(text="\u25cf Unsaved changes: click Save" if dirty else "")
             if self.on_dirty:
                 self.on_dirty(dirty)
 
@@ -493,7 +493,7 @@ class SettingsPanel:
         self.old_semester = on_file or old.semester_name
         answer = messagebox.askyesnocancel(
             "New semester", f"The semester changes from {old.semester_name} to {new.semester_name}.\n\n"
-            f"Move {self.old_semester}'s files (the schedule, Schedule.xlsx, the PDFs, contact lists, schedule backups) into "
+            f"Move {self.old_semester}'s files (the schedule, Schedule.xlsx, the PDFs, schedule backups) into "
             f"'Archive/{self.old_semester}' in the data folder?\n\nYes: move them (recommended).\nNo: leave them (the "
             f"app ignores a schedule from another semester; making the {new.semester_name} schedule moves them "
             "then).\nCancel: don't save.")
@@ -535,7 +535,7 @@ class SettingsPanel:
             return True
         answer = messagebox.askyesnocancel(
             "Unsaved settings", "The settings have changes that aren't saved.\n\nYes: save them now.\nNo: undo them."
-            "\nCancel: go back to the Settings tab.", icon="warning")
+            "\nCancel: go back to the Semester tab.", icon="warning")
         if answer is None:
             return False
         if answer:

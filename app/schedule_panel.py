@@ -11,7 +11,7 @@ from tkinter import messagebox, simpledialog, ttk
 import app_log
 from core.model import make_label
 from core.swaps import claimers
-from data_folder import CONTACTS_XLSX, SCHEDULE_PDF, SCHEDULE_XLSX
+from data_folder import SCHEDULE_PDF, SCHEDULE_XLSX
 from theme import RIGHT_CLICK, in_background, popup, scrolled_tree
 
 
@@ -80,12 +80,10 @@ class SchedulePanel:
         self.actions = ttk.Button(bottom, text="Actions \u25be", command=self.actions_menu)   # = the right-click menu
         self.actions.pack(side="left", padx=(6, 0))
         self.file_buttons = [
-            ttk.Button(bottom, text="Export contact lists", command=self.export_contacts),
             ttk.Button(bottom, text="Open Excel", style="Accent.TButton", command=lambda: self.export_file(SCHEDULE_XLSX)),
             ttk.Button(bottom, text="Open PDF", style="Accent.TButton", command=lambda: self.export_file(SCHEDULE_PDF))]
-        self.file_buttons[0].pack(side="left", padx=(12, 0))
-        self.file_buttons[1].pack(side="right")
-        self.file_buttons[2].pack(side="right", padx=(0, 6))
+        self.file_buttons[0].pack(side="right")
+        self.file_buttons[1].pack(side="right", padx=(0, 6))
         self.status = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.status.pack(side="left", padx=10)
         for ev in RIGHT_CLICK:                            # on the list only: the tab's own steps stay buttons
@@ -327,7 +325,7 @@ class SchedulePanel:
         self.export(lambda code: self.status.configure(text=self.status.cget("text").replace(
             " Rebuilding the exports...", " Exports rebuilt.")))
 
-    # contact lists
+    # a night's emails and summary (copied)
     def night_info(self, d):
         """Who plays on night d (as shown, with unsaved changes): sets, student, liaison and supervisor emails (a combo
         without a liaison: its members as liaisons, named in no_liaison)."""
@@ -378,44 +376,6 @@ class SchedulePanel:
         self.status.configure(text=f"Copied {msg} for {make_label(d)}: paste with Ctrl+V."
                                    + (" (Includes unsaved changes.)" if unsaved else ""))
         self.last_copied = text                       # (kept for tests)
-
-    def export_contacts(self):
-        """Contact lists.xlsx: one row per night with everyone's emails, for printing or sharing."""
-        st = self.swaps.state
-        if not st:
-            messagebox.showinfo("Contact lists", "Nothing loaded yet.")
-            return
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, PatternFill
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Nights"
-        ws.append(["Date", "Day", "Venue", "Supervised", "Sets (time, combo: members)", "Student emails",
-                   "Supervisor emails"])
-        for n in st["nights"]:
-            info = self.night_info(n.date)
-            sets = "\n".join(f"{when or f'Set {k}'}  {who}" + (f": {', '.join(names)}" if names else "")
-                             for k, when, who, names in info["sets"])
-            ws.append([n.date, n.weekday, n.venue, "Yes" if info["supervised"] else "", sets,
-                       "; ".join(info["students"]), "; ".join(info["supervisors"])])
-        for c in ws[1]:
-            c.font, c.fill = Font(bold=True), PatternFill("solid", fgColor="DDEBF7")
-        for row in ws.iter_rows(min_row=2):
-            row[0].number_format = "yyyy-mm-dd"
-            for c in row:
-                c.alignment = Alignment(vertical="top", wrap_text=True)
-        for col, w in zip("ABCDEFG", (12, 11, 12, 11, 70, 60, 30)):
-            ws.column_dimensions[col].width = w
-        ws.freeze_panes = "A2"
-        path = self.swaps.get_folder() / CONTACTS_XLSX
-        try:
-            wb.save(path)
-        except PermissionError:
-            messagebox.showerror("Contact lists", f"Can't write {path.name}: it's open in Excel. Close it and try again.")
-            return
-        self.status.configure(text=f"Wrote {path.name}" + (" (includes unsaved changes)" if self.swaps.pending else "")
-                                   + ".")
-        self.open_file(path)
 
     def menu(self):
         p = self.get_palette() or {}

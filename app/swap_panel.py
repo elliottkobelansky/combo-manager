@@ -1,6 +1,6 @@
 """The Swaps tab of scheduler_app.py: pick a combo and one of its shows, see every legal swap (core/swaps.py), and
 collect changes in a pending list. Nothing is written until "Confirm changes": then the schedule (schedule_file.py) is
-saved once (a copy of the old one goes to 'App data/Schedule backups') and Schedule.pdf / .xlsx are rebuilt in the
+saved once (a copy of the old one goes to 'AppFiles/ScheduleBackups') and Schedule.pdf / .xlsx are rebuilt in the
 background. While changes are
 pending, the tab shows the schedule as if they were done, so the next swap is checked against them too.
 For a picked option (buttons, or right-click on it): copy the liaisons' emails of the combos it touches, or a summary
@@ -479,7 +479,7 @@ class SwapPanel:
                                    f"({len(changes)} set(s) change)?" + (f"\n\n{warns} of them have a heads-up (\u26a0)."
                                                                        if warns else "")
                                    + (f"\n\n\u2716 {breaks} of them break a hard rule (agreed)." if breaks else "")
-                                   + "\n\nA copy of the schedule as it is goes to 'App data/Schedule backups' first."):
+                                   + "\n\nA copy of the schedule as it is goes to 'AppFiles/ScheduleBackups' first."):
             return
         if not self.same_as_on_disk():
             return
@@ -494,7 +494,7 @@ class SwapPanel:
                       + "\n".join(("RULE OVERRIDDEN: " if o.breaks else "") + o.title for o in self.pending))
         self.pending = []
         self.load(quiet=True)
-        self.save_status.configure(text=f"Saved {n} change(s) (backup in 'App data/Schedule backups'). "
+        self.save_status.configure(text=f"Saved {n} change(s) (backup in 'AppFiles/ScheduleBackups'). "
                                         "Rebuilding Schedule.pdf and Schedule.xlsx...")
         self.after_apply(f"Saved {n} change(s). Backup of the schedule before: {backup}\n",
                          lambda code: (self.pdf_done(code), then and then(code)))

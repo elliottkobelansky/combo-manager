@@ -1,7 +1,7 @@
 """Several computers on one data folder (kept in sync by OneDrive, SharePoint, Dropbox, a network drive...). Nothing
 here depends on which: on a folder only this computer uses, it all still works and simply never finds anything.
 
-    lock file      'App data/In use.json' says which computer has the app open on this folder; a second computer is
+    lock file      'AppFiles/in_use.json' says which computer has the app open on this folder; a second computer is
                    told and can open it anyway (it takes the folder over, and the first is told when it next checks)
     safe writes    write_text: a temp file renamed over the old one, so a crash or a sync never leaves half a file
     fingerprints   what a file held when it was read, so a save can tell it changed on disk since (another computer
@@ -21,7 +21,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from data_folder import APP_DATA_FILES, TOP_FILES, app_data, lock_path
+from data_folder import APP_DATA_FILES, EXPORT_FILES, EXPORTS, TOP_FILES, app_data, lock_path
 REFRESH = 3 * 60             # seconds between "still here" updates of the lock file
 STALE = 15 * 60              # a lock not updated for this long is left over (a crash, a computer put to sleep)
 
@@ -137,7 +137,8 @@ def conflict_copies(folder):
     'Schedule-OFFICE-PC-2.xlsx', 'settings (1).json' (OneDrive, SharePoint, Google Drive), "Schedule (OFFICE-PC's
     conflicted copy 2026-10-06).xlsx" (Dropbox). -> [(copy, the usual file)], as paths."""
     found = []
-    for where, names in ((Path(folder), TOP_FILES), (app_data(folder), APP_DATA_FILES)):
+    for where, names in ((Path(folder), TOP_FILES + EXPORT_FILES), (Path(folder) / EXPORTS, EXPORT_FILES),
+                         (app_data(folder), APP_DATA_FILES)):
         try:
             present = [p for p in where.iterdir() if p.is_file()]
         except OSError:

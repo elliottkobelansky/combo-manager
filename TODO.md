@@ -7,7 +7,7 @@ Where the combo scheduler stands, and what's left. First real use: **Winter 2027
 ## Where it stands
 
 The app does the whole semester: check the inputs, make the schedule, the Schedule / Combos / Swaps tabs, swaps
-with backups, PDFs and contact lists, combo edits (members, liaison, first-year tag, withdraw), settings with
+with backups, PDFs, combo edits (members, liaison, first-year tag, withdraw), settings with
 plain-language checks, a new-semester hand-over. Tested on Linux (`dev/test_rules.py`, all passing) and launched
 on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the full reference.
 
@@ -35,18 +35,18 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [ ] **Ownership:** forms, flows and the two spreadsheets owned by a shared / role account or with co-owners, in
   shared OneDrive / SharePoint, so nothing stops when one person leaves. Write down who has access.
 
-### 2. Winter 2027 settings (Settings tab)
+### 2. Winter 2027 settings (Semester tab)
 - [ ] Semester name, first / last show day, skip dates (reading week, holidays; the defaults are placeholders).
 - [ ] Show days: venues, weekdays, sets per night, minimums, set times (now Tue Upstairs 7 pm 45 + 15 min, Fri
   Clara 7 pm 30 + 15 min), "supervised nights preferred here".
 - [ ] Once real sign-ups are in: tune "Ideal days between shows" with `python app/solve.py --compare-gaps 14 21 28 35`.
-- [ ] Solver time: 90 (the new default; the current fake `settings.json` still says 30).
+- [ ] Solver time: 90 (the new default; the current fake `semester.json` still says 30).
 
 ### 3. Hand-over: program local, data in one data folder (decided 2026-10-05; any folder since 2026-10-06)
-- **The data folder, e.g. `Combo Scheduler data`:** any folder; shared through OneDrive / SharePoint when several
+- **The data folder, e.g. `ComboManagerData`:** any folder; shared through OneDrive / SharePoint when several
   computers use it, but the app doesn't care (`app/data_folder.py`). At the top `Approvals.xlsx` and
-  `Conflicts.xlsx` (the flows write there), `Schedule.xlsx` and the PDFs (exports), contact lists, `Archive/` (past
-  semesters); in `App data/` the program's own files: `settings.json`, `scheduler_data.json`, `schedule.json`, `Schedule backups/`.
+  `Conflicts.xlsx` (the flows write there), `Schedule.xlsx` and the PDFs (exports), `Archive/` (past
+  semesters); in `AppFiles/` the program's own files: `semester.json`, `scheduler_data.json`, `schedule.json`, `ScheduleBackups/`.
 - **Local (each computer):** the packaged app (Windows `.exe` folder or Mac `.app`), `~/.combo-scheduler-python`
   (rebuilt if missing), `~/.combo_scheduler.json` (which data folder, text size, dark mode: per computer on purpose).
 - [x] First run with no data folder chosen asks for it (choose / make a new one / restore a backup); the
@@ -63,19 +63,19 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 ### 4. Safety (small, worth doing)
 - [x] Backed up: private GitHub repo `elliottkobelansky/combo-scheduler` (2026-10-05; no data in it).
 - [x] Pin package versions (`requirements.txt`, used by the Install button and the build; 2026-10-06).
-- [x] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `settings.json` and swap saves of
-  the schedule (2026-10-05); a brand-new schedule, `schedule.json` and backups too (2026-10-06). The PDFs and contact lists (rebuilt
+- [x] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `semester.json` and swap saves of
+  the schedule (2026-10-05); a brand-new schedule, `schedule.json` and backups too (2026-10-06). The PDFs (rebuilt
   any time) still save directly.
-- [x] A log file (2026-10-06): `App data/Logs/<computer>.txt`, About tab > Open the log; errors in the window are
+- [x] A log file (2026-10-06): `AppFiles/Logs/<computer>.txt`, About tab > Open the log; errors in the window are
   caught, logged and explained.
 - [x] **Several computers on one shared data folder** (2026-10-05, `app/shared_folder.py`): lock file
-  `App data/In use.json` (told who has it open, open anyway = take over, the other is told once; stale after 15
+  `AppFiles/in_use.json` (told who has it open, open anyway = take over, the other is told once; stale after 15
   min); saves refused when the file changed on disk since it was read (combo edits, settings: yours / theirs /
   cancel; pending swaps checked against the schedule as it is now); sync apps' conflict copies pointed out at
   start (OneDrive / SharePoint, Dropbox). Not done: a real read-only mode for the second computer (it's warned instead). Try it with two real
   computers on OneDrive.
 
-### 5. The schedule in the app only (since 2026-10-06: `App data/schedule.json`; `Schedule.xlsx` is an export)
+### 5. The schedule in the app only (since 2026-10-06: `AppFiles/schedule.json`; `Schedule.xlsx` is an export)
 - [ ] **Move supervised nights** without making the whole schedule again: mark a night supervised / not, with
   the rule check (every combo still on one, supervised nights full, the cap), like a swap. Was possible by hand in
   the old `Schedule.xlsx` (the Supervised column); not in the app yet.
@@ -119,7 +119,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - **Warnings** when an approvals row changes after the combo was edited in the app, and when a Response Id comes
   back with completely different members (form responses reset mid-semester).
 - **Apply night changes to an existing schedule** (add a night as open sets, cancel a night and name the combos
-  that lose a show). Today such settings changes only affect the next schedule, and Save settings says so.
+  that lose a show). Today such settings changes only affect the next schedule, and Save says so.
 - **Instruments:** venue rules (no drum kit at a venue), per-instrument counts in `Combos.pdf`.
 - **Web app** (browser-only, HiGHS solver) after Winter 2027, if the HiGHS experiment keeps up with CP-SAT.
 
@@ -139,7 +139,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   withdraw / put back; pending combos in grey; members by instrument), Swaps (trades, moves, give-aways, claims;
   pending changes, one backup per save; searches in the background), Settings (sections, switches, unsaved-changes
   warning, year check), About. Setup screen on first run, text size, dark mode, horizontal scrollbars.
-- **Schedule file:** the schedule is `App data/schedule.json`, changed only in the app (2026-10-06; before, a
+- **Schedule file:** the schedule is `AppFiles/schedule.json`, changed only in the app (2026-10-06; before, a
   hand-editable `Schedule.xlsx`, converted once). `Schedule.xlsx` / `.pdf` are exports, rebuilt after every change,
   never read back. It records its semester and decides the nights once it exists; a new semester files the old files
   into `Archive/<semester>`.

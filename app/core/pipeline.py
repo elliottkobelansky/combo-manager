@@ -12,7 +12,7 @@ def run_schedule(inp: ScheduleInput, settings: Settings) -> Result:
     nights = generate_nights(settings)
     if not nights:
         raise ScheduleError("There are no show nights: check the first and last show day, the show days and the "
-                            "skip dates (Settings tab).")
+                            "skip dates (Semester tab).")
     combos = {c.id: c for c in inp.combos}
     if not combos:
         raise ScheduleError("There are no combos for this semester yet (Combos tab: enter them, or link the "
@@ -27,7 +27,7 @@ def run_schedule(inp: ScheduleInput, settings: Settings) -> Result:
                 + precheck_supervision(combos, nights, settings))
     if problems:
         raise ScheduleError("No schedule is possible as things are:\n" + "\n".join(f"  - {p}" for p in problems)
-                            + "\n\nChange the settings (Settings tab) or the combos and conflicts (Combos tab), then "
+                            + "\n\nChange the settings (Semester tab) or the combos and conflicts (Combos tab), then "
                             "try again.")
 
     chosen, stats = solve_combos(combos, allowed, nights, show_min, settings)
@@ -87,7 +87,7 @@ def why_no_schedule(status, combos, allowed, nights, show_min, settings, report)
     settings that are tightest, and what to change."""
     if status != "INFEASIBLE":
         head = (f"No schedule found in the time allowed ({settings.solver_time_limit_sec:g} seconds). It may still "
-                "be possible: try a longer 'Solver time' (Settings tab). If that doesn't help, the settings are "
+                "be possible: try a longer 'Solver time' (Semester tab). If that doesn't help, the settings are "
                 "probably too tight:")
     else:
         head = "No schedule fits these settings: it's impossible as they are, not just hard. The tightest numbers:"

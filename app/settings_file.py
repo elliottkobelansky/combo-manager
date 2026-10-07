@@ -1,10 +1,10 @@
-"""The settings: settings.json, edited in the app's Settings tab (scheduler_app.py), read into a core.Settings object
+"""The settings: semester.json, edited in the app's Semester tab (scheduler_app.py), read into a core.Settings object
 with plain-language checks.
 
-    python app/settings_file.py --new FOLDER       # write a settings.json with example values into FOLDER's App data
+    python app/settings_file.py --new FOLDER       # write a semester.json with example values into FOLDER's AppFiles
                                                    # (refuses to overwrite)
 
-settings.json is plain text; you can read it, but the app is the easy way to change it. Dates are YYYY-MM-DD, set
+semester.json is plain text; you can read it, but the app is the easy way to change it. Dates are YYYY-MM-DD, set
 times HH:MM (24-hour).
 """
 import json
@@ -115,7 +115,7 @@ class SettingsError(Exception):
     pass
 
 
-# what the Settings tab calls each setting (for messages)
+# what the Semester tab calls each setting (for messages)
 LABELS = {"semester_name": "Semester name", "start_date": "First possible show day",
           "end_date": "Last possible show day", "min_shows_per_combo": "Minimum shows per combo",
           "max_shows_per_combo": "Maximum shows per combo", "min_days_between_shows": "Ideal days between shows",
@@ -133,19 +133,19 @@ def label(key):
 
 
 def validate(data):
-    """data (the settings.json contents) -> (Settings, warnings). Raises SettingsError listing everything wrong."""
+    """data (the semester.json contents) -> (Settings, warnings). Raises SettingsError listing everything wrong."""
     errors, warnings = [], []
 
     def get_date(key, required=True):
         v = data.get(key)
         if blank(v):
             if required:
-                errors.append(f"Settings: '{label(key)}' is blank.")
+                errors.append(f"Semester tab: '{label(key)}' is blank.")
             return None
         try:
             return to_date(v)
         except ValueError as e:
-            errors.append(f"Settings: '{label(key)}': {e}. Use YYYY-MM-DD.")
+            errors.append(f"Semester tab: '{label(key)}': {e}. Use YYYY-MM-DD.")
 
     def get_int(key, default=None, low=None):
         v = data.get(key)
@@ -154,19 +154,19 @@ def validate(data):
         try:
             n = int(float(v))
         except (TypeError, ValueError):
-            errors.append(f"Settings: '{label(key)}' should be a whole number, not {v!r}.")
+            errors.append(f"Semester tab: '{label(key)}' should be a whole number, not {v!r}.")
             return default
         if low is not None and n < low:
-            errors.append(f"Settings: '{label(key)}' must be {low} or more.")
+            errors.append(f"Semester tab: '{label(key)}' must be {low} or more.")
             return default
         return n
 
     name = str(data.get("semester_name") or "").strip()
     if not name:
-        errors.append(f"Settings: '{label('semester_name')}' is blank.")
+        errors.append(f"Semester tab: '{label('semester_name')}' is blank.")
     start, end = get_date("start_date"), get_date("end_date")
     if start and end and end < start:
-        errors.append(f"Settings: the last possible show day ({end}) is before the first ({start}).")
+        errors.append(f"Semester tab: the last possible show day ({end}) is before the first ({start}).")
 
     def set_times(row, where):
         try:
@@ -255,20 +255,20 @@ def validate(data):
 
     policy = str(data.get("extra_slot_policy") or "open").strip().lower()
     if policy not in ("auto", "open"):
-        errors.append("Settings: 'Leftover sets' must be 'Leave open' or 'Fill every set'.")
+        errors.append("Semester tab: 'Leftover sets' must be 'Leave open' or 'Fill every set'.")
     domain = str(data.get("student_email_domain", LEGACY["student_email_domain"]) or "").strip().lstrip("@").lower()
     if domain and ("." not in domain or " " in domain):
-        errors.append(f"Settings: '{label('student_email_domain')}': '{domain}' isn't an email domain "
+        errors.append(f"Semester tab: '{label('student_email_domain')}': '{domain}' isn't an email domain "
                       "(e.g. mail.mcgill.ca).")
     try:
         fixes = parse_domain_fixes(data.get("email_domain_fixes", ""))
     except ValueError as e:
-        errors.append(f"Settings: email domain fixes: {e}.")
+        errors.append(f"Semester tab: email domain fixes: {e}.")
         fixes = {}
     prof_domain = str(data.get("professor_email_domain", LEGACY["professor_email_domain"]) or "").strip().lstrip(
         "@").lower()
     if prof_domain and ("." not in prof_domain or " " in prof_domain):
-        errors.append(f"Settings: '{label('professor_email_domain')}': '{prof_domain}' isn't an email domain "
+        errors.append(f"Semester tab: '{label('professor_email_domain')}': '{prof_domain}' isn't an email domain "
                       "(e.g. mcgill.ca).")
     # supervised nights per combo; settings from before say only on (1) or off (0)
     min_sup = (get_int("min_supervised_per_combo", low=0) if "min_supervised_per_combo" in data
@@ -281,12 +281,12 @@ def validate(data):
                       "turn first-year combos off.")
     timing = str(data.get("supervision_timing") or "none").strip().lower()
     if timing not in ("none", "early", "late"):
-        errors.append("Settings: 'Supervised nights preferred' must be 'Any time', 'Earlier in the semester' or 'Later in the semester'.")
+        errors.append("Semester tab: 'Supervised nights preferred' must be 'Any time', 'Earlier in the semester' or 'Later in the semester'.")
     min_total, max_total = get_int("min_shows_per_combo", low=1), get_int("max_shows_per_combo", low=1)
     if min_total is None and blank(data.get("min_shows_per_combo")):
-        errors.append("Settings: the minimum shows per combo is missing (e.g. 2).")
+        errors.append("Semester tab: the minimum shows per combo is missing (e.g. 2).")
     if min_total and max_total and min_total > max_total:
-        errors.append(f"Settings: the minimum shows per combo ({min_total}) is more than the maximum ({max_total}).")
+        errors.append(f"Semester tab: the minimum shows per combo ({min_total}) is more than the maximum ({max_total}).")
     settings = Settings(
         semester_name=name, start_date=start, end_date=end, show_days=show_days,
         skip_dates=skips, extra_dates=extras, extra_times=extra_times,
@@ -337,13 +337,13 @@ def read_data(path):
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except FileNotFoundError:
-        raise SettingsError("No settings yet: fill them in on the Settings tab and click Save settings.")
+        raise SettingsError("No settings yet: fill them in on the Semester tab and click Save.")
     except ValueError as e:
         raise SettingsError(f"{path} isn't valid settings ({e}). Fix it in the app, or restore a backup.")
 
 
 def save_data(path, data):
-    """Writes settings.json, keeping the previous version as settings.json.bak."""
+    """Writes semester.json, keeping the previous version as semester.json.bak."""
     path = Path(path)
     if path.exists():
         write_text(path.with_name(path.name + ".bak"), path.read_text(encoding="utf-8"))
@@ -351,7 +351,7 @@ def save_data(path, data):
 
 
 def load_settings(path):
-    """settings.json -> (Settings, warnings)."""
+    """semester.json -> (Settings, warnings)."""
     return validate(read_data(Path(path)))
 
 

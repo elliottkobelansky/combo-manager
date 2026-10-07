@@ -5,7 +5,7 @@ Combo Manager keeps the semester's combos, makes the show calendar, and helps wi
 ## First time on a computer (once)
 
 1. **Windows:** unzip **Combo Manager** anywhere (e.g. Documents; not in the data folder) and double-click **Combo Manager.exe**. If Windows says "Windows protected your PC", click **More info**, then **Run anyway** (once). **Mac:** unzip it, drag **Combo Manager.app** into Applications and double-click it. If the Mac says it can't check it: **System Settings > Privacy & Security > Open Anyway** (once).
-2. It asks for its **data folder** (it holds everything): **Choose existing folder** (e.g. the shared *Combo Manager data* in OneDrive), or **Make a new folder**. From now on, opening the program is all you need.
+2. It asks for its **data folder** (it holds everything): **Choose existing folder** (e.g. the shared *ComboManagerData* in OneDrive), or **Make a new folder**. From now on, opening the program is all you need.
 
 ## While combos sign up (Combos tab)
 
@@ -15,8 +15,8 @@ Combo Manager keeps the semester's combos, makes the show calendar, and helps wi
 
 ## Making the schedule (once, after sign-ups close)
 
-1. **Settings** tab: check the semester name, the first and last show day, and the skip dates (reading week, holidays). Click **Save settings**. If it asks about moving last semester's files, click **Yes**.
-2. **Schedule** tab: **Make schedule**. Wait up to a minute or two. **Open PDF** (the calendar) or **Open Excel** (one table per night); the combo list is on the Combos tab. Print or send them.
+1. **Semester** tab: check the semester name, the first and last show day, and the skip dates (reading week, holidays). Click **Save**. If it asks about moving last semester's files, click **Yes**.
+2. **Schedule** tab: **Make schedule**. Wait up to a minute or two. **Open PDF** (the calendar) or **Open Excel** (one table per night); the combo list is on the Combos tab. Print or send them. They're all in the data folder's **Exports** folder, which you can share on its own.
 3. Once it's sent to students, tick **Lock schedule**: then a new schedule can't be made by accident.
 
 ## During the semester
@@ -28,5 +28,5 @@ Combo Manager keeps the semester's combos, makes the show calendar, and helps wi
 ## If something goes wrong
 
 - Red text in a results box says what's wrong: read it first. *Something went wrong*: **About > Open the log** and email that file to the person in the **About** tab.
-- **Backup...** (top right) now and then: the whole data folder as one zip. Keep it off this computer. **Restore...** brings one back (what's there now is saved first).
+- **Backup...** (Settings tab) now and then: the whole data folder as one zip. Keep it off this computer. **Restore...** brings one back (what's there now is saved first).
 - **New computer?** Do the first-time steps again, then choose the same data folder, or restore a backup. Use one computer at a time (the app says if it is open elsewhere).

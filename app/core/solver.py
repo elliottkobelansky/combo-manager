@@ -71,7 +71,7 @@ def precheck_supervision(combos, nights, settings: Settings) -> List[str]:
     if room < need:
         return [f"The settings allow at most {cap} supervised nights, which hold at most {room} sets, but {len(combos)} "
                 f"combos need {need} supervised shows ({settings.min_supervised_per_combo} each). Raise 'Max "
-                "supervised nights' or lower 'Supervised nights per combo' (Settings tab)."]
+                "supervised nights' or lower 'Supervised nights per combo' (Semester tab)."]
     return []
 
 

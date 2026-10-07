@@ -1,5 +1,5 @@
 """One-click window for the director: check the inputs, make the schedule, rebuild the PDF after hand edits (Run
-tab), and change the settings (Settings tab, saved in settings.json).
+tab), and change the settings (Semester tab, saved in semester.json).
 
     Packaged (dev/build_exe.py, built by GitHub): "Combo Manager.exe" (Windows) or "Combo Manager.app" (Mac),
     with everything included (no Setup screen).
@@ -30,7 +30,7 @@ FROZEN = getattr(sys, "frozen", False)                # the packaged app (PyInst
 sys.path.insert(0, str(HERE))
 # these three are standard library only: safe before the packages are installed
 from app_config import input_files, load_config, save_config, saved_folder  # noqa: E402
-from data_folder import (SCHEDULE_PDF, SCHEDULE_XLSX, looks_like_data_folder, problem,  # noqa: E402
+from data_folder import (DEFAULT_NAME, SCHEDULE_PDF, SCHEDULE_XLSX, export_path, looks_like_data_folder, problem,  # noqa: E402
                          settings_path)
 import shared_folder  # noqa: E402
 import app_log  # noqa: E402
@@ -169,7 +169,7 @@ class App:
 
         shell = ttk.Frame(root, padding=(20, 16, 20, 10))
         shell.pack(fill="both", expand=True)
-        head = ttk.Frame(shell)                       # row 1: the title (dark mode, text size: Appearance tab)
+        head = ttk.Frame(shell)                       # row 1: the title (dark mode, text size: Settings tab)
         head.pack(fill="x")
         ttk.Label(head, text=APP_NAME, style="Title.TLabel").pack(side="left")
         self.dark = tk.BooleanVar(value=self.mode == "dark")
@@ -237,7 +237,7 @@ class App:
                                              initialdir=str(default_parent()))
             if parent:
                 from backup import new_folder
-                folder = new_folder(parent, f"{APP_NAME} data")
+                folder = new_folder(parent, DEFAULT_NAME)
                 try:
                     folder.mkdir()
                     start_folder(folder)
@@ -247,7 +247,7 @@ class App:
                 use(folder)
                 messagebox.showinfo(
                     "Your new data folder", f"{folder}\n\nIt's ready, with example settings. Next:\n\n"
-                    "1. Settings tab: the semester's name and dates, the show nights and venues. Save.\n"
+                    "1. Semester tab: the semester's name and dates, the show nights and venues. Save.\n"
                     "2. Combos tab: the combos. Enter them (right-click > New combo), or link the sheets the "
                     "sign-up and conflict forms fill (Linked sheets...).\n"
                     "3. Combos tab: Check combos, and fix what it lists.\n"
@@ -287,12 +287,9 @@ class App:
             self.closed = True
             self.root.destroy()
             return
-        where = ttk.Frame(shell)                      # row 2: data folder and its buttons
+        where = ttk.Frame(shell)                      # row 2: the data folder (changing it, backups: Settings tab)
         where.pack(fill="x", pady=(4, 0))
         ttk.Button(where, text="Open folder", command=lambda: open_path(self.folder)).pack(side="right", padx=(6, 0))
-        ttk.Button(where, text="Change folder...", command=self.change_folder).pack(side="right")
-        ttk.Button(where, text="Restore...", command=self.restore_and_switch).pack(side="right", padx=(0, 6))
-        ttk.Button(where, text="Backup...", command=self.make_backup).pack(side="right", padx=(0, 6))
         self.folder_label = ttk.Label(where, text=self.folder_text(), style="Sub.TLabel")
         self.folder_label.pack(side="left", fill="x", expand=True)
 
@@ -329,12 +326,12 @@ class App:
         self.tabs.add(self.swaps.frame, text="Swaps")
         self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette, on_save=self.autoload,
                                       on_dirty=lambda dirty: self.settings and self.tabs.tab(
-                                          self.settings.frame, text="Settings \u25cf" if dirty else "Settings"))
+                                          self.settings.frame, text="Semester \u25cf" if dirty else "Semester"))
         # (a new data folder has no settings yet: unsaved from the start, before self.settings is set)
-        self.tabs.add(self.settings.frame, text="Settings \u25cf" if self.settings.dirty else "Settings")
+        self.tabs.add(self.settings.frame, text="Semester \u25cf" if self.settings.dirty else "Semester")
         self.current_tab = None
         self.tabs.bind("<<NotebookTabChanged>>", self.tab_changed)
-        self.tabs.add(self.appearance_tab(), text="Appearance")
+        self.tabs.add(self.computer_tab(), text="Settings")
         self.tabs.add(self.about_tab(), text="About")
         self.out = self.results["schedule"].text
         self.color_output()
@@ -395,10 +392,30 @@ class App:
         box.pack(fill="x", pady=(8, 0), before=panel.bottom)
         return box
 
-    def appearance_tab(self):
+    def computer_tab(self):
+        """The Settings tab: this computer's own (the look, which data folder) and backups. Saved right away; the
+        semester's settings, shared by every computer, are the Semester tab."""
         tab = ttk.Frame(self.tabs, padding=(28, 24))
-        ttk.Label(tab, text="Appearance", style="CardTitle.TLabel").pack(anchor="w")
-        ttk.Label(tab, text="Remembered on this computer.", style="Hint.TLabel").pack(anchor="w", pady=(2, 18))
+        ttk.Label(tab, text="Data folder", style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(tab, text="Where everything is kept. Every computer that uses it picks the same folder.",
+                  style="Hint.TLabel").pack(anchor="w", pady=(2, 8))
+        self.folder_label2 = ttk.Label(tab, text=str(self.folder))
+        self.folder_label2.pack(anchor="w")
+        row = ttk.Frame(tab)
+        row.pack(anchor="w", pady=(8, 0))
+        ttk.Button(row, text="Change folder...", command=self.change_folder).pack(side="left")
+        ttk.Button(row, text="Open folder", command=lambda: open_path(self.folder)).pack(side="left", padx=6)
+
+        ttk.Label(tab, text="Backups", style="CardTitle.TLabel").pack(anchor="w", pady=(28, 0))
+        ttk.Label(tab, text="The whole data folder as one zip: keep it somewhere else. Restore brings one back (what's "
+                            "there now is saved first).", style="Hint.TLabel").pack(anchor="w", pady=(2, 8))
+        row = ttk.Frame(tab)
+        row.pack(anchor="w")
+        ttk.Button(row, text="Backup...", command=self.make_backup).pack(side="left")
+        ttk.Button(row, text="Restore...", command=self.restore_and_switch).pack(side="left", padx=6)
+
+        ttk.Label(tab, text="Appearance", style="CardTitle.TLabel").pack(anchor="w", pady=(28, 0))
+        ttk.Label(tab, text="Remembered on this computer.", style="Hint.TLabel").pack(anchor="w", pady=(2, 8))
         sizes = ttk.Frame(tab)
         sizes.pack(anchor="w")
         ttk.Label(sizes, text="Text size", width=12).pack(side="left")
@@ -482,7 +499,7 @@ class App:
         self.build_main()
 
     def tab_changed(self, _=None):
-        """Leaving the Settings tab with unsaved changes: save, undo, or stay."""
+        """Leaving the Semester tab with unsaved changes: save, undo, or stay."""
         now = self.tabs.select()
         left_settings = self.settings and self.current_tab == str(self.settings.frame) and now != self.current_tab
         self.current_tab = now
@@ -513,7 +530,7 @@ class App:
             if panel:
                 panel.load(quiet=True)
         if (self.swaps and self.swaps.state and self.folder not in self.exported
-                and not all((self.folder / n).exists() for n in (SCHEDULE_PDF, SCHEDULE_XLSX))):
+                and not all(export_path(self.folder, n).exists() for n in (SCHEDULE_PDF, SCHEDULE_XLSX))):
             self.exported.add(self.folder)
             self.run(["--stats", "--export"], "Making Schedule.pdf and Schedule.xlsx...")
 
@@ -549,7 +566,7 @@ class App:
         return tab
 
     def open_log(self):
-        """Opens the folder with this computer's log file (App data/Logs in the data folder)."""
+        """Opens the folder with this computer's log file (AppFiles/Logs in the data folder)."""
         if not self.folder:
             messagebox.showinfo("The log", "No data folder chosen yet, so there's no log.")
             return
@@ -660,6 +677,7 @@ class App:
         shared_folder.release(self.folder)
         self.folder = folder
         self.folder_label.configure(text=self.folder_text())
+        self.folder_label2.configure(text=str(self.folder))
         save_folder(self.folder)
         if self.combos:
             self.combos.show_links()
@@ -734,7 +752,7 @@ class App:
             ttk.Radiobutton(here, text="Into this data folder (usually the right choice)", value="here",
                             variable=mode, command=lambda: update()).pack(anchor="w")
             ttk.Label(here, text="Everyone keeps using the same folder, and the forms keep writing to it. What's in "
-                                 f"it now is saved first (App data > {BEFORE_RESTORE}), so this can be undone by "
+                                 f"it now is saved first (AppFiles > {BEFORE_RESTORE}), so this can be undone by "
                                  "restoring that.", style="Hint.TLabel", wraplength=wrap, justify="left").pack(
                 anchor="w", padx=(26, 0))
             keep = ttk.Checkbutton(here, text="Keep the current Approvals.xlsx and Conflicts.xlsx (recommended: "
@@ -755,7 +773,7 @@ class App:
         change.grid(row=6, column=2, sticky="ne", pady=(4, 0))
 
         def target():
-            return new_folder(dest_parent[0], f"{APP_NAME} data (restored {datetime.now():%Y-%m-%d})")
+            return new_folder(dest_parent[0], f"{DEFAULT_NAME}-restored-{datetime.now():%Y-%m-%d}")
 
         def update():
             new = mode.get() == "new"
@@ -871,15 +889,16 @@ class App:
                             "Restore... that file.)")
 
     def open_file(self, name):
-        """Opens a file in the data folder. Schedule.pdf / .xlsx that aren't there but can be made: made first."""
-        path = self.folder / name
+        """Opens an export (in the data folder's Exports). Schedule.pdf / .xlsx that aren't there but can be made:
+        made first."""
+        path = export_path(self.folder, name)
         if path.exists():
             open_path(path)
         elif name in (SCHEDULE_PDF, SCHEDULE_XLSX) and self.swaps and self.swaps.state:
             self.run(["--stats", "--export"], f"Making {name}...",
                      on_done=lambda code: path.exists() and open_path(path))
         else:
-            messagebox.showinfo("Not there yet", f"There is no {name} in the data folder yet.")
+            messagebox.showinfo("Not there yet", f"There is no {name} in the Exports folder yet.")
 
     def make_schedule(self):
         """Makes a brand-new schedule. Once one exists it says what would be lost, and it's off entirely while the
@@ -889,7 +908,7 @@ class App:
         if other is not None:                         # last semester's files: filed away, nothing is lost
             if not messagebox.askyesno(
                     "New semester", f"The schedule is {('for ' + other) if other else 'from another semester'}. "
-                    f"Its files (schedule, PDFs, contact lists, backups) will be moved into "
+                    f"Its files (schedule, PDFs, backups) will be moved into "
                     f"'Archive/{other or 'Old schedule'}' in the data folder, then a new schedule is made.\n\nGo ahead?"):
                 return
         elif has_schedule(self.folder):
@@ -909,7 +928,7 @@ class App:
                 lost.append(f"\u2022 {info['typed']} set(s) with text typed in (e.g. Jam session) will be empty.")
             if not messagebox.askyesno(
                     "Replace the schedule?", f"This replaces the current schedule{when}:\n\n" + "\n".join(lost)
-                    + "\n\nA copy is kept in App data > Schedule backups. Only do this before the schedule goes to "
+                    + "\n\nA copy is kept in AppFiles > ScheduleBackups. Only do this before the schedule goes to "
                     "students; after that, use swaps.\n\nMake a new schedule?", icon="warning", default="no"):
                 return
         self.run(["-y", "--export"], "Making the schedule (this can take up to a minute)...", ticker=True)

@@ -38,7 +38,7 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
     shows = defaultdict(list)                              # combo -> [(date, set number)]
     for d in sorted(sets):
         if d not in nmap:
-            problems.append(f"{make_label(d)} is in the schedule but isn't a show night in Settings.")
+            problems.append(f"{make_label(d)} is in the schedule but isn't a show night in the Semester tab.")
             continue
         seen = set()
         for k, c in sorted(sets[d].items()):
@@ -89,7 +89,7 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
                 problems.append(f"{combos[c].name} has {per_venue[c][v]} {v} show(s) but needs {need}.")
         need = settings.min_shows_per_combo
         if need and len(shows.get(c, [])) < need:
-            problems.append(f"{combos[c].name} has {len(shows.get(c, []))} show(s) but needs {need} (Settings: "
+            problems.append(f"{combos[c].name} has {len(shows.get(c, []))} show(s) but needs {need} (Semester tab: "
                             "minimum shows per combo).")
         cap = settings.max_shows_per_combo
         if cap and len(shows.get(c, [])) > cap:
@@ -145,7 +145,7 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
         days = sorted(g[0] for g in gaps)
         buckets = [("under 7 days", 0, 7), ("7-13", 7, 14), ("14-20", 14, 21), ("21-27", 21, 28), ("28+", 28, 10 ** 6)]
         lines = [f"Closest {days[0]} days, median {median(days):.0f}, widest {days[-1]} "
-                 f"(ideal set in Settings: {settings.min_days_between_shows}).",
+                 f"(ideal set in the Semester tab: {settings.min_days_between_shows}).",
                  "  " + ", ".join(f"{label}: {sum(lo <= x < hi for x in days)}" for label, lo, hi in buckets) + "."]
         closest = sorted(gaps, key=lambda g: (g[0], combos[g[1]].name))[:5]
         lines.append("Closest pairs: " + "; ".join(f"{combos[c].name} {make_label(a)} -> {make_label(b)} ({g} days)"
