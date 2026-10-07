@@ -40,6 +40,7 @@ def build(md, pdf):
             story.append(ListFlowable(
                 [ListItem(Paragraph(inline(t), BODY), leftIndent=14, spaceAfter=3) for t in items],
                 bulletType="1" if kind == "num" else "bullet", start="1" if kind == "num" else "•",
+                bulletFormat="%s." if kind == "num" else None,
                 leftIndent=14, bulletFontSize=10.6 if kind == "num" else 11, bulletColor=BLUE))
         items, kind = [], None
 
