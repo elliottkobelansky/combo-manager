@@ -47,14 +47,13 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   computers use it, but the app doesn't care (`app/data_folder.py`). At the top `Approvals.xlsx` and
   `Conflicts.xlsx` (the flows write there), `Schedule.xlsx` and the PDFs (exports), contact lists, `Archive/` (past
   semesters); in `App data/` the program's own files: `settings.json`, `scheduler_data.json`, `schedule.json`, `Schedule backups/`.
-- **Local (each computer):** the program (unzipped folder now, the packaged app later), `~/.combo-scheduler-python`
+- **Local (each computer):** the packaged app (Windows `.exe` folder or Mac `.app`), `~/.combo-scheduler-python`
   (rebuilt if missing), `~/.combo_scheduler.json` (which data folder, text size, dark mode: per computer on purpose).
 - [x] First run with no data folder chosen asks for it (choose / make a new one / restore a backup); the
   program folder holds no data (the old `data/` there is gone; demo data is made anywhere with `make_fake_forms.py`); a folder that has gone (sync not connected) is asked for again,
   never silently swapped. A folder that can't be written to, or has other things in it, is pointed out.
 - [x] **Backup... / Restore...** (2026-10-06, `app/backup.py`): the whole data folder as one zip; restore goes into
   a new folder, never over the current one.
-- [x] `python dev/make_zip.py [--demo] [--mac]`: the program without data; `--demo` adds the fake data as "Demo data".
 - [x] Quick Start + README describe it (program local, data folder anywhere, new computer = pick it again or
   restore a backup).
 - [ ] Point both flows at the shared data folder.
@@ -100,9 +99,10 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 
 ## Later (optional)
 
-- **A real app** (PyInstaller): the Windows `.exe` is built on GitHub Actions since 2026-10-06 (try it on a
-  real Windows computer); a Mac `.app` the same way later (unsigned = "Open Anyway" once; signing needs an Apple
-  Developer account).
+- **A real app** (PyInstaller): the Windows `.exe` (since 2026-10-06) and the Mac `.app` (Apple Silicon and Intel,
+  since 2026-10-07) are built on GitHub Actions; the source launchers (.bat, .command, make_zip.py) are gone, only
+  `combo-manager.sh` stays for testing on Linux. Try the `.app` on a real Mac. Unsigned = "Open Anyway" once;
+  signing + notarizing needs an Apple Developer account ($99/year).
 - **Per-instrument limits** on combos per student (asked 2026-10-05): horn players in at most 1 combo, rhythm
   section (piano, guitar, bass, drums) in at most 2. A warning in Check, the Combos tab and Add member, set in the
   settings by group. Open questions: count all of a student's combos or only those on that instrument? Voice and

@@ -9,8 +9,8 @@ conflicts form) through sheets that Power Automate fills, linked in the app.
 
 ## The app (for the director)
 
-On Windows: `Combo Manager.exe` (the packaged app, below). From the program folder: double-click **`Combo
-Manager.bat`** (Windows), **`Combo Manager.command`** (Mac) or **`combo-manager.sh`** (Linux). The window's tabs:
+**`Combo Manager.exe`** (Windows) or **`Combo Manager.app`** (Mac): the packaged apps, below. From source (Linux,
+for testing): **`./combo-manager.sh`**. The window's tabs:
 
 - **Combos** (opens first): every combo and its people. **Linked sheets...** chooses whether the forms' sheets
   are read (and which files); **Sync** reads them again. **Check combos** lists what to look at in the combos and
@@ -66,33 +66,37 @@ files, the exports and backups are written to a temp file and renamed (never hal
 copies (`Schedule-OFFICE-PC.xlsx`, `settings (1).json`, Dropbox's `... (conflicted copy ...)`) are pointed out when
 the app opens the folder. All of this works the same on a folder only one computer uses. The program folder never
 holds data (to try things, make a demo data folder: see [Testing without real data](#testing-without-real-data)).
-Build a zip to hand out with `python dev/make_zip.py` (`--demo` adds a fresh fake semester as a "Demo data" folder; `--mac` leaves out the `.bat`, which
-Gmail blocks).
 
 **What's in the folder:**
 
 | | |
 |---|---|
-| `Combo Manager.bat` / `.command` / `combo-manager.sh` | Double-click one of these to open the app (from source). |
+| `combo-manager.sh` | Opens the app from source (Linux, for testing). |
 | `app/` | The program. Nothing to open or change in here. |
 | `dev/` | Tests, fake data and the build, for whoever maintains the app. |
 
-**First run on a new computer:** Python 3 must be installed (python.org; on Windows tick "Add python.exe to
-PATH"). The launcher then sets up a private Python environment in the user's home folder (once, outside the data folder),
-and the window shows a one-time **Setup** screen: click **Install** (needs internet, about a minute) and the app reopens by itself. On a Mac, if double-clicking
-is blocked ("unidentified developer" / "could not verify"), open System Settings > Privacy & Security and click Open Anyway (on older macOS: right-click the file > Open). Install Python from python.org: Homebrew's Python has no tkinter (the launcher skips a Python without it, and rebuilds the scheduler's private Python if it was made from one). On Linux you may need `sudo apt install python3-venv python3-tk`.
+**From source on Linux (testing):** `./combo-manager.sh` sets up a private Python environment in
+`~/.combo-scheduler-python` (once; needs `sudo apt install python3-venv python3-tk`), and the window shows a
+one-time **Setup** screen: click **Install** (needs internet, about a minute) and the app reopens by itself.
 
-## The packaged app (Windows)
+## The packaged apps (Windows and Mac)
 
-GitHub builds a Windows version on every push to `main` (`.github/workflows/build.yml`): it runs the tests on
-Windows, builds `Combo Manager.exe` with PyInstaller (`dev/build_exe.py`), and checks the built app can load every
-part it needs (`--selftest`). Download it from the repo's **Actions** tab: the latest "Build the Windows app" run >
-**Artifacts** > `Combo-Manager-windows` (kept 30 days). Pushing a tag like `v1.0` also attaches the zip to a GitHub
-**Release**, a lasting download link. Unzip it anywhere and double-click `Combo Manager.exe`: no Python, no Setup
-screen. The first time, Windows may say "Windows protected your PC" (the app isn't signed): **More info > Run
-anyway**. The data folder is chosen as usual and isn't inside the program, so a newer version just replaces the
-folder. About 330 MB unzipped (mostly the solver). To build one yourself, on Windows: `pip install -r
-requirements.txt pyinstaller`, then `python dev/build_exe.py` (the result is in `dist/`).
+GitHub builds them on every push to `main` (`.github/workflows/build.yml`): on each system it runs the tests,
+builds the app with PyInstaller (`dev/build_exe.py`), and checks the built app can load every part it needs
+(`--selftest`). Download from the repo's **Actions** tab: the latest "Build the apps" run > **Artifacts** (kept 30
+days): `Combo-Manager-windows`, `Combo-Manager-mac-arm64` (Apple Silicon: M1 and later) or `Combo-Manager-mac-intel`
+(older Macs; Apple menu > About This Mac says which). Pushing a tag like `v1.0` also attaches the zips to a GitHub
+**Release**, a lasting download link. No Python, no Setup screen. The data folder is chosen as usual and isn't
+inside the program, so a newer version just replaces the old one.
+
+- **Windows:** unzip anywhere and double-click `Combo Manager.exe`. The first time, Windows may say "Windows
+  protected your PC" (the app isn't signed): **More info > Run anyway**. About 330 MB unzipped (mostly the solver).
+- **Mac:** unzip, drag `Combo Manager.app` into Applications, double-click it. It isn't signed with an Apple
+  Developer ID ($99/year), so the first time the Mac says it can't check it: **System Settings > Privacy & Security
+  > Open Anyway** (once). The Mac zip is made with `ditto`, which keeps the app intact; a plain zip would break it.
+
+To build one yourself, on the system it's for: `pip install -r requirements.txt pyinstaller`, then `python
+dev/build_exe.py` (the result is in `dist/`).
 
 The package versions are pinned in `requirements.txt`: the app's Install button, the build and GitHub use them.
 
@@ -484,7 +488,7 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 | `app/inputs.py` | The ONLY file that knows what `Approvals.xlsx` and `Conflicts.xlsx` look like (and the approval rules). Reads them into the solver's input; writes nothing. |
 | `app/solve.py` | Reads `settings.json` + the two downloads, runs the solver, saves the schedule (+ `Schedule.pdf` and `Schedule.xlsx`). |
 | `app/schedule_file.py` | The schedule (`App data/schedule.json`): load, save changes (backup first), archive; turns an old `Schedule.xlsx` into it once. |
-| `app/scheduler_app.py` + `Combo Manager.bat` / `.command` / `combo-manager.sh` | The window around `solve.py`, and its launchers. |
+| `app/scheduler_app.py` + `combo-manager.sh` | The window around `solve.py`, and the Linux launcher. |
 | `app/schedule_panel.py` | The app's Schedule tab (nights and sets, who could take an open set, Export PDF). |
 | `app/store.py` | `scheduler_data.json`: combo numbers, corrected names and emails, instruments. |
 | `app/data_folder.py` | What's in the data folder and where: every path into it is made here; whether a folder can be used. |

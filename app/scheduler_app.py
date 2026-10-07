@@ -1,9 +1,9 @@
 """One-click window for the director: check the inputs, make the schedule, rebuild the PDF after hand edits (Run
 tab), and change the settings (Settings tab, saved in settings.json).
 
-    Double-click "Combo Manager.bat" (Windows), "Combo Manager.command" (Mac) or "combo-manager.sh" (Linux),
-    or run:  python app/scheduler_app.py
-    Packaged (dev/build_exe.py): "Combo Manager.exe", with everything included (no Setup screen).
+    Packaged (dev/build_exe.py, built by GitHub): "Combo Manager.exe" (Windows) or "Combo Manager.app" (Mac),
+    with everything included (no Setup screen).
+    From source (Linux, for testing): ./combo-manager.sh, or run:  python app/scheduler_app.py
     python app/scheduler_app.py --selftest FILE   loads every part the app needs, writes what it found to FILE,
                                                   exit code 0 = all there (used to check a build)
 
@@ -342,6 +342,7 @@ class App:
         self.buttons += [self.schedule.make_button, self.schedule.check_button, self.schedule.sent_box,
                          self.schedule.confirm_button, self.combos.check_button, self.combos.sync_button,
                          self.combos.confirm_button, self.swaps.save_button]
+        self.buttons += self.schedule.file_buttons + self.combos.file_buttons     # the files are being rewritten
         self.schedule.is_busy = self.swaps.is_busy = lambda: self.busy
         self.status = ttk.Label(shell, text="Ready.", style="Hint.TLabel")
         self.status.pack(fill="x", pady=(8, 0))
@@ -632,7 +633,16 @@ class App:
         self.root.after(100, self.drain)
 
     # actions
+    def wait_for_step(self):
+        """True (and says so) while a step runs in the background: it's writing into the data folder."""
+        if self.busy:
+            messagebox.showinfo("Still working", "Wait for the current step to finish (see the bottom of the "
+                                "window), then try again.")
+        return self.busy
+
     def change_folder(self):
+        if self.wait_for_step():
+            return
         if self.settings and not self.settings.ask_to_save():
             self.tabs.select(self.settings.frame)
             return
@@ -823,6 +833,8 @@ class App:
         return result[0] if result else None
 
     def restore_and_switch(self):
+        if self.wait_for_step():
+            return
         if self.settings and not self.settings.ask_to_save():
             self.tabs.select(self.settings.frame)
             return

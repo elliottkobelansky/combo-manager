@@ -79,11 +79,13 @@ class SchedulePanel:
         ttk.Button(bottom, text="Collapse all", command=lambda: self.expand(False)).pack(side="left", padx=6)
         self.actions = ttk.Button(bottom, text="Actions \u25be", command=self.actions_menu)   # = the right-click menu
         self.actions.pack(side="left", padx=(6, 0))
-        ttk.Button(bottom, text="Export contact lists", command=self.export_contacts).pack(side="left", padx=(12, 0))
-        ttk.Button(bottom, text="Open Excel", style="Accent.TButton",
-                   command=lambda: self.export_file(SCHEDULE_XLSX)).pack(side="right")
-        ttk.Button(bottom, text="Open PDF", style="Accent.TButton",
-                   command=lambda: self.export_file(SCHEDULE_PDF)).pack(side="right", padx=(0, 6))
+        self.file_buttons = [
+            ttk.Button(bottom, text="Export contact lists", command=self.export_contacts),
+            ttk.Button(bottom, text="Open Excel", style="Accent.TButton", command=lambda: self.export_file(SCHEDULE_XLSX)),
+            ttk.Button(bottom, text="Open PDF", style="Accent.TButton", command=lambda: self.export_file(SCHEDULE_PDF))]
+        self.file_buttons[0].pack(side="left", padx=(12, 0))
+        self.file_buttons[1].pack(side="right")
+        self.file_buttons[2].pack(side="right", padx=(0, 6))
         self.status = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.status.pack(side="left", padx=10)
         for ev in RIGHT_CLICK:                            # on the list only: the tab's own steps stay buttons

@@ -4,7 +4,7 @@ Combo Manager keeps the semester's combos, makes the show calendar, and helps wi
 
 ## First time on a computer (once)
 
-1. **Windows:** unzip **Combo Manager** anywhere (e.g. Documents; not in the data folder) and double-click **Combo Manager.exe**. If Windows says "Windows protected your PC", click **More info**, then **Run anyway** (once). **Mac:** open the program folder and double-click *Combo Manager.command* (if it can't be opened: **System Settings > Privacy & Security > Open Anyway**; the first time, click **Install** and wait a minute).
+1. **Windows:** unzip **Combo Manager** anywhere (e.g. Documents; not in the data folder) and double-click **Combo Manager.exe**. If Windows says "Windows protected your PC", click **More info**, then **Run anyway** (once). **Mac:** unzip it, drag **Combo Manager.app** into Applications and double-click it. If the Mac says it can't check it: **System Settings > Privacy & Security > Open Anyway** (once).
 2. It asks for its **data folder** (it holds everything): **Choose existing folder** (e.g. the shared *Combo Manager data* in OneDrive), or **Make a new folder**. From now on, opening the program is all you need.
 
 ## While combos sign up (Combos tab)

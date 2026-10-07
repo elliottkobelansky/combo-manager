@@ -85,10 +85,10 @@ class CombosPanel:
         self.actions_hint = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.actions_hint.pack(side="left", padx=10)
         self.tree.bind("<<TreeviewSelect>>", lambda _: self.show_actions_hint(), add="+")
-        ttk.Button(bottom, text="Open Excel", style="Accent.TButton",
-                   command=self.export_xlsx).pack(side="right")
-        ttk.Button(bottom, text="Open PDF", style="Accent.TButton",
-                   command=self.export_pdf).pack(side="right", padx=(0, 6))
+        self.file_buttons = [ttk.Button(bottom, text="Open Excel", style="Accent.TButton", command=self.export_xlsx),
+                             ttk.Button(bottom, text="Open PDF", style="Accent.TButton", command=self.export_pdf)]
+        self.file_buttons[0].pack(side="right")
+        self.file_buttons[1].pack(side="right", padx=(0, 6))
 
         self.data = None
         bind_right_click(self.frame, self.context_menu)   # anywhere on the tab (empty space: New combo...)
