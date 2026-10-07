@@ -8,7 +8,7 @@ and never read back, so editing them changes nothing.
      "sets":   {"2026-09-29": {"1": "Combo 28", "2": "Combo 30"}, ...},     combo names; a set not listed is open
      "typed":  {"2026-09-29": {"4": "Jam session"}},                        text in a set (it then counts as taken)
      "report": [["warn", "..."], ...],                                      what the solver said when it was made
-     "published": true,                                                     locked (sent to students): Make schedule is off
+     "published": true,                                                     locked: Make schedule is off
      "history": [{"saved": "2026-10-20T15:02:11", "computer": "OFFICE-PC", "what": ["Trade with Combo 12: ..."],
                   "changes": [{"night": "2026-10-13", "set": 2, "before": "Combo 05", "after": "Combo 12"}]}, ...]}
                                                                             every change since it was made
@@ -31,7 +31,7 @@ from typing import Dict, List, Optional, Set
 from core.model import Night
 from data_folder import (ARCHIVE, EXPORT_FILES, SCHEDULE_BACKUPS, SCHEDULE_FILE, SCHEDULE_XLSX, app_data, exports,
                          schedule_backups, schedule_path)
-from shared_folder import write_text
+from shared_folder import make_writable, write_text
 
 # A semester's files: moved together into Archive/<semester>/ when a new semester starts (archive_semester).
 SEMESTER_FILES = EXPORT_FILES + [SCHEDULE_FILE, SCHEDULE_BACKUPS]
@@ -51,7 +51,7 @@ class Schedule:
     problems: List[str] = field(default_factory=list)   # combos in it that aren't accepted any more, ...
     report: List[list] = field(default_factory=list)
     history: List[dict] = field(default_factory=list)   # every change since it was made, oldest first
-    published: bool = False                       # locked (sent to students): no new schedule (Schedule tab)
+    published: bool = False                       # locked: no new schedule (Schedule tab)
     made: str = ""                                # when it was made (ISO date and time)
     converted: bool = False                       # just made from an old Schedule.xlsx
 
@@ -170,7 +170,7 @@ def _shown(data, key, num):
 
 
 def _write(folder, data):
-    write_text(schedule_path(folder), json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    write_text(schedule_path(folder), json.dumps(data, indent=2, ensure_ascii=False) + "\n", read_only=True)
 
 
 def backup(folder):
@@ -181,6 +181,7 @@ def backup(folder):
     dest = schedule_backups(folder)
     dest.mkdir(parents=True, exist_ok=True)
     copy = dest / f"Schedule-{datetime.now():%Y-%m-%d-%H%M%S}.json"
+    make_writable(copy)                               # (one made the same second: replaced)
     shutil.copy2(path, copy)
     return copy
 
@@ -210,13 +211,12 @@ def summary(folder):
 
 
 def set_published(folder, on):
-    """Locks the schedule (once sent to students) or unlocks it. While it is, Make schedule is off. Kept in the history."""
+    """Locks the schedule (e.g. once it's final) or unlocks it. While it is, Make schedule is off. Kept in the history."""
     data = _read(folder)
     if data is None or bool(data.get("published")) == bool(on):
         return
     data["published"] = bool(on)
-    data.setdefault("history", []).append(_entry(["Locked (sent to students)" if on else
-                                                  "Unlocked"]))
+    data.setdefault("history", []).append(_entry(["Locked" if on else "Unlocked"]))
     _write(folder, data)
 
 

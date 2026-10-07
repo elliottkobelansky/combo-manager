@@ -13,6 +13,7 @@ from reportlab.platypus import (BaseDocTemplate, Frame, KeepTogether, NextPageTe
                                 Spacer, Table, TableStyle)
 
 from core.model import make_label
+from shared_folder import read_only_after
 from util import by_instrument
 
 HEAD_BG = colors.HexColor("#DDEBF7")
@@ -88,4 +89,5 @@ def write_combos_pdf(path, combos, name_of, semester, instruments=None):
                           leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN, bottomMargin=MARGIN)
     doc.addPageTemplates([PageTemplate("first", frames(TITLE_H), onPage=first_page),
                           PageTemplate("rest", frames(0), onPage=footer)])
-    doc.build([NextPageTemplate("rest")] + [combo_block(c, name_of, instruments, col_w) for c in combos])
+    with read_only_after(path):                       # (an export: read-only, see shared_folder.py)
+        doc.build([NextPageTemplate("rest")] + [combo_block(c, name_of, instruments, col_w) for c in combos])

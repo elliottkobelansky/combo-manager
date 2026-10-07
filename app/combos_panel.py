@@ -36,6 +36,7 @@ class CombosPanel:
         self.withdrawn_items = {}                         # tree item id -> Combo withdrawn in the app
         self.pending_items = {}                           # tree item id -> Combo waiting for a decision
         self.pending = []                                 # edits not saved yet (queue): shown as if done
+        self.on_pending = lambda: None                    # set by the app: unsaved changes came or went (tab dots)
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
 
         # the sheets the forms fill (optional): which are linked, Sync to read them again
@@ -285,7 +286,7 @@ class CombosPanel:
         size_columns(self.tree)
         self.tree.tag_configure("combo", font=(ui_font(), size(10), "bold"))
         self.tree.tag_configure("removed", foreground=p["muted"], font=(ui_font(), size(10), "italic"))
-        self.tree.tag_configure("pending", foreground=p["accent"])
+        self.tree.tag_configure("pending", foreground=p["accent_fg"])
 
     def expand(self, yes):
         for i in self.tree.get_children():
@@ -452,15 +453,15 @@ class CombosPanel:
         menu = tk.Menu(self.tree, tearoff=0, background=p.get("panel"), foreground=p.get("text"),
                        activebackground=p.get("accent"), activeforeground=p.get("accent_text"))
         if kind in ("person", "supervisor", "removed"):    # a person: only what's about them
-            menu.add_command(label=f"Copy email of {self.name(email)}", command=lambda: self.copy_person(email))
+            menu.add_command(label="Copy email", command=lambda: self.copy_person(email))
             menu.add_separator()
         elif combo is not None:
             if combo.liaison:
-                menu.add_command(label=f"Copy liaison email of {combo.name} ({self.name(combo.liaison)})",
+                menu.add_command(label="Copy liaison email",
                                  command=lambda: self.copy_emails(combo, liaison=True))
             else:
-                menu.add_command(label=f"Copy liaison email of {combo.name} (no liaison)", state="disabled")
-            menu.add_command(label=f"Copy emails of {combo.name} (students and supervisor)",
+                menu.add_command(label="Copy liaison email", state="disabled")
+            menu.add_command(label="Copy all emails",
                              command=lambda: self.copy_emails(combo))
             menu.add_separator()
         if kind == "person":
@@ -469,13 +470,11 @@ class CombosPanel:
             menu.add_command(label="Change name...", command=self.rename)
             menu.add_command(label="Change email...", command=self.edit_email)
             menu.add_command(label="Set instrument...", command=lambda: self.edit_instrument(item))
-            n = sum(1 for _, counts in self.conflict_dates(email).values() if counts)
-            menu.add_command(label=f"Edit conflicts ({n})..." if n else "Edit conflicts... (none yet)",
-                             command=lambda: ConflictsDialog(self, email))
+            menu.add_command(label="Edit conflicts...", command=lambda: ConflictsDialog(self, email))
             menu.add_separator()
-            menu.add_command(label=f"Remove from {combo.name}...", command=self.remove_member)
+            menu.add_command(label="Remove from combo...", command=self.remove_member)
         elif kind == "removed":
-            menu.add_command(label=f"Put back in {combo.name}", command=self.restore_member)
+            menu.add_command(label="Put back in combo", command=self.restore_member)
         elif kind == "supervisor":
             menu.add_command(label="Change name...", command=self.rename)
             menu.add_command(label="Change email...", command=self.edit_email)
@@ -484,22 +483,22 @@ class CombosPanel:
         elif kind is None:
             menu.add_command(label="New combo...", command=self.new_combo)
         elif kind == "pending":
-            menu.add_command(label="Waiting for a decision: approve or reject it in Outlook", state="disabled")
+            menu.add_command(label="Awaiting approval (in Outlook)", state="disabled")
         elif kind == "withdrawn":
-            menu.add_command(label=f"Put back {combo.name}...", command=self.put_back)
+            menu.add_command(label="Put back combo...", command=self.put_back)
         else:
-            menu.add_command(label=f"Change the liaison of {combo.name}...", command=self.make_liaison)
-            menu.add_command(label=f"Add a member to {combo.name}...", command=self.add_member)
+            menu.add_command(label="Change liaison...", command=self.make_liaison)
+            menu.add_command(label="Add member...", command=self.add_member)
             if not self.data["settings"].use_first_year:
                 pass                                  # first-year combos are off (Semester tab): no tag, no option
             elif combo.first_year:
-                menu.add_command(label=f"Remove the first-year tag from {combo.name}",
+                menu.add_command(label="Unmark as first-year",
                                  command=lambda: self.set_first_year(combo, False))
             else:
-                menu.add_command(label=f"Mark {combo.name} as a first-year combo",
+                menu.add_command(label="Mark as first-year",
                                  command=lambda: self.set_first_year(combo, True))
             menu.add_separator()
-            menu.add_command(label=f"Withdraw {combo.name}...", command=self.withdraw)
+            menu.add_command(label="Withdraw combo...", command=self.withdraw)
         if kind in ("combo", "withdrawn", "pending"):
             menu.add_separator()
             menu.add_command(label="New combo...", command=self.new_combo)
@@ -593,10 +592,11 @@ class CombosPanel:
     def refresh_pending(self):
         n = len(self.pending)
         if n:
-            self.pending_title.configure(text=f"{n} unsaved change{'s' if n > 1 else ''} (marked \u25cf above)")
+            self.pending_title.configure(text="\u25cf Unsaved changes (marked \u25cf above)")
             self.pending_box.pack(fill="x", pady=(10, 0), before=self.bottom)
         else:
             self.pending_box.pack_forget()
+        self.on_pending()
 
     def undo_last(self):
         if self.pending:
@@ -607,11 +607,11 @@ class CombosPanel:
 
     def discard_all(self, ask=True):
         if self.pending and (not ask or messagebox.askyesno(
-                "Discard all?", f"Throw away all {len(self.pending)} pending change(s)? Nothing has been saved.")):
+                "Discard all?", "Throw away the unsaved changes? Nothing has been saved.")):
             self.pending = []
             self.load(quiet=True)
             self.refresh_pending()
-            self.info.configure(text="Pending changes discarded.")
+            self.info.configure(text="Unsaved changes discarded.")
 
     def reload(self):
         """The Reload button: reads what's saved again; pending changes stay pending, on top of it."""
@@ -622,7 +622,7 @@ class CombosPanel:
         if not self.pending:
             return True
         answer = messagebox.askyesnocancel(
-            "Unsaved combo changes", f"{len(self.pending)} change(s) in the Combos tab haven't been saved.\n\n"
+            "Unsaved combo changes", "Some changes in the Combos tab haven't been saved.\n\n"
             "Yes: save them now.\nNo: throw them away.\nCancel: go back.", icon="warning")
         if answer is None:
             return False

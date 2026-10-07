@@ -17,7 +17,7 @@ for testing): **`./combo-manager.sh`**. The window's tabs:
   conflicts, in a fold-out box under the list. Edits wait until **Confirm changes**. **Open PDF / Open Excel**: the
   combo list.
 - **Schedule**: every show night and its sets. **Make schedule** (once per semester), **Check schedule** (the
-  rule check first, then a few stats at a glance; tick **All stats** on the results box for every section), **Lock schedule** (tick it once the schedule is sent to students: no new schedule can be made while it's ticked), **Open
+  rule check first, then a few stats at a glance; tick **All stats** on the results box for every section), **Lock schedule** (tick it once the schedule is final: no new schedule can be made while it's ticked), **Open
   PDF / Open Excel**; results in a fold-out box.
 - **Swaps**: **Swap**, **Give away**, **Claim** (see [swaps](#during-the-semester-swaps)).
 - **Semester**: the semester's settings (dates, show nights, rules), shared by every computer, saved with **Save**.
@@ -131,7 +131,7 @@ writes `FOLDER/AppFiles/semester.json` with example values (plain text, YYYY-MM-
 The times appear on the calendar PDF and in `Schedule.xlsx`. Leave all three blank to
 show set numbers instead.
 
-`semester_name` must match exactly what students choose in the form's Semester question (e.g. `Winter 2027`).
+`semester_name` (e.g. `Winter 2027`) is the semester being scheduled: it titles the PDFs and exports, and only the rows of `Approvals.xlsx` and `Conflicts.xlsx` with exactly this in their Semester column are read (so the forms' Semester choices must be spelled the same way).
 Responses for other semesters are ignored.
 
 **2. The combos and conflicts.** Enter them in the Combos tab (right-click > **New combo**, and on a person **Edit
@@ -203,6 +203,13 @@ Print `Schedule.pdf` with `Combos.pdf` (Combos tab): the combo numbers on the ca
 - **Changes**: every change since the schedule was made, newest first (when, on which computer, what, and each
   set's before and after): the swap history, for "your show moved" questions.
 - **Report**: warnings from when the schedule was made.
+
+**Read-only, on purpose:** the files the app manages (the exports in `Exports/`, and `semester.json`,
+`scheduler_data.json`, `schedule.json` and their backups in `AppFiles/`) are left read-only, and the exports' sheets
+are protected (no password: reading, copying, sorting and filtering still work). Excel and text editors then open them
+read-only, so nobody changes them by hand by mistake; changes go through the app, which makes a file writable just to
+save it. A sync app (OneDrive, ...) doesn't carry the read-only mark to other computers: there, a file is read-only
+again after the app next saves it. The sheet protection does travel with the file.
 
 A data folder from before 2026-10-06 has the old, hand-editable `Schedule.xlsx` instead: the app turns it into
 `schedule.json` the first time it loads it (swaps, text in sets and supervised nights included) and moves the old
@@ -409,7 +416,7 @@ nights but needs 1").
 
 | Setting | Meaning |
 |---|---|
-| `semester_name` | Must match the form's Semester answer exactly. |
+| `semester_name` | The semester being scheduled (titles the exports); only spreadsheet rows with exactly this Semester are read. |
 | `start_date`, `end_date` | Show nights are generated between these dates. |
 | `min_days_between_shows` | Ideal gap between one combo's shows. **Tune this**, see below. |
 | `use_first_year` | The **First-year combos** switch. On: combos marked First year = Yes in the approvals avoid playing before `first_year_earliest_date` (strong preference, see goals), and in fill-every-set mode get no extra shows. Off: every combo is treated the same, whatever the approvals say. Settings saved before this switch existed: on when there's a date. |
@@ -496,7 +503,7 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 | `app/store.py` | `scheduler_data.json`: combo numbers, corrected names and emails, instruments. |
 | `app/data_folder.py` | What's in the data folder and where: every path into it is made here; whether a folder can be used. |
 | `app/app_config.py` | This computer's own choices (`~/.combo_scheduler.json`): which data folder, text size, dark mode. |
-| `app/shared_folder.py` | Several computers on one data folder: lock file, crash-safe writes, changed-on-disk checks, conflict copies. |
+| `app/shared_folder.py` | Several computers on one data folder: lock file, crash-safe writes, read-only app files, changed-on-disk checks, conflict copies. |
 | `app/backup.py` | Backup... / Restore...: the data folder as one zip, and back into a new folder. |
 | `app/app_log.py` | The log: `AppFiles/Logs/<computer>.txt`. |
 | `app/outputs/combos_pdf.py`, `combos_xlsx.py` | Write `Combos.pdf` and `Combos.xlsx` (the Combos tab's Export buttons). |

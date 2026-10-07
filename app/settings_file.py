@@ -50,7 +50,8 @@ DEFAULTS = {
 
 # What each general setting means (shown in the app next to the field, and in the README).
 HELP = {
-    "semester_name": "Must match the form's Semester answer exactly (e.g. Winter 2027).",
+    "semester_name": "The semester being scheduled, e.g. Winter 2027: the title of the PDFs and exports. Only the "
+                     "sign-ups and conflicts with exactly this in their Semester column are read.",
     "start_date": "First day shows could happen.",
     "end_date": "Last day shows could happen.",
     "use_first_year": "On: combos marked First year in the approvals don't play before the date below (unless "
@@ -346,8 +347,8 @@ def save_data(path, data):
     """Writes semester.json, keeping the previous version as semester.json.bak."""
     path = Path(path)
     if path.exists():
-        write_text(path.with_name(path.name + ".bak"), path.read_text(encoding="utf-8"))
-    write_text(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        write_text(path.with_name(path.name + ".bak"), path.read_text(encoding="utf-8"), read_only=True)
+    write_text(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n", read_only=True)
 
 
 def load_settings(path):

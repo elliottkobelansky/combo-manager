@@ -12,10 +12,10 @@ from tkinter import ttk
 PALETTES = {
     "light": dict(bg="#F7F7F9", panel="#FFFFFF", text="#1C1C1E", muted="#6B6B76", border="#D9D9E0",
                   warn="#B25E00", bad="#D11A2A", good="#1F8A4C", accent="#005FB8", accent_text="#FFFFFF",
-                  accent_hover="#0A6CCB", band="#EEF1F6", hover="#ECEDF2"),
+                  accent_hover="#0A6CCB", accent_fg="#005FB8", band="#EEF1F6", hover="#ECEDF2"),
     "dark": dict(bg="#1C1C1C", panel="#232326", text="#ECECF1", muted="#A0A0AB", border="#3A3A40",
-                 warn="#F0A54A", bad="#FF6B6B", good="#4CD787", accent="#57C8FF", accent_text="#1C1C1C",
-                 accent_hover="#7AD4FF", band="#2C2D33", hover="#2E2F35"),
+                 warn="#F0A54A", bad="#FF6B6B", good="#4CD787", accent="#005FB8", accent_text="#FFFFFF",
+                 accent_hover="#0A6CCB", accent_fg="#4DA3F0", band="#2C2D33", hover="#2E2F35"),
 }
 
 
@@ -96,7 +96,7 @@ def apply(root, mode="light", scale=None):
     root.option_add("*TCombobox*Listbox.selectBackground", accent)
     root.option_add("*TCombobox*Listbox.selectForeground", p["accent_text"])
     for w in ("TCheckbutton", "TRadiobutton"):
-        style.configure(w, background=bg, indicatorbackground=panel, indicatorforeground=accent,
+        style.configure(w, background=bg, indicatorbackground=panel, indicatorforeground=p["accent_fg"],
                         upperbordercolor=muted, lowerbordercolor=muted, indicatorsize=size(15),
                         indicatormargin=(0, 0, size(6), 0))
         style.map(w, background=[("active", bg)], indicatorbackground=[("pressed", p["hover"])])
@@ -105,7 +105,7 @@ def apply(root, mode="light", scale=None):
     style.configure("TNotebook.Tab", padding=(size(14), size(6)), background=bg, bordercolor=border, lightcolor=bg,
                     darkcolor=bg, foreground=muted)
     style.map("TNotebook.Tab", background=[("selected", panel), ("active", p["hover"])],
-              foreground=[("selected", accent), ("active", text)], lightcolor=[("selected", panel)],
+              foreground=[("selected", p["accent_fg"]), ("active", text)], lightcolor=[("selected", panel)],
               expand=[("selected", (0, 0, 0, 0))])
     # tables
     style.configure("Treeview", background=panel, fieldbackground=panel, foreground=text, bordercolor=border,
@@ -128,9 +128,9 @@ def apply(root, mode="light", scale=None):
     style.configure("Sub.TLabel", font=(family, size(10)), foreground=muted)
     style.configure("Hint.TLabel", font=(family, size(9)), foreground=muted)
     style.configure("CardTitle.TLabel", font=(family, size(12), "bold"))
-    style.configure("Link.TLabel", font=(family, size(11)), foreground=accent)
+    style.configure("Link.TLabel", font=(family, size(11)), foreground=p["accent_fg"])
     style.configure("Warn.TLabel", foreground=p["warn"])
-    style.configure("Step.TLabel", font=(family, size(12), "bold"), foreground=accent)
+    style.configure("Step.TLabel", font=(family, size(12), "bold"), foreground=p["accent_fg"])
     root.configure(background=bg)
     root.option_add("*Toplevel.background", bg)
     for w in _toplevels(root):                         # windows already open (a theme switch)

@@ -32,6 +32,8 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   one on both forms; the first member listed is the liaison.
 - [ ] **Test** with a few submissions (including a Gmail member, and the conflict form from outside McGill: open
   it to anyone, or the director submits for them), run Check, then delete the test rows.
+- [ ] **Document who can approve:** how to add (and remove) a person on the approval flow's approver list, so the
+  director can hand approving over or share it without the flow's owner. Put it in the README / Quick Start.
 - [ ] **Ownership:** forms, flows and the two spreadsheets owned by a shared / role account or with co-owners, in
   shared OneDrive / SharePoint, so nothing stops when one person leaves. Write down who has access.
 

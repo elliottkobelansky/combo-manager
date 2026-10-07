@@ -12,6 +12,7 @@ sync (OneDrive, SharePoint, a network drive), picked on first run and remembered
 picks another; data_folder.py says what's in it, backup.py zips it). Needs Python 3 with tkinter (standard on Windows and the
 python.org Mac installer) plus openpyxl, ortools and reportlab; the window offers to install those.
 """
+import atexit
 import contextlib
 import importlib
 import io
@@ -180,10 +181,13 @@ class App:
         self.buttons, self.runs = [], 0
         self.root.after(100, self.drain)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
-        try:                                          # a Mac's Cmd+Q / Quit menu: the same "save first?" checks
-            self.root.createcommand("tk::mac::Quit", self.on_close)
+        try:                                          # a Mac's Cmd+Q / Quit menu / Dock Quit: the same checks
+            self.root.createcommand("::tk::mac::Quit", self.on_close)
+            if sys.platform == "darwin":
+                self.root.createcommand("exit", self.on_close)
         except tk.TclError:
             pass
+        atexit.register(self.let_go)                  # any other way out: the lock is still removed, and logged
         missing = missing_packages(include_optional=True)
         if missing:
             self.build_setup(missing)
@@ -326,10 +330,10 @@ class App:
         self.last_check = None                        # the last Check schedule's output: All stats shows or hides
         self.tabs.add(self.swaps.frame, text="Swaps")
         self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette, on_save=self.autoload,
-                                      on_dirty=lambda dirty: self.settings and self.tabs.tab(
-                                          self.settings.frame, text="Semester \u25cf" if dirty else "Semester"))
-        # (a new data folder has no settings yet: unsaved from the start, before self.settings is set)
-        self.tabs.add(self.settings.frame, text="Semester \u25cf" if self.settings.dirty else "Semester")
+                                      on_dirty=lambda dirty: self.mark_tabs())
+        self.tabs.add(self.settings.frame, text="Semester")
+        self.combos.on_pending = self.swaps.on_pending = self.mark_tabs
+        self.mark_tabs()                              # (a new data folder has no settings yet: unsaved from the start)
         self.current_tab = None
         self.tabs.bind("<<NotebookTabChanged>>", self.tab_changed)
         self.tabs.add(self.computer_tab(), text="Settings")
@@ -392,6 +396,16 @@ class App:
         box = self.theme.ResultsBox(panel.frame, title)
         box.pack(fill="x", pady=(8, 0), before=panel.bottom)
         return box
+
+    def mark_tabs(self):
+        """A dot on each tab with unsaved changes: "Combos \u25cf" (combo edits), "Schedule \u25cf" and "Swaps \u25cf" (swaps,
+        shown on both), "Semester \u25cf" (settings)."""
+        if not all((self.combos, self.swaps, self.schedule, self.settings)):
+            return
+        swaps = bool(self.swaps.pending)
+        for panel, name, dirty in ((self.combos, "Combos", bool(self.combos.pending)), (self.schedule, "Schedule", swaps),
+                                   (self.swaps, "Swaps", swaps), (self.settings, "Semester", self.settings.dirty)):
+            self.tabs.tab(panel.frame, text=f"{name} \u25cf" if dirty else name)
 
     def computer_tab(self):
         """The Settings tab: this computer's own (the look, which data folder) and backups. Saved right away; the
@@ -507,7 +521,7 @@ class App:
         if left_settings and not self.settings.ask_to_save():
             self.tabs.select(self.settings.frame)
 
-    def on_close(self):
+    def on_close(self, *_):
         if self.settings and not self.settings.ask_to_save():
             self.tabs.select(self.settings.frame)
             return
@@ -515,13 +529,20 @@ class App:
             self.tabs.select(self.combos.frame)
             return
         if self.swaps and self.swaps.pending and not messagebox.askyesno(
-                "Unsaved swaps", f"{len(self.swaps.pending)} swap change(s) haven't been saved. "
+                "Unsaved changes", "Some swap changes (Schedule and Swaps tabs) haven't been saved. "
                 "Close anyway and lose them?", icon="warning"):
             return
+        self.let_go()
+        self.root.destroy()
+
+    def let_go(self):
+        """Closing: the data folder's lock removed (so the next start doesn't think it's open elsewhere), logged. Once."""
+        if getattr(self, "let_go_done", False):
+            return
+        self.let_go_done = True
         if self.folder and self.settings:
             shared_folder.release(self.folder)
-        app_log.write("Closed the app")
-        self.root.destroy()
+            app_log.write("Closed the app")
 
     def autoload(self):
         """Loads the Combos and Swaps tabs from the data folder (at start, after a folder change, after a run). When
@@ -915,8 +936,8 @@ class App:
         elif has_schedule(self.folder):
             info = summary(self.folder)
             if info.get("published"):
-                messagebox.showinfo("Make a new schedule", "The schedule is locked (it's been sent to students), so a "
-                                    "new one can't be made. Use swaps for changes (Swaps tab). To really start over, "
+                messagebox.showinfo("Make a new schedule", "The schedule is locked, so a new one "
+                                    "can't be made. Use swaps for changes (Swaps tab). To really start over, "
                                     "untick 'Lock schedule' on the Schedule tab first.")
                 return
             made = info.get("made", "")

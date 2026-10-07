@@ -17,6 +17,7 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from core.model import WEEKDAY_ABBR, make_label
+from shared_folder import read_only_after
 
 # Fixed English names so a French-language machine can't change the output.
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
@@ -199,4 +200,5 @@ def write_schedule_pdf(path, nights, entries, combos, supervised, settings):
         canvas.setFillColor(GREY)
         canvas.drawRightString(letter[0] - MARGIN, MARGIN / 2, f"{semester} show calendar, page {d.page}")
         canvas.restoreState()
-    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    with read_only_after(path):                       # (an export: read-only, see shared_folder.py)
+        doc.build(story, onFirstPage=footer, onLaterPages=footer)

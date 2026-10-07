@@ -30,6 +30,7 @@ class SwapPanel:
         self.search_id = 0                            # the latest option search (an older one's results are dropped)
         self.listeners = []                           # called whenever the (pending) schedule changes
         self.is_busy = lambda: False                  # set by the app: a step is running in the background
+        self.on_pending = lambda: None                # set by the app: unsaved changes came or went (tab dots)
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
 
         # a line only when there's something to say (it couldn't load; the schedule has problems already)
@@ -81,7 +82,7 @@ class SwapPanel:
         right.bind("<Configure>", lambda e: self.details.configure(wraplength=max(e.width - 10, 200)))
         buttons = ttk.Frame(right)
         buttons.pack(fill="x", pady=(8, 0))
-        self.apply_button = ttk.Button(buttons, text="Add to pending changes", style="Accent.TButton",
+        self.apply_button = ttk.Button(buttons, text="Add this change", style="Accent.TButton",
                                        command=self.apply, state="disabled")
         self.apply_button.pack(side="left")
         self.copy_buttons = [ttk.Button(buttons, text="Copy liaison emails", state="disabled",
@@ -96,7 +97,7 @@ class SwapPanel:
         # pending changes: collected here, written all at once
         box = ttk.Frame(right, style="Card.TFrame", padding=(12, 10))
         box.pack(fill="x", pady=(14, 0))
-        self.pending_title = ttk.Label(box, text="Pending changes (none)", style="CardTitle.TLabel")
+        self.pending_title = ttk.Label(box, text="No unsaved changes", style="CardTitle.TLabel")
         self.pending_title.pack(anchor="w")
         self.pending_list = ttk.Treeview(box, columns=("change",), show="", height=4, selectmode="none")
         self.pending_list.column("change", anchor="w")
@@ -128,8 +129,8 @@ class SwapPanel:
         keeps the pending schedule); a Reload click asks first."""
         keep = bool(self.pending) and quiet and self.state is not None
         if self.pending and not keep:
-            if not messagebox.askyesno("Discard pending changes?", f"{len(self.pending)} change(s) haven't "
-                                       "been saved. Reload anyway and lose them?", icon="warning"):
+            if not messagebox.askyesno("Discard unsaved changes?", "Some changes haven't been saved. Reload "
+                                       "anyway and lose them?", icon="warning"):
                 return
         if not keep:
             self.pending = []
@@ -323,15 +324,12 @@ class SwapPanel:
         if not item:
             return
         self.option_list.selection_set(item)
-        o = self.visible[int(item)]
-        names = ", ".join(self.state["combos"][c].name for c in involved(self.state["sets"], o, self.state["combos"],
-                                                                          self.cid()))
         p = self.get_palette() or {}
         menu = tk.Menu(self.option_list, tearoff=0, background=p.get("panel"), foreground=p.get("text"),
                        activebackground=p.get("accent"), activeforeground=p.get("accent_text"))
-        menu.add_command(label="Add to pending changes", command=self.apply)
+        menu.add_command(label="Add this change", command=self.apply)
         menu.add_separator()
-        menu.add_command(label=f"Copy liaison emails ({names})", command=lambda: self.copy_option("liaisons"))
+        menu.add_command(label="Copy liaison emails", command=lambda: self.copy_option("liaisons"))
         menu.add_command(label="Copy swap summary", command=lambda: self.copy_option("summary"))
         self.menu = menu                              # (kept for tests)
         popup(menu, event.x_root, event.y_root)
@@ -434,12 +432,13 @@ class SwapPanel:
             mark = "\u2716 " if o.breaks else "\u26a0 " if o.warnings else ""
             self.pending_list.insert("", "end", values=(f"{i}. {mark}{o.title}",))
         n = len(self.pending)
-        self.pending_title.configure(text=f"Pending changes ({n})" if n else "Pending changes (none)")
+        self.pending_title.configure(text="\u25cf Unsaved changes" if n else "No unsaved changes")
         self.pending_list.configure(height=min(max(n, 2), 6))
         for b in (self.save_button, self.undo_button, self.discard_button):
             b.configure(state="normal" if n else "disabled")
         if self.is_busy():                                # a step is running: Confirm waits for it
             self.save_button.configure(state="disabled")
+        self.on_pending()
 
     def rebuild_sets(self):
         sets = {d: dict(row) for d, row in self.base_sets.items()}
@@ -454,11 +453,11 @@ class SwapPanel:
             self.after_change(f"Undone: {o.title}")
 
     def discard_all(self):
-        if self.pending and messagebox.askyesno("Discard all?", f"Throw away all {len(self.pending)} pending "
-                                                "change(s)? The schedule hasn't been changed."):
+        if self.pending and messagebox.askyesno("Discard all?", "Throw away the unsaved changes? The schedule "
+                                                "hasn't been changed."):
             self.pending = []
             self.rebuild_sets()
-            self.after_change("All pending changes discarded.")
+            self.after_change("Unsaved changes discarded.")
 
     def save_all(self, then=None):
         """Saves every pending change into the schedule at once, then rebuilds the PDF and xlsx in the background.
@@ -469,7 +468,7 @@ class SwapPanel:
         changes = {(d, k): c for d, row in st["sets"].items() for k, c in row.items()
                    if self.base_sets.get(d, {}).get(k) != c}
         if not changes:
-            messagebox.showinfo("Nothing to save", "The pending changes cancel each other out.")
+            messagebox.showinfo("Nothing to save", "The unsaved changes cancel each other out.")
             self.pending = []
             self.after_change("Nothing to save.")
             return
@@ -513,8 +512,8 @@ class SwapPanel:
         if messagebox.askyesno(
                 "Schedule changed elsewhere", "The schedule was changed since these changes were planned (on "
                 "another computer), so they might not fit any more. Nothing was saved.\n\n"
-                f"Reload the schedule as it is now? Your {len(self.pending)} pending change(s) are dropped; "
-                "redo the ones still needed.", icon="warning"):
+                "Reload the schedule as it is now? Your unsaved changes are dropped; redo the ones still "
+                "needed.", icon="warning"):
             self.pending = []
             self.load()
         return False

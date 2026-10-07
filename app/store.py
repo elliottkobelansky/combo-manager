@@ -52,9 +52,9 @@ class Store:
             raise ChangedOnDisk(f"{DATA_FILE} was changed on another computer a moment ago. Nothing was saved: "
                                 "please try again.")
         if self.path.exists():
-            write_text(self.path.with_name(self.path.name + ".bak"), self.path.read_text(encoding="utf-8"))
+            write_text(self.path.with_name(self.path.name + ".bak"), self.path.read_text(encoding="utf-8"), read_only=True)
         text = json.dumps(self.data, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
-        write_text(self.path, text)
+        write_text(self.path, text, read_only=True)
         self.read_as = fingerprint(self.path)
         self.changed = False
 

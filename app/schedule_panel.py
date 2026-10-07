@@ -101,7 +101,7 @@ class SchedulePanel:
         size_columns(self.tree)
         self.tree.tag_configure("night", font=(ui_font(), size(10), "bold"))
         self.tree.tag_configure("open", foreground=p["muted"])
-        self.tree.tag_configure("pending", foreground=p["accent"], font=(ui_font(), size(10), "bold"))
+        self.tree.tag_configure("pending", foreground=p["accent_fg"], font=(ui_font(), size(10), "bold"))
 
     # the table
     def refresh(self):
@@ -156,12 +156,11 @@ class SchedulePanel:
             shown += 1
         pending = len(self.swaps.pending)
         if pending:
-            self.pending_label.configure(text=f"{pending} unsaved change{'s' if pending > 1 else ''} (highlighted below)")
+            self.pending_label.configure(text="\u25cf Unsaved changes (highlighted below)")
             self.pending_bar.pack(fill="x", pady=(10, 0), after=self.pending_anchor)
         else:
             self.pending_bar.pack_forget()
-        self.info.configure(text=f"{shown} of {len(st['nights'])} nights · {open_total} open sets"
-                                 + (f" · {pending} unsaved change(s)" if pending else ""))
+        self.info.configure(text=f"{shown} of {len(st['nights'])} nights · {open_total} open sets")
 
     def refresh_tools(self):
         """The Make button: 'Make schedule' before there's a schedule, 'Make a new schedule...' after; blue, and grey
@@ -186,13 +185,13 @@ class SchedulePanel:
             self.tools_hint.pack_forget()
 
     def set_sent(self):
-        """The 'Lock schedule' tick (tick it once the schedule is sent to students): saved with the schedule (every
+        """The 'Lock schedule' tick (e.g. once the schedule is final): saved with the schedule (every
         computer sees it). Unticking asks first: it lets a new schedule be made again."""
         from schedule_file import set_published
         if not self.sent.get() and not messagebox.askyesno(
-                "Unlock the schedule?", "The schedule is locked (it's been sent to students). Unticking this lets a brand-new "
-                "schedule be made again, which would replace the one students have: almost every show would move.\n\n"
-                "For changes to the schedule students already have, use the Swaps tab instead.\n\nUnlock it anyway?",
+                "Unlock the schedule?", "Unticking this lets a brand-new schedule be made again, which would replace this one: "
+                "almost every show would move.\n\nFor changes to this schedule, use the Swaps tab instead.\n\n"
+                "Unlock it anyway?",
                 icon="warning", default="no"):
             self.sent.set(True)
             return
@@ -248,7 +247,7 @@ class SchedulePanel:
         menu = self.build_menu(item, slot)
         if menu is None:
             menu = self.menu()
-            menu.add_command(label="Pick a night or a set in the list first", state="disabled")
+            menu.add_command(label="Select a night or a set first", state="disabled")
         menu.update_idletasks()
         b = self.actions
         popup(menu, b.winfo_rootx(), max(0, b.winfo_rooty() - menu.winfo_reqheight()))
@@ -262,7 +261,7 @@ class SchedulePanel:
         menu = self.menu()
         label = make_label(night)
         menu.add_command(label=f"Copy liaison emails ({label})", command=lambda: self.copy(night, "liaisons"))
-        menu.add_command(label=f"Copy combo emails ({label}: students and supervisors)",
+        menu.add_command(label=f"Copy all emails ({label})",
                          command=lambda: self.copy(night, "everyone"))
         menu.add_command(label=f"Copy night summary ({label})", command=lambda: self.copy(night, "summary"))
         if not slot:
@@ -274,22 +273,21 @@ class SchedulePanel:
         if c:
             menu.add_command(label=f"Go to combo ({st['combos'][c].name})", command=lambda: self.goto_combo(c))
             menu.add_separator()
-            menu.add_command(label="Find swaps / moves...", command=lambda: self.goto_swaps(c, d, k, "swap"))
-            menu.add_command(label="Give it away...", command=lambda: self.goto_swaps(c, d, k, "give"))
+            menu.add_command(label="Find swaps...", command=lambda: self.goto_swaps(c, d, k, "swap"))
+            menu.add_command(label="Give away set...", command=lambda: self.goto_swaps(c, d, k, "give"))
         else:
             text = st["typed"].get(d, {}).get(k)
             if not text:
-                menu.add_command(label="Who could take this set?", command=lambda: self.show_claimers(item, d, k))
+                menu.add_command(label="Fill set...", command=lambda: self.show_claimers(item, d, k))
             if (self.swaps.base_sets or {}).get(d, {}).get(k) is not None:   # opened by a change not saved yet
-                menu.add_command(label="(Confirm the pending changes first to type text in this set)",
+                menu.add_command(label="Add text... (confirm changes first)",
                                  state="disabled")
             elif text:
-                menu.add_command(label="Change the text in this set...", command=lambda: self.edit_text(d, k))
-                menu.add_command(label="Clear the text (the set is open again)",
+                menu.add_command(label="Edit text...", command=lambda: self.edit_text(d, k))
+                menu.add_command(label="Clear text",
                                  command=lambda: self.edit_text(d, k, clear=True))
             else:
-                menu.add_command(label="Type text in this set (e.g. Jam session)...",
-                                 command=lambda: self.edit_text(d, k))
+                menu.add_command(label="Add text...", command=lambda: self.edit_text(d, k))
         return menu
 
     def edit_text(self, d, k, clear=False):
@@ -409,9 +407,9 @@ class SchedulePanel:
         """Rebuilds Schedule.pdf and Schedule.xlsx, then opens `name` (one of them)."""
         if self.swaps.pending:
             answer = messagebox.askyesnocancel(
-                "Unsaved changes", f"There are {len(self.swaps.pending)} unsaved change(s).\n\n"
+                "Unsaved changes", "Some changes haven't been saved yet.\n\n"
                 "Yes: save them into the schedule first, then export.\nNo: export the saved schedule only (your "
-                "changes stay pending).\nCancel: do nothing.")
+                "changes stay unsaved).\nCancel: do nothing.")
             if answer is None:
                 return
             if answer:

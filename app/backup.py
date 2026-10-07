@@ -21,6 +21,7 @@ from pathlib import Path, PurePosixPath
 
 from data_folder import (APP_DATA, APPROVALS_FILE, BEFORE_RESTORE, CONFLICTS_FILE, LOCK_FILE, LOGS, OLD_APP_DATA,
                          OLD_APPROVALS_FILE, SETTINGS_FILE, app_data, exports, usual_inputs)
+from shared_folder import remove
 
 INFO = "backup-info.json"
 PREFIX = "ComboManager-backup"
@@ -177,7 +178,7 @@ def restore_in_place(path, folder, keep_inputs=True):
         for p in list(folder.iterdir()) + list(app.iterdir()):
             if p == app or ours(p):
                 continue
-            shutil.rmtree(p) if p.is_dir() else p.unlink()
+            remove(p)
         new_app = work / APP_DATA
         for p in list(work.iterdir()) + (list(new_app.iterdir()) if new_app.is_dir() else []):
             if p == new_app:
