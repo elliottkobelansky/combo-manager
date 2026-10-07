@@ -156,7 +156,7 @@ class SchedulePanel:
             shown += 1
         pending = len(self.swaps.pending)
         if pending:
-            self.pending_label.configure(text="\u25cf Unsaved changes (highlighted below)")
+            self.pending_label.configure(text="\u25cf Unsaved changes")
             self.pending_bar.pack(fill="x", pady=(10, 0), after=self.pending_anchor)
         else:
             self.pending_bar.pack_forget()

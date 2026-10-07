@@ -48,7 +48,7 @@ class CombosPanel:
         self.sync_button = ttk.Button(links, text="Sync", command=self.reload)
         self.sync_button.pack(side="right", padx=(0, 6))
 
-        top = ttk.Frame(self.frame)
+        top = self.search_row = ttk.Frame(self.frame)
         top.pack(fill="x")
         ttk.Label(top, text="Search").pack(side="left", padx=(0, 6))
         self.search = tk.StringVar()
@@ -66,7 +66,7 @@ class CombosPanel:
 
         bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
-        # unsaved changes: a bar shown only while there are some (like the Schedule tab's), saved all at once
+        # unsaved changes: a bar under the search row, shown only while there are some (like the Schedule tab's)
         self.pending_box = ttk.Frame(self.frame, style="Card.TFrame", padding=(12, 8))
         self.pending_title = ttk.Label(self.pending_box, text="", style="CardTitle.TLabel")
         self.pending_title.pack(side="left")
@@ -592,8 +592,8 @@ class CombosPanel:
     def refresh_pending(self):
         n = len(self.pending)
         if n:
-            self.pending_title.configure(text="\u25cf Unsaved changes (marked \u25cf above)")
-            self.pending_box.pack(fill="x", pady=(10, 0), before=self.bottom)
+            self.pending_title.configure(text="\u25cf Unsaved changes")
+            self.pending_box.pack(fill="x", pady=(10, 0), after=self.search_row)
         else:
             self.pending_box.pack_forget()
         self.on_pending()
@@ -848,7 +848,7 @@ class CombosPanel:
     def saved_first(self):
         """Before an export with pending changes: save them first? True = saved, go ahead."""
         return messagebox.askokcancel(
-            "Unsaved changes", f"{len(self.pending)} change(s) here aren't saved yet. Save them first, then export?"
+            "Unsaved changes", "Some changes here aren't saved yet. Save them first, then export?"
         ) and self.confirm()
 
     def export_pdf(self):
