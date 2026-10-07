@@ -71,7 +71,7 @@ def write_exports(folder, sched, combos, settings, store):
     except ImportError:
         print("Can't write the PDF: run  pip install reportlab")
     except PermissionError:
-        print(f"  [WARN] {SCHEDULE_PDF} is open in another program, so it wasn't updated (the schedule itself is "
+        print(f"  \u26a0 {SCHEDULE_PDF} is open in another program, so it wasn't updated (the schedule itself is "
               "saved). Close it, then Export again (Schedule tab).")
     from outputs.excel_schedule import write_schedule_xlsx
     try:
@@ -79,7 +79,7 @@ def write_exports(folder, sched, combos, settings, store):
                             store.instruments(settings.semester_name, combos.values()))
         print(f"Wrote {folder / SCHEDULE_XLSX}")
     except PermissionError:
-        print(f"  [WARN] {SCHEDULE_XLSX} is open in Excel, so it wasn't updated (the schedule itself is saved). "
+        print(f"  \u26a0 {SCHEDULE_XLSX} is open in Excel, so it wasn't updated (the schedule itself is saved). "
               "Close it, then Export again (Schedule tab).")
 
 
@@ -99,7 +99,7 @@ def print_stats(folder, sched, inp, settings, store, export=False, full=False, t
     if problems:
         print(f"{len(problems)} problem{'s' if len(problems) > 1 else ''} with the rules:")
         for p in problems:
-            print(f"  [PROBLEM] {p}")
+            print(f"  \u2716 {p}")
     else:
         print("All rules hold: no conflicts played, venue minimums met, no combo twice in a night, supervised "
               "nights as set.")
@@ -134,7 +134,7 @@ def confirm(folder):
     print("\nThis builds a NEW schedule from scratch.")
     if schedule_path(folder).exists():
         when = datetime.fromtimestamp(schedule_path(folder).stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-        print(f"  WARNING: there is a schedule already (last saved {when}); it will be replaced (a copy goes to "
+        print(f"  \u26a0 There is a schedule already (last saved {when}); it will be replaced (a copy goes to "
               "App data/Schedule backups).\n  Any swaps made in it won't be in the new one.\n"
               "  To just check the existing schedule: Check schedule.")
     if not sys.stdin.isatty():
@@ -199,10 +199,10 @@ def main(argv=None):
         detail = ", ".join(f"{c} {d}{'' if c == 1 else 's'} = {sets[d]} sets" for d, c in days.items())
         print(f"\n{settings.semester_name}: {len(nights)} show nights, {sum(sets.values())} sets ({detail})")
         for w in setting_warnings:
-            print(f"  [WARN] {w}")
+            print(f"  \u26a0 {w}")
         print(f"{len(inp.combos)} combos, {len(inp.blocked)} students with conflicts")
         for txt in warnings:
-            print(f"\n  WARNING: {txt}")
+            print(f"\n  \u26a0 {txt}")
         inp = replace(inp, notes=[("warn", t) for t in warnings])      # also saved in the schedule's report
         if a.compare_gaps:
             compare_gaps(inp, settings, a.compare_gaps)

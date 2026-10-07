@@ -17,7 +17,7 @@ Combo Manager keeps the semester's combos, makes the show calendar, and helps wi
 
 1. **Settings** tab: check the semester name, the first and last show day, and the skip dates (reading week, holidays). Click **Save settings**. If it asks about moving last semester's files, click **Yes**.
 2. **Schedule** tab: **Make schedule**. Wait up to a minute or two. **Open PDF** (the calendar) or **Open Excel** (one table per night); the combo list is on the Combos tab. Print or send them.
-3. Once it's sent to students, tick **Sent to students**: then a new schedule can't be made by accident.
+3. Once it's sent to students, tick **Lock schedule**: then a new schedule can't be made by accident.
 
 ## During the semester
 

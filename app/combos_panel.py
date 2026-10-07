@@ -17,7 +17,7 @@ from inputs import EMAIL_RE, EmailRules, InputError, email_warnings, load_input,
 from schedule_file import ScheduleFileError, has_schedule, load as load_schedule, open_sets_of
 from settings_file import SettingsError, load_settings
 from store import Store
-from theme import popup, scrolled_tree
+from theme import bind_right_click, popup, scrolled_tree
 from util import INSTRUMENTS, by_instrument
 
 
@@ -62,8 +62,6 @@ class CombosPanel:
         table.pack(fill="both", expand=True, pady=(6, 0))
         self.tree.bind("<Double-1>", self.double_click)
         self.tree.bind("<Button-1>", self.click, add="+")
-        for ev in ("<Button-3>", "<Button-2>", "<Control-Button-1>"):        # right-click (Mac: also Ctrl-click)
-            self.tree.bind(ev, self.context_menu)
 
         bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
@@ -92,6 +90,7 @@ class CombosPanel:
                    command=self.export_pdf).pack(side="right", padx=(0, 6))
 
         self.data = None
+        bind_right_click(self.frame, self.context_menu)   # anywhere on the tab (empty space: New combo...)
         self.recolor()
 
     def load(self, quiet=False):
@@ -418,7 +417,7 @@ class CombosPanel:
         return None, None, None
 
     def context_menu(self, event):
-        item = self.tree.identify_row(event.y)
+        item = self.tree.identify_row(event.y) if event.widget is self.tree else None
         if item:
             self.tree.selection_set(item)
         else:                                             # empty space: what fits nothing picked (New combo...)
@@ -477,7 +476,10 @@ class CombosPanel:
             menu.add_command(label="Change name...", command=self.rename)
             menu.add_command(label="Change email...", command=self.edit_email)
         if kind is None:
-            menu.add_command(label="Pick a combo or a person in the list first", state="disabled")
+            menu.add_command(label="New combo...", command=self.new_combo)
+            menu.add_command(label="Check combos", command=lambda: self.on_check())
+            menu.add_separator()
+            menu.add_command(label="(Right-click a combo or a person for more)", state="disabled")
         elif kind == "pending":
             menu.add_command(label="Waiting for a decision: approve or reject it in Outlook", state="disabled")
         elif kind == "withdrawn":
@@ -498,15 +500,33 @@ class CombosPanel:
                                  command=lambda: self.set_first_year(combo, True))
             menu.add_separator()
             menu.add_command(label=f"Withdraw {combo.name}...", command=self.withdraw)
-        if self.data:
+        if kind is not None:
             menu.add_separator()
             menu.add_command(label="New combo...", command=self.new_combo)
         self.menu = menu                              # (kept for tests)
         return menu
 
+    def show_combo(self, cid):
+        """Picks a combo in the list (from the Schedule tab's Go to combo): opened, scrolled to, selected. The
+        search is cleared if it hides it."""
+        if not self.data:
+            self.load()
+        if self.search.get() and cid not in self.combo_items.values():
+            self.search.set("")                           # (fills the list again)
+        item = next((i for i, c in self.combo_items.items() if c == cid), None)
+        if item is None:
+            return False
+        self.tree.item(item, open=True)
+        self.tree.selection_set(item)
+        self.tree.focus(item)
+        self.tree.see(item)
+        self.tree.focus_set()
+        return True
+
     def new_combo(self):
         if not self.data:
-            messagebox.showinfo("New combo", "Nothing loaded yet.")
+            self.load()                                   # not loaded yet (a blank folder): load first
+        if not self.data:
             return
         NewComboDialog(self)
 

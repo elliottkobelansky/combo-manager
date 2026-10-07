@@ -215,6 +215,18 @@ def popup(menu, x, y):
     menu.tk_popup(x, y)
 
 
+RIGHT_CLICK = ("<Button-3>", "<Button-2>", "<Control-Button-1>")   # right-click (Mac: also Ctrl-click)
+
+
+def bind_right_click(widget, handler):
+    """Right-click anywhere on a tab: the widget and everything in it, except text boxes (typing)."""
+    if not isinstance(widget, (tk.Entry, ttk.Entry, tk.Text, ttk.Combobox, ttk.Spinbox)):
+        for ev in RIGHT_CLICK:
+            widget.bind(ev, handler)
+    for child in widget.winfo_children():
+        bind_right_click(child, handler)
+
+
 def calendar_colors(p):
     """Keyword arguments for tkcalendar.Calendar so the pop-up matches the theme."""
     return dict(background=p["accent"], foreground=p["accent_text"], headersbackground=p["panel"],

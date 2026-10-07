@@ -12,17 +12,18 @@ import app_log
 from core.model import make_label
 from core.swaps import claimers
 from data_folder import CONTACTS_XLSX, SCHEDULE_PDF, SCHEDULE_XLSX
-from theme import in_background, popup, scrolled_tree
+from theme import bind_right_click, in_background, popup, scrolled_tree
 
 
 class SchedulePanel:
     def __init__(self, parent, swaps, goto_swaps, export, open_export, get_palette=lambda: {}, open_file=None,
-                 make=None, check=None):
+                 make=None, check=None, goto_combo=None):
         """export(done): rebuilds Schedule.pdf and .xlsx, then done(code); open_export(name) opens one of them;
-        make / check: the Make schedule and Check schedule steps."""
+        make / check: the Make schedule and Check schedule steps; goto_combo(id): shows a combo on the Combos tab."""
         self.swaps, self.goto_swaps, self.export, self.open_export = swaps, goto_swaps, export, open_export
         self.make, self.check = make or (lambda: None), check or (lambda: None)
         self.open_file = open_file or (lambda path: None)
+        self.goto_combo = goto_combo or (lambda cid: None)
         self.get_palette = get_palette
         self.rows = {}                                    # tree item -> (night, set number)
         self.night_rows = {}                              # tree item -> night (the bold rows)
@@ -36,7 +37,7 @@ class SchedulePanel:
         self.check_button = ttk.Button(tools, text="Check schedule", command=self.check)
         self.check_button.pack(side="left", padx=(6, 0))
         self.sent = tk.BooleanVar()
-        self.sent_box = ttk.Checkbutton(tools, text="Sent to students",
+        self.sent_box = ttk.Checkbutton(tools, text="Lock schedule",
                                         variable=self.sent, command=self.set_sent)
         self.sent_box.pack(side="left", padx=(16, 0))
         ttk.Button(tools, text="Open Excel", style="Accent.TButton",
@@ -73,8 +74,6 @@ class SchedulePanel:
                                                       ("who", "Playing", 320, True), ("note", "", 200, True)])
         table.pack(fill="both", expand=True, pady=(6, 0))
         self.tree.bind("<Double-1>", self.double_click)
-        for ev in ("<Button-3>", "<Button-2>", "<Control-Button-1>"):        # right-click (Mac: also Ctrl-click)
-            self.tree.bind(ev, self.right_click)
 
         bottom = self.bottom = ttk.Frame(self.frame)
         bottom.pack(fill="x", pady=(10, 0))
@@ -85,6 +84,7 @@ class SchedulePanel:
         ttk.Button(bottom, text="Export contact lists", command=self.export_contacts).pack(side="left", padx=(12, 0))
         self.status = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.status.pack(side="left", padx=10)
+        bind_right_click(self.frame, self.right_click)    # anywhere on the tab
         self.recolor()
         swaps.listeners.append(self.refresh)
 
@@ -162,7 +162,7 @@ class SchedulePanel:
 
     def refresh_tools(self):
         """The Make button is the main one only before there's a schedule; after that it's a plain 'Make a new
-        schedule...', and off while the schedule is marked as sent to students."""
+        schedule...', and off while the schedule is locked."""
         st = self.swaps.state
         exists, sent = bool(st), bool(st and st.get("published"))
         self.sent.set(sent)
@@ -173,18 +173,18 @@ class SchedulePanel:
         self.check_button.configure(style="Accent.TButton" if exists else "TButton",
                                     state="normal" if exists else "disabled")
         if sent:
-            self.tools_hint.configure(text="The schedule is out: Make a new schedule is off. Changes from now on: "
-                                           "Swaps tab (or untick 'Sent to students' to start over).")
+            self.tools_hint.configure(text="Locked: Make a new schedule is off. Changes from now on: Swaps tab "
+                                           "(or untick 'Lock schedule' to start over).")
             self.tools_hint.pack(fill="x", pady=(0, 8), after=self.tools_anchor)
         else:
             self.tools_hint.pack_forget()
 
     def set_sent(self):
-        """The 'Sent to students' tick: saved with the schedule (every computer sees it). Unticking asks first: it
-        lets a new schedule be made again."""
+        """The 'Lock schedule' tick (tick it once the schedule is sent to students): saved with the schedule (every
+        computer sees it). Unticking asks first: it lets a new schedule be made again."""
         from schedule_file import set_published
         if not self.sent.get() and not messagebox.askyesno(
-                "Unlock the schedule?", "The schedule is marked as sent to students. Unticking this lets a brand-new "
+                "Unlock the schedule?", "The schedule is locked (it's been sent to students). Unticking this lets a brand-new "
                 "schedule be made again, which would replace the one students have: almost every show would move.\n\n"
                 "For changes to the schedule students already have, use the Swaps tab instead.\n\nUnlock it anyway?",
                 icon="warning", default="no"):
@@ -196,8 +196,7 @@ class SchedulePanel:
             messagebox.showerror("Couldn't save", str(e))
         if self.swaps.state:
             self.swaps.state["published"] = self.sent.get()
-        app_log.write("Schedule marked as sent to students" if self.sent.get() else
-                      "Schedule unmarked as sent to students")
+        app_log.write("Schedule locked" if self.sent.get() else "Schedule unlocked")
         self.refresh_tools()
 
     def toggle_only_open(self):
@@ -215,6 +214,9 @@ class SchedulePanel:
 
     # actions
     def slot(self, event=None):
+        if event is not None and event.widget is not self.tree:     # empty space elsewhere on the tab: nothing picked
+            self.tree.selection_set(())
+            return None, None
         item = self.tree.identify_row(event.y) if event else (self.tree.selection() or [None])[0]
         if item:
             self.tree.selection_set(item)
@@ -233,9 +235,21 @@ class SchedulePanel:
 
     def right_click(self, event):
         item, slot = self.slot(event)
-        menu = self.build_menu(item, slot)
-        if menu:
-            popup(menu, event.x_root, event.y_root)
+        menu = self.build_menu(item, slot) or self.tab_menu()
+        popup(menu, event.x_root, event.y_root)
+
+    def tab_menu(self):
+        """Right-click with nothing picked: the tab's own steps."""
+        exists = bool(self.swaps.state)
+        sent = exists and bool(self.swaps.state.get("published"))
+        menu = self.menu()
+        menu.add_command(label="Make a new schedule..." if exists else "Make schedule", command=self.make,
+                         state="disabled" if sent else "normal")
+        menu.add_command(label="Check schedule", command=self.check, state="normal" if exists else "disabled")
+        if exists:
+            menu.add_separator()
+            menu.add_command(label="(Right-click a night or a set for more)", state="disabled")
+        return menu
 
     def actions_menu(self):
         """The Actions button: the right-click menu for the picked night or set, opened above the button."""
@@ -267,6 +281,8 @@ class SchedulePanel:
         st = self.swaps.state
         c = st["sets"].get(d, {}).get(k)
         if c:
+            menu.add_command(label=f"Go to combo ({st['combos'][c].name})", command=lambda: self.goto_combo(c))
+            menu.add_separator()
             menu.add_command(label="Find swaps / moves...", command=lambda: self.goto_swaps(c, d, k, "swap"))
             menu.add_command(label="Give it away...", command=lambda: self.goto_swaps(c, d, k, "give"))
         else:

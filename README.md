@@ -17,7 +17,7 @@ Manager.bat`** (Windows), **`Combo Manager.command`** (Mac) or **`combo-manager.
   conflicts, in a fold-out box under the list. Edits wait until **Confirm changes**. **Open PDF / Open Excel**: the
   combo list.
 - **Schedule**: every show night and its sets. **Make schedule** (once per semester), **Check schedule** (the
-  rule check first, then a few stats at a glance; tick **All stats** on the results box for every section), **Sent to students** (a lock: no new schedule can be made while it's ticked), **Open
+  rule check first, then a few stats at a glance; tick **All stats** on the results box for every section), **Lock schedule** (tick it once the schedule is sent to students: no new schedule can be made while it's ticked), **Open
   PDF / Open Excel**; results in a fold-out box.
 - **Swaps**: **Swap**, **Give away**, **Claim** (see [swaps](#during-the-semester-swaps)).
 - **Settings**, **Appearance** (dark mode, text size 85% to 175%, remembered on that computer), **About** (contact,
@@ -261,7 +261,7 @@ swap); **Sync** (Combos tab) reads the linked sheets and anything synced in from
 (highlighted, with their nights opened), a search box and "only nights with open sets". While changes are
 unsaved, a bar at the top offers **Confirm changes** (save them into the schedule and rebuild the exports), **Undo
 last** and **Discard all**. Double-click a combo's set to jump to the Swaps tab
-with that show picked (right-click: also "Give it away"); double-click an open set to see **every combo that could
+with that show picked (right-click: also "Give it away", and **Go to combo** to see it on the Combos tab); double-click an open set to see **every combo that could
 take it** and add one as a pending change. **Right-click a night** to copy, ready to paste into Outlook: the
 liaisons' emails, the combo emails (every student playing, then the supervisors; separated by `;`), or a short
 summary of the night (sets, times, combos, members' names; no emails). **Right-click an open set** to type text into
@@ -303,7 +303,7 @@ rule check flags it until it is. Withdrawing waits until pending swaps are confi
 stay listed in grey; Actions > **Put back** returns the combo with its old number but no shows (its sets may be
 taken by then): it can claim open sets in the Swaps tab.
 
-**New combo...** (Combos tab, Actions or right-click): a combo that isn't in the approvals (accepted after the form
+**New combo...** (Combos tab, Actions or right-click anywhere, even on an empty list): a combo that isn't in the approvals (accepted after the form
 closed): liaison, other members and supervisor by email. It gets the next number and is then edited, withdrawn and
 put back like any other; it starts with no shows (give it sets, Schedule tab, or let it claim open sets, Swaps tab).
 Kept in `scheduler_data.json`.

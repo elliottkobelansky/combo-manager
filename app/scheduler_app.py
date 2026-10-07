@@ -317,7 +317,8 @@ class App:
                                       lambda done: self.run(["--stats", "--export"],
                                                             "Exporting Schedule.pdf and Schedule.xlsx...", on_done=done),
                                       self.open_file, lambda: self.palette, open_path, make=self.make_schedule,
-                                      check=lambda: self.run(["--stats", "--full"], "Checking the schedule..."))
+                                      check=lambda: self.run(["--stats", "--full"], "Checking the schedule..."),
+                                      goto_combo=self.goto_combo)
         self.tabs.add(self.schedule.frame, text="Schedule")
         self.results["schedule"] = self.results_box(self.schedule, "Results of the last Make schedule or Check")
         self.full_stats = tk.BooleanVar(value=bool(load_config().get("full_stats")))   # remembered on this computer
@@ -615,8 +616,9 @@ class App:
                     continue
                 self.out.configure(state="normal")
                 for line in item.splitlines(keepends=True):
-                    tag = ("bad" if ("PROBLEM" in line or "Can't continue" in line or "went wrong" in line) else
-                           "warn" if ("WARN" in line or line.startswith("\u26a0")) else
+                    tag = ("bad" if ("\u2716" in line or "PROBLEM" in line or "Can't continue" in line
+                                     or "went wrong" in line) else
+                           "warn" if ("\u26a0" in line or "WARN" in line) else
                            "good" if ("All hard rules hold" in line or line.startswith(("Wrote", "Saved the schedule", "Made a schedule", "Nothing to look at"))) else None)
                     self.out.insert("end", line, tag)
                 self.out.see("end")
@@ -865,7 +867,7 @@ class App:
 
     def make_schedule(self):
         """Makes a brand-new schedule. Once one exists it says what would be lost, and it's off entirely while the
-        schedule is marked as sent to students (Schedule tab)."""
+        schedule is locked (Schedule tab)."""
         from schedule_file import has_schedule, summary
         other = self.other_semester()
         if other is not None:                         # last semester's files: filed away, nothing is lost
@@ -877,9 +879,9 @@ class App:
         elif has_schedule(self.folder):
             info = summary(self.folder)
             if info.get("published"):
-                messagebox.showinfo("Make a new schedule", "The schedule is marked as sent to students, so a new one "
-                                    "can't be made. Use swaps for changes (Swaps tab). To really start over, untick "
-                                    "'Sent to students' on the Schedule tab first.")
+                messagebox.showinfo("Make a new schedule", "The schedule is locked (it's been sent to students), so a "
+                                    "new one can't be made. Use swaps for changes (Swaps tab). To really start over, "
+                                    "untick 'Lock schedule' on the Schedule tab first.")
                 return
             made = info.get("made", "")
             when = f" (made {datetime.fromisoformat(made):%a %b %d at %H:%M})" if made else ""
@@ -909,6 +911,10 @@ class App:
         except (ImportError, SettingsError, ScheduleFileError):
             return None
         return None if sem == settings.semester_name else (sem or "")
+
+    def goto_combo(self, cid):
+        self.tabs.select(self.combos.frame)
+        self.combos.show_combo(cid)
 
     def goto_swaps(self, cid, d, k, mode="swap"):
         self.tabs.select(self.swaps.frame)

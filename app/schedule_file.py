@@ -8,7 +8,7 @@ and never read back, so editing them changes nothing.
      "sets":   {"2026-09-29": {"1": "Combo 28", "2": "Combo 30"}, ...},     combo names; a set not listed is open
      "typed":  {"2026-09-29": {"4": "Jam session"}},                        text in a set (it then counts as taken)
      "report": [["warn", "..."], ...],                                      what the solver said when it was made
-     "published": true,                                                     sent to students: Make schedule is off
+     "published": true,                                                     locked (sent to students): Make schedule is off
      "history": [{"saved": "2026-10-20T15:02:11", "computer": "OFFICE-PC", "what": ["Trade with Combo 12: ..."],
                   "changes": [{"night": "2026-10-13", "set": 2, "before": "Combo 05", "after": "Combo 12"}]}, ...]}
                                                                             every change since it was made
@@ -51,7 +51,7 @@ class Schedule:
     problems: List[str] = field(default_factory=list)   # combos in it that aren't accepted any more, ...
     report: List[list] = field(default_factory=list)
     history: List[dict] = field(default_factory=list)   # every change since it was made, oldest first
-    published: bool = False                       # sent to students: a new schedule can't be made (Schedule tab)
+    published: bool = False                       # locked (sent to students): no new schedule (Schedule tab)
     made: str = ""                                # when it was made (ISO date and time)
     converted: bool = False                       # just made from an old Schedule.xlsx
 
@@ -210,13 +210,13 @@ def summary(folder):
 
 
 def set_published(folder, on):
-    """Marks the schedule as sent to students (or not). While it is, Make schedule is off. Kept in the history."""
+    """Locks the schedule (once sent to students) or unlocks it. While it is, Make schedule is off. Kept in the history."""
     data = _read(folder)
     if data is None or bool(data.get("published")) == bool(on):
         return
     data["published"] = bool(on)
-    data.setdefault("history", []).append(_entry(["Marked as sent to students" if on else
-                                                  "Unmarked as sent to students"]))
+    data.setdefault("history", []).append(_entry(["Locked (sent to students)" if on else
+                                                  "Unlocked"]))
     _write(folder, data)
 
 
