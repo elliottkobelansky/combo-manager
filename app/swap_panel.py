@@ -258,7 +258,10 @@ class SwapPanel:
             return
         if not self.show_list.selection():
             return
-        self.show_options([o for o in self.options if (o.kind in ("give", "drop")) == give])
+        shown = [o for o in self.options if (o.kind in ("give", "drop")) == give]
+        if give:                                      # "nobody (leave open)" always first, whatever its colour
+            shown = [o for o in shown if o.kind == "drop"] + [o for o in shown if o.kind != "drop"]
+        self.show_options(shown)
 
     def show_options(self, options):
         """Fills the options table (best first) for the current mode."""
@@ -281,7 +284,7 @@ class SwapPanel:
             self.option_list.insert("", "end", iid=str(i), values=(partner, o.place, effects), tags=(tag,))
         if not self.option_list.get_children():
             self.details.configure(text="Nothing to list here." if claim else "Nothing to list for this show.")
-        elif options[0].breaks:                       # sorted: when the first breaks a rule, they all do
+        elif all(o.breaks for o in options):          # (in Give away, "leave open" comes first whatever it breaks)
             self.details.configure(text=(
                 f"No open set {self.short()} can take without breaking a rule." if claim else
                 f"{self.short()} can't give this show away without breaking a rule (it needs it for its minimum "

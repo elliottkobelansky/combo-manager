@@ -611,8 +611,8 @@ class App:
                 self.out.configure(state="normal")
                 for line in item.splitlines(keepends=True):
                     tag = ("bad" if ("PROBLEM" in line or "Can't continue" in line or "went wrong" in line) else
-                           "warn" if ("WARN" in line) else
-                           "good" if ("All hard rules hold" in line or line.startswith(("Wrote", "Saved the schedule", "Made a schedule"))) else None)
+                           "warn" if ("WARN" in line or line.startswith("\u26a0")) else
+                           "good" if ("All hard rules hold" in line or line.startswith(("Wrote", "Saved the schedule", "Made a schedule", "Nothing to look at"))) else None)
                     self.out.insert("end", line, tag)
                 self.out.see("end")
                 self.out.configure(state="disabled")
@@ -935,7 +935,8 @@ class App:
         def job():
             out = []
             code = run_solve(args, self.folder, lambda t: (out.append(t), self.write(t)))
-            self.write("\n" + ("Done." if code == 0 else "Done, but there are problems: see the red lines above.") + "\n")
+            if code != 0:
+                self.write("\nDone, but there are problems: see the red lines above.\n")
             app_log.write(f"{message} (solve.py {' '.join(args)}): " + ("done" if code == 0 else f"exit code {code}")
                           + "\n" + (intro or "") + "".join(out))
             if on_done:

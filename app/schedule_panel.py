@@ -54,7 +54,7 @@ class SchedulePanel:
         ttk.Entry(top, textvariable=self.search, width=28).pack(side="left", padx=(6, 0))
         self.only_open = tk.BooleanVar()
         ttk.Checkbutton(top, text="Only nights with open sets", variable=self.only_open,
-                        command=self.refresh).pack(side="left", padx=14)
+                        command=self.toggle_only_open).pack(side="left", padx=14)
         self.info = ttk.Label(top, text="", style="Hint.TLabel")
         self.info.pack(side="left", padx=6)
         # shown only while swap changes are waiting to be saved
@@ -201,6 +201,15 @@ class SchedulePanel:
         app_log.write("Schedule marked as sent to students" if self.sent.get() else
                       "Schedule unmarked as sent to students")
         self.refresh_tools()
+
+    def toggle_only_open(self):
+        """Ticked: just the nights with open sets, opened. Unticked: every night again, closed (except nights with
+        unsaved changes)."""
+        self.refresh()
+        if not self.only_open.get():
+            for item in self.tree.get_children():
+                if "unsaved" not in str(self.tree.set(item, "note")):
+                    self.tree.item(item, open=False)
 
     def expand(self, yes):
         for i in self.tree.get_children():

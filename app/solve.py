@@ -157,6 +157,19 @@ def main(argv=None):
         # --stats looks at the schedule as it is: its own nights; anything else plans from the settings
         sched = load(f, combos, settings) if a.stats else None
         nights = sched.nights if sched else generate_nights(settings)
+        warnings = [t for lvl, t in inp.notes if lvl in ("pending", "warn")]
+        if a.check:                                   # short: a summary line, then only what to look at
+            _, report = analyze(inp, settings, nights)
+            look = list(dict.fromkeys(setting_warnings + warnings + [t for lvl, t in report if lvl == "warn"]))
+            print(f"{len(inp.combos)} combos, {len(inp.blocked)} students with conflicts, {len(nights)} show nights "
+                  f"({sum(n.n_slots for n in nights)} sets).\n")
+            if look:
+                print(f"{len(look)} thing{'s' if len(look) > 1 else ''} to look at:")
+                for t in look:
+                    print(f"\u26a0 {t}")
+            else:
+                print("Nothing to look at.")
+            return 0
         days, sets = Counter(n.weekday for n in nights), Counter()
         for n in nights:
             sets[n.weekday] += n.n_slots
@@ -165,14 +178,8 @@ def main(argv=None):
         for w in setting_warnings:
             print(f"  [WARN] {w}")
         print(f"{len(inp.combos)} combos, {len(inp.blocked)} students with conflicts")
-        warnings = [t for lvl, t in inp.notes if lvl in ("pending", "warn")]
         for txt in warnings:
             print(f"\n  WARNING: {txt}")
-        if a.check:
-            _, report = analyze(inp, settings, nights)
-            print("\nInput report:")
-            show([(lvl, t) for lvl, t in inp.notes if lvl == "info"] + report, levels=("warn", "info"))
-            return 0
         inp = replace(inp, notes=[("warn", t) for t in warnings])      # also saved in the schedule's report
         if a.stats:
             return print_stats(f, sched, inp, settings, Store(f), a.export)

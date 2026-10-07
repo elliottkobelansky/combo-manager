@@ -21,10 +21,11 @@ def analyze(inp: ScheduleInput, settings: Settings, nights: List[Night]):
 
     limit = settings.max_blocked_dates_per_person
     if limit:
-        for e in sorted(members_all):
-            n = len(person_blocked.get(e, ()))
-            if n > limit:
-                report.append(("warn", f"{e} blocked {n} show nights (soft limit {limit})."))
+        many = [(e, len(person_blocked.get(e, ()))) for e in sorted(members_all)
+                if len(person_blocked.get(e, ())) > limit]
+        if many:                                      # one line for all of them
+            report.append(("warn", f"{len(many)} student(s) blocked more than {limit} show nights: "
+                                   + ", ".join(f"{e} ({n})" for e, n in many) + "."))
 
     allowed: Dict[str, Set] = {}
     seen_sets = {}

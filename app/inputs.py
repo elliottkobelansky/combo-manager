@@ -481,7 +481,7 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
     gone = sorted(f"Combo {n:0{digits}d}" for ref, n in numbers.items() if ref in seen_refs and ref not in kept_refs)
     if gone:
         notes.append(("warn", f"No longer accepted: {', '.join(gone)}. If the schedule is already out, give their "
-                              "sets away or set them to OPEN (Swaps or Schedule tab); check with step 3."))
+                              "sets away or set them to OPEN (Swaps or Schedule tab), then Check schedule."))
     for c in combos:
         if c.ref in edited:
             ch = edited[c.ref]
