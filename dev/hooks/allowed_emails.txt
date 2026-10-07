@@ -1,0 +1,35 @@
+# Email addresses allowed in commits: the author's own, and made-up ones used by the tests.
+# Real students' or faculty's addresses must never be committed (the repo is public). Add a new fake one here on purpose.
+alex.martin2@mail.mcgill.ca
+alex.martin@mail.mcgill.ca
+ana.ruiz@gmail.com
+ana.ruiz@gmial.com
+ana.ruiz@mail.mcgill.ca
+ana.ruiz@mcgill.ca
+ben.li@mail.mcgil.ca
+ben.li@mail.mcgill.ca
+dev.patel@gmail.com
+dev.patel@mail.mcgill.ca
+elliottkobelansky@gmail.com
+eloise.ferreira2@mail.mcgill.ca
+first.last@mail.mcgill.ca
+jamie.outside@gmail.com
+kai.drums@mail.mcgill.ca
+late.joiner@mail.mcgill.ca
+late.one@mail.mcgill.ca
+late.two@mail.mcgill.ca
+new.person@mail.mcgill.ca
+new.player@mail.mcgill.ca
+nobody@mail.mcgill.ca
+nobody.yet@mail.mcgill.ca
+nother.one@mail.mcgill.ca
+prof.late@mcgill.ca
+prof@mcgill.ca
+renamed.person@mail.mcgill.ca
+sam.guest@gmail.com
+test2@mail.mcgill.ca
+test3@mail.mcgill.ca
+test@mail.mcgill.ca
+x@mail.mcgill.ca
+y@mail.mcgill.ca
+noreply@anthropic.com

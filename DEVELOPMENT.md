@@ -1,5 +1,9 @@
 # Development
 
+**The repo is public: never commit real data, names or emails.** Real data lives in the data folder, outside the
+repo. Turn on the check once per clone: `git config core.hooksPath dev/hooks`. It then refuses any commit with a
+data file or an email address not in `dev/hooks/allowed_emails.txt` (made-up test addresses only).
+
 - **Run from source (Linux):** `./combo-manager.sh`. It sets up a private Python the first time.
 - **Tests:** `python dev/test_rules.py`. Run them after every change.
 - **Fake data to try things:** `python dev/make_fake_forms.py FOLDER`, then **Settings** tab > **Change folder...**

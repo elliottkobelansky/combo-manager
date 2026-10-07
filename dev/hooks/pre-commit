@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""Stops a commit that would publish data (the repo is public): data files (spreadsheets, the app's JSON, backups,
+logs, PDFs other than the Quick Start), or an email address not in dev/hooks/allowed_emails.txt.
+
+Turned on once per clone: git config core.hooksPath dev/hooks"""
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+DATA = re.compile(r"\.(xlsx|xls|csv|zip|bak)$|(^|/)(semester|schedule|scheduler_data|settings|in_use)\.json$"
+                  r"|(^|/)(AppFiles|Exports|Archive|App data|Logs)/|\.pdf$", re.I)
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+def git(*args):
+    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, errors="replace").stdout
+
+
+allowed = {l.strip().lower() for l in (ROOT / "dev/hooks/allowed_emails.txt").read_text().splitlines()
+           if l.strip() and not l.startswith("#")}
+problems = []
+for f in git("diff", "--cached", "--name-only", "--diff-filter=ACMR").splitlines():
+    if DATA.search(f) and f != "Quick Start.pdf":
+        problems.append(f"{f}: looks like data")
+diff = git("diff", "--cached", "-U0", "--no-color", "--text", "--", ".", ":!*.png", ":!*.ico", ":!*.icns",
+           ":!Quick Start.pdf")
+current = None
+for line in diff.splitlines():
+    if line.startswith("+++ "):
+        current = line[6:]
+    elif line.startswith("+") and not line.startswith("+++"):
+        for e in EMAIL.findall(line[1:]):
+            if e.lower() not in allowed:
+                problems.append(f"{current}: email address {e}")
+if problems:
+    print("Not committed: this would publish data (the repo is public).\n  " + "\n  ".join(sorted(set(problems)))
+          + "\nA made-up test address can be added to dev/hooks/allowed_emails.txt.", file=sys.stderr)
+    sys.exit(1)
