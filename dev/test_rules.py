@@ -18,6 +18,13 @@ from openpyxl import load_workbook
 from inputs import load_input
 from settings_file import DEFAULTS, validate
 from data_folder import app_data, lock_path
+from shared_folder import remove
+
+
+def drop(path):
+    """Deletes one of the app's files (read-only: Windows needs it made writable first), if it's there."""
+    if Path(path).exists():
+        remove(path)
 
 
 def check(result, inp, settings):
@@ -121,7 +128,7 @@ def main():
     failures = 0
     for n_combos, policy in [(8, "auto"), (22, "auto"), (22, "open"), (33, "auto"), (33, "open")]:
         s = replace(base, extra_slot_policy=policy)
-        (app_data(tmp) / "scheduler_data.json").unlink(missing_ok=True)          # combo numbers start fresh per scenario
+        drop(app_data(tmp) / "scheduler_data.json")          # combo numbers start fresh per scenario
         expected = make(tmp / "a.xlsx", tmp / "f.xlsx", nights, n_combos, seed=1, sem=s.semester_name)
         inp = load_input(tmp, s, "a.xlsx", "f.xlsx")
         result = run_schedule(inp, s)
@@ -365,7 +372,7 @@ def main():
 
     # Combo numbers never change: withdraw one combo and add a new one; the others keep their numbers.
     from openpyxl import load_workbook
-    (app_data(tmp) / "scheduler_data.json").unlink(missing_ok=True)
+    drop(app_data(tmp) / "scheduler_data.json")
     make(tmp / "a.xlsx", tmp / "f.xlsx", nights, 33, seed=1, sem=base.semester_name)
     before = {c.ref: c.name for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos}
     wb = load_workbook(tmp / "a.xlsx")
@@ -390,7 +397,7 @@ def main():
 
     # Email fixes: a typo in the approvals hides that member's conflicts; fixing it in the store brings them back.
     from store import Store
-    (app_data(tmp) / "scheduler_data.json").unlink(missing_ok=True)
+    drop(app_data(tmp) / "scheduler_data.json")
     make(tmp / "a.xlsx", tmp / "f.xlsx", nights, 33, seed=1, sem=base.semester_name)
     clean = load_input(tmp, base, "a.xlsx", "f.xlsx")
     who = next(e for e in sorted(clean.blocked) if any(e in c.members for c in clean.combos) and e.endswith("@mail.mcgill.ca"))
@@ -458,7 +465,7 @@ def main():
     # Switches: supervision off = no supervised nights and nothing about them in the rule check; first-year off =
     # no combo is first-year, whatever the approvals say.
     from core.stats import schedule_stats
-    (app_data(tmp) / "scheduler_data.json").unlink(missing_ok=True)
+    drop(app_data(tmp) / "scheduler_data.json")
     make(tmp / "a.xlsx", tmp / "f.xlsx", nights, 33, seed=1, sem=base.semester_name)
     inp = load_input(tmp, base, "a.xlsx", "f.xlsx")
     s = replace(base, extra_slot_policy="open", every_combo_supervised=False)
@@ -552,7 +559,7 @@ def main():
     # Members changed in the app: added, removed, a new liaison; the approvals file itself never changes.
     from core.checks import analyze
     from store import Store
-    (app_data(tmp) / "scheduler_data.json").unlink(missing_ok=True)
+    drop(app_data(tmp) / "scheduler_data.json")
     make(tmp / "a.xlsx", tmp / "f.xlsx", nights, 33, seed=1, sem=base.semester_name)
     clean = load_input(tmp, base, "a.xlsx", "f.xlsx")
     sem, a, b = base.semester_name, clean.combos[0], clean.combos[1]
@@ -606,14 +613,14 @@ def main():
     _, report = analyze(empty, base, nights)
     if a.ref not in {c.ref for c in empty.combos} or not any(f"{a.name} has no members" in t for _, t in report):
         bad.append("a combo with everyone removed disappears or isn't flagged")
-    (app_data(tmp) / "scheduler_data.json").unlink()
+    drop(app_data(tmp) / "scheduler_data.json")
     _, report4 = analyze(clean, replace(base, min_members_per_combo=4), nights)
     _, report_off = analyze(clean, replace(base, min_members_per_combo=None), nights)
     small = [c for c in clean.combos if len(c.members) < 4]
     if small and not any("fewer than 4" in t for _, t in report4) or any("fewer than" in t for _, t in report_off):
         bad.append("the members-per-combo warning doesn't follow the setting")
     ok = not bad
-    (app_data(tmp) / "scheduler_data.json").unlink(missing_ok=True)   # withdrawn in the app: a gap, never reused, put back
+    drop(app_data(tmp) / "scheduler_data.json")   # withdrawn in the app: a gap, never reused, put back
     first = {c.ref: c.name for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos}
     st = Store(tmp)
     st.set_withdrawn(sem, a.ref, True)
@@ -630,7 +637,7 @@ def main():
     st.save()
     if {c.ref: c.name for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos} != first:
         bad.append("putting a combo back doesn't give it its old number")
-    (app_data(tmp) / "scheduler_data.json").unlink(missing_ok=True)   # first-year tag set in the app wins; off = never
+    drop(app_data(tmp) / "scheduler_data.json")   # first-year tag set in the app wins; off = never
     plain = {c.ref: c for c in load_input(tmp, base, "a.xlsx", "f.xlsx").combos}
     fy, not_fy = next(c for c in plain.values() if c.first_year), next(c for c in plain.values() if not c.first_year)
     st = Store(tmp)
@@ -883,7 +890,7 @@ def main():
     # Combos made in the app and conflicts overruled in the app (Combos tab); the log file.
     import app_log
     bad = []
-    (app_data(tmp) / "scheduler_data.json").unlink(missing_ok=True)
+    drop(app_data(tmp) / "scheduler_data.json")
     make(tmp / "a.xlsx", tmp / "f.xlsx", nights, 33, seed=1, sem=base.semester_name)
     before = load_input(tmp, base, "a.xlsx", "f.xlsx")
     sem = base.semester_name
