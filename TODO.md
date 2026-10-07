@@ -104,7 +104,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 
 - **A real app** (PyInstaller): the Windows `.exe` (since 2026-10-06) and the Mac `.app` (Apple Silicon and Intel,
   since 2026-10-07) are built on GitHub Actions; the source launchers (.bat, .command, make_zip.py) are gone, only
-  `combo-manager.sh` stays for testing on Linux. Try the `.app` on a real Mac. Unsigned = "Open Anyway" once;
+  `combo-manager.sh` stays for testing on Linux. The `.app` works on a real Mac (tested 2026-10-07). Unsigned = "Open Anyway" once;
   signing + notarizing needs an Apple Developer account ($99/year).
 - **Per-instrument limits** on combos per student (asked 2026-10-05): horn players in at most 1 combo, rhythm
   section (piano, guitar, bass, drums) in at most 2. A warning in Check, the Combos tab and Add member, set in the
