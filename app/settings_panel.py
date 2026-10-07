@@ -496,7 +496,7 @@ class SettingsPanel:
         self.old_semester = on_file or old.semester_name
         answer = dialogs.askyesnocancel(
             "New semester", f"The semester changes from {old.semester_name} to {new.semester_name}.\n\n"
-            f"Move {self.old_semester}'s files (the schedule, Schedule.xlsx, the PDFs, schedule backups) into "
+            f"Move {self.old_semester}'s files (the final schedule and its PDF and Excel files) into "
             f"'Archive/{self.old_semester}' in the data folder? (Recommended. If you leave them, making the "
             f"{new.semester_name} schedule moves them then.)", yes="Move them", no="Leave them", cancel="Don't save")
         return "cancel" if answer is None else answer

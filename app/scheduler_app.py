@@ -937,7 +937,7 @@ class App:
         if other is not None:                         # last semester's files: filed away, nothing is lost
             if not dialogs.askyesno(
                     "New semester", f"The schedule is {('for ' + other) if other else 'from another semester'}. "
-                    f"Its files (schedule, PDFs, backups) will be moved into "
+                    f"Its final schedule and its PDF and Excel files will be moved into "
                     f"'Archive/{other or 'Old schedule'}' in the data folder, then a new schedule is made.",
                     yes="Make the schedule", no="Cancel"):
                 return

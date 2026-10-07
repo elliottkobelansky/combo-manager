@@ -339,8 +339,10 @@ def main():
             or sf_.load(sdir, result.combos, s).sets != sch.sets:
         bad.append(f"the export: sheets {wb.sheetnames}, or it's taken for an old schedule")
     moved = sf_.archive_semester(sdir, s.semester_name)
-    if sf_.has_schedule(sdir) or not (moved / "schedule.json").exists() or not (moved / "ScheduleBackups").exists():
+    if sf_.has_schedule(sdir) or not (moved / "schedule.json").exists():
         bad.append("archiving left the schedule behind")
+    if (moved / "ScheduleBackups").exists() or sf_.schedule_backups(sdir).exists():
+        bad.append("archiving kept the per-change schedule copies")
     # an old, hand-editable Schedule.xlsx: converted once (typed text, supervised nights, a typo reported)
     old = Workbook()
     ws = old.active
@@ -858,6 +860,13 @@ def main():
     backup.restore_in_place(safety, live)
     if dfo.schedule_path(live).read_text() != "today's schedule" or (live / dfo.COMBOS_PDF).read_text() != "only here":
         bad.append("restoring the safety backup didn't undo the restore")
+    keep = backup.KEEP_SAFETY                                   # only the newest safety copies are kept
+    backup.KEEP_SAFETY = 2
+    for _ in range(3):
+        backup.restore_in_place(old_zip, live)
+    if len(list((dfo.app_data(live) / backup.BEFORE_RESTORE).glob("*.zip"))) != 2:
+        bad.append("old safety copies before a restore aren't cleaned up")
+    backup.KEEP_SAFETY = keep
     a_file.write_text("not a zip")
     try:
         backup.read_backup(a_file)

@@ -28,6 +28,7 @@ PREFIX = "ComboManager-backup"
 PREFIXES = (PREFIX, "Combo Manager backup", "Combo Scheduler backup")   # (the names before 2026-10-07)
 # in AppFiles: BEFORE_RESTORE, the folder as it was before each in-place restore
 INPUTS = (APPROVALS_FILE, OLD_APPROVALS_FILE, CONFLICTS_FILE)   # written by the forms' flows: kept by default
+KEEP_SAFETY = 20                                      # safety copies kept in AppFiles/BeforeRestore
 KEPT_HERE = (LOCK_FILE, LOGS, BEFORE_RESTORE)         # in AppFiles: this folder's own, never taken from a backup
 
 
@@ -164,6 +165,9 @@ def restore_in_place(path, folder, keep_inputs=True):
     while safety.exists() or safety == Path(path):     # never over an earlier one (or the zip being restored)
         safety, n = app / BEFORE_RESTORE / f"{stem}-{n}.zip", n + 1
     create_backup(folder, safety)
+    for old in sorted(safety.parent.glob("*.zip"), key=lambda z: z.stat().st_mtime)[:-KEEP_SAFETY]:
+        if old.resolve() != Path(path).resolve():      # (never the one being restored)
+            remove(old)                                # only the newest KEEP_SAFETY safety copies are kept
     work = app / f".restoring.{os.getpid()}"
     shutil.rmtree(work, ignore_errors=True)
 

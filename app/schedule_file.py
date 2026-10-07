@@ -31,7 +31,7 @@ from typing import Dict, List, Optional, Set
 from core.model import Night
 from data_folder import (ARCHIVE, EXPORT_FILES, SCHEDULE_BACKUPS, SCHEDULE_FILE, SCHEDULE_XLSX, app_data, exports,
                          schedule_backups, schedule_path)
-from shared_folder import make_writable, write_text
+from shared_folder import make_writable, remove, write_text
 
 # A semester's files: moved together into Archive/<semester>/ when a new semester starts (archive_semester).
 SEMESTER_FILES = EXPORT_FILES + [SCHEDULE_FILE, SCHEDULE_BACKUPS]
@@ -343,8 +343,10 @@ def semester_paths(folder):
 
 
 def archive_semester(folder, semester):
-    """Moves a semester's files (SEMESTER_FILES) into folder/Archive/<semester>/ (or '<semester> (2)', ... if that
-    exists). Returns the new folder, or None when there was nothing to move."""
+    """Moves a semester's files (SEMESTER_FILES) into folder/Archive/<semester>/ (or '<semester>-2', ... if that
+    exists): its final schedule (with the full change history) and its exports. Its per-change copies
+    (ScheduleBackups) are deleted, so the archive stays small. Returns the new folder, or None when there was nothing
+    to move."""
     folder = Path(folder)
     present = semester_paths(folder)
     if not present:
@@ -355,7 +357,10 @@ def archive_semester(folder, semester):
         dest, n = folder / ARCHIVE / f"{name}-{n}", n + 1
     dest.mkdir(parents=True)
     for p in present:
-        shutil.move(str(p), str(dest / p.name))
+        if p.name == SCHEDULE_BACKUPS:                # the per-change copies: the schedule keeps the full history
+            remove(p)
+        else:
+            shutil.move(str(p), str(dest / p.name))
     return dest
 
 
