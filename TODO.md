@@ -63,7 +63,7 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
 - [ ] Walk the director through `Quick Start.pdf` once.
 
 ### 4. Safety (small, worth doing)
-- [x] Backed up: private GitHub repo `elliottkobelansky/combo-scheduler` (2026-10-05; no data in it).
+- [x] Backed up: private GitHub repo `elliottkobelansky/combo-manager` (2026-10-05; no data in it).
 - [x] Pin package versions (`requirements.txt`, used by the Install button and the build; 2026-10-06).
 - [x] Crash-safe saves (temp file + rename) for `scheduler_data.json`, `semester.json` and swap saves of
   the schedule (2026-10-05); a brand-new schedule, `schedule.json` and backups too (2026-10-06). The PDFs (rebuilt

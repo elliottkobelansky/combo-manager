@@ -4,6 +4,12 @@ Makes the semester's combo show calendar and handles swaps during the semester.
 
 **How to use it: see `Quick Start.pdf`.**
 
+![The Schedule tab](docs/schedule.png)
+
+| Combos | Swaps |
+|---|---|
+| ![The Combos tab](docs/combos.png) | ![The Swaps tab](docs/swaps.png) |
+
 ## Download
 
 Repo **Actions** tab > latest "Build the apps" run > **Artifacts**:
