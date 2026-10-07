@@ -159,6 +159,7 @@ class App:
         self.root, self.folder, self.queue, self.busy = root, load_folder(), queue.Queue(), False
         self.exported = set()                         # folders whose missing exports were made (autoload)
         root.report_callback_exception = self.tk_error
+        set_icon(root)
         import theme
         self.theme = theme
         self.mode = load_config().get("theme", "light")
@@ -1059,6 +1060,17 @@ class App:
         self.swaps.refresh_pending()
 
 
+def set_icon(root):
+    """The app icon (app/assets/icon.png, from dev/make_icon.py) on this window and every pop-up: title bar,
+    taskbar, and the Dock when run from source (the packaged apps carry it too)."""
+    path = Path(getattr(sys, "_MEIPASS", HERE)) / "assets" / "icon.png"
+    try:
+        root.icon_image = tk.PhotoImage(file=str(path)).subsample(4)     # 256 px; kept, or Tk drops it
+        root.iconphoto(True, root.icon_image)
+    except (tk.TclError, OSError):
+        pass                                          # no icon is no reason not to open
+
+
 def bring_to_front(root):
     """Started from Terminal (Mac) or a file manager, the window can open behind it: raise it once."""
     root.lift()
@@ -1120,9 +1132,12 @@ def selftest(out):
         theme.apply(root, "light")
         from tkcalendar import Calendar
         Calendar(root, locale="en_US").pack()
+        set_icon(root)
+        if not getattr(root, "icon_image", None):
+            raise RuntimeError("the app icon (assets/icon.png) is missing")
         root.update()
         root.destroy()
-    step("the window, its look and the pop-up calendar (tkinter, tkcalendar)", window)
+    step("the window, its look, the icon and the pop-up calendar (tkinter, tkcalendar)", window)
     lines.append("ALL OK" if not failed else f"{failed} FAILED")
     Path(out).write_text("\n".join(lines) + "\n", encoding="utf-8")
     return 1 if failed else 0

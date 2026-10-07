@@ -505,6 +505,7 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 | `app/theme.py` | The app's look (Tk's built-in theme, recoloured light and dark). The About tab (author and contact) is in `scheduler_app.py`. |
 | `app/settings_file.py` | Reads, checks and saves `semester.json` (defaults and help texts live here). |
 | `app/settings_panel.py` | The app's Semester tab (the semester's settings). |
+| `app/assets/` | The app icon: `icon.png` (the window), `icon.ico` (Windows), `icon.icns` (Mac). Made by `dev/make_icon.py`. |
 | `app/core/stats.py` | Stats and the rule check behind `solve.py --stats`. |
 | `app/core/` | The scheduling logic. Plain Python objects only: no Excel, no Forms. `model.py` is the contract. |
 | `app/outputs/excel_schedule.py` | Writes the `Schedule.xlsx` export (and reads an old hand-editable one, once). |

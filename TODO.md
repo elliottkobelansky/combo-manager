@@ -87,9 +87,8 @@ on a Mac. The director's one-page guide is `Quick Start.pdf`; `README.md` is the
   see "Per-instrument limits" under Later.
 - [ ] **The Windows crash log** emailed on 2026-10-06: go through it.
 - [ ] **The name:** "Combo Manager" for now.
-- [ ] **App icon:** one image, in the formats each needs: `.ico` (Windows exe), `.icns` (Mac .app, Dock), and a
-  PNG for the window title bar / taskbar (`root.iconphoto`). Pass them to PyInstaller (`--icon`) in
-  `dev/build_exe.py`. Pairs with the final name.
+- [x] **App icon** (2026-10-07): a calendar page with an eighth note, drawn by `dev/make_icon.py` into
+  `app/assets/` (`icon.png` for the window, `.ico` for Windows, `.icns` for the Mac); the builds use them.
 
 ### 7. Wording
 - [ ] **Decide on the summary wording** for the night and swap summaries (Schedule tab "Copy night summary", Swaps

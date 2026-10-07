@@ -29,6 +29,7 @@ import PyInstaller.__main__
 ROOT = Path(__file__).resolve().parent.parent
 NAME = "Combo Manager"
 DIST, BUILD = ROOT / "dist", ROOT / "build"
+ASSETS = ROOT / "app" / "assets"
 # The Microsoft C++ runtime (app-local copies are allowed): PyInstaller leaves out what it finds in System32
 MSVC_RUNTIME = ["msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll", "vcruntime140.dll", "vcruntime140_1.dll"]
 # DLLs every Windows 10/11 has (plus api-ms-win-* / ext-ms-*, the Universal C runtime): no need to bring them
@@ -84,6 +85,8 @@ def main():
         "--hidden-import", "babel.numbers",
         "--collect-data", "reportlab",                 # PDF fonts
         "--exclude-module", "matplotlib", "--exclude-module", "IPython", "--exclude-module", "pytest",
+        "--icon", str(ASSETS / ("icon.icns" if platform.system() == "Darwin" else "icon.ico")),   # dev/make_icon.py
+        "--add-data", f"{ASSETS}{os.pathsep}assets",   # icon.png: the window's own icon
     ] + runtime_binaries() + (["--osx-bundle-identifier", "app.combomanager"] if platform.system() == "Darwin"
                               else []))
     if platform.system() == "Darwin":
