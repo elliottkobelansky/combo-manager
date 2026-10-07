@@ -9,11 +9,6 @@ First real use: **Winter 2027**.
   the supervisor) with the director's comment. Write the wording first (accepted: what happens next and when the
   schedule comes out; rejected: why, who to contact). One step can pick the text with
   `if(startsWith(outputs('Decision'), 'Accept'), '...', '...')`.
-- [ ] **Conflict flow:** new conflict-form response -> add a row to `Conflicts.xlsx`, table `Conflicts`
-  (Response ID | Submitted | Semester | Email | Date 1-4 | Reason | Additional Info | Status | Notes), Status =
-  `Active`. Email = the typed address, or the responder's if blank.
-- [ ] **First-year question** on the combo form, mapped to the First year column (the email's "Accept - first-year
-  combo" button stays the main way).
 - [ ] **Form texts:** finish both forms' instructions. Keep the words the app looks for in the table headers
   ("Response Id", "Semester", "Liaison", "Members", "Supervisor", "First year", "Status") and the conflict form's
   questions ("Semester", "Email", "Date"). Semester = a choice question (must match the Semester tab exactly).
@@ -34,7 +29,6 @@ First real use: **Winter 2027**.
 
 ### Hand-over
 - [ ] **Release v0.1.0:** tag it, so the apps are on the Releases page.
-- [ ] Point both flows at the shared data folder.
 - [ ] Try it on the **director's** computer, including the "Open Anyway" / "Run anyway" step.
 - [ ] Try **two computers** on the shared OneDrive folder at once.
 - [ ] Walk the director through `Quick Start.pdf` once.
@@ -71,4 +65,5 @@ First real use: **Winter 2027**.
 - The schedule is made once and not re-solved; students swap among themselves (Swaps tab).
 - Edits made in the app live in the app's own files; the approvals spreadsheet is never written to.
 - Approving stays in Outlook (it closes the request and will send the decision email).
+- First-year combos are marked when approving ("Accept - first-year combo"), not by a question on the form.
 - The name is **Combo Manager**.
