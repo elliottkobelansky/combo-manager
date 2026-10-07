@@ -79,7 +79,14 @@ def night_cell(d, night, playing, nums, open_word, suffix, inner, supervised=Fal
     """notes: a list to add (set label, full text) to for typed entries that had to be cut."""
     """Returns (cell content, number of set lines). Two sets per line ("1 05   2 12") when they fit in the cell's
     inner width, otherwise one per line ("7:00\u20137:45 05")."""
-    prof = " <font name='Helvetica-Bold' size=6 color='#9C2A00'>PROF</font>" if supervised else ""
+    prof = ""
+    if supervised:                                    # the mark on the day's line, as large as fits beside the venue
+        used = (stringWidth(str(d.day), "Helvetica-Bold", 8) + 2 * stringWidth(" ", "Helvetica", 8)
+                + stringWidth(night.venue, "Helvetica", 6.5) + 1)
+        size = next((z for z in (6, 5.5, 5, 4.5) if used + stringWidth("FEEDBACK", "Helvetica-Bold", z) <= inner),
+                    None)
+        word = "FEEDBACK" if size else "FB"
+        prof = f" <font name='Helvetica-Bold' size={size or 6} color='#9C2A00'>{word}</font>"
     out = [Paragraph(f"{d.day} &nbsp;<font name='Helvetica' size=6.5 color='#555555'>{esc(night.venue)}</font>{prof}",
                      DAYNUM)]
     sets, widths = [], []
@@ -180,7 +187,7 @@ def write_schedule_pdf(path, nights, entries, combos, supervised, settings):
     if settings.extra_slot_policy == "open":
         legend += " <b>open</b> = set open for volunteers."
     if supervised:
-        legend += " <b>PROF</b> = a professor attends (supervised night)."
+        legend += " <b>FEEDBACK</b> = a feedback night: a faculty member attends."
     if any(kind == "text" for row in entries.values() for kind, _ in row.values()):
         legend += " <i>Italics</i> = not a combo (typed in by hand)."
     story = [Paragraph(f"{esc(semester)} Show Calendar", TITLE),

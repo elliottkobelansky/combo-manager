@@ -98,23 +98,23 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
     # ---- supervision
     if settings.every_combo_supervised:
         if supervised is None:
-            sections.append(("Supervision", ["This schedule doesn't track supervised nights, so supervision isn't checked."]))
+            sections.append(("Feedback nights", ["This schedule doesn't track feedback nights, so feedback nights aren't checked."]))
         else:
             sup = sorted(d for d in supervised if d in nmap)
             cap = settings.max_supervised_nights
             on_sup = defaultdict(list)
             for c, ss in shows.items():
                 on_sup[c] = [d for d, _ in ss if d in supervised]
-            lines = [f"{len(sup)} supervised night(s){f' (at most {cap})' if cap else ''}: "
+            lines = [f"{len(sup)} feedback night(s){f' (at most {cap})' if cap else ''}: "
                      + (", ".join(make_label(d) for d in sup) or "none") + "."]
-            lines.append(f"Combos on more than one supervised night: {sum(1 for c in combos if len(on_sup[c]) > 1)}.")
+            lines.append(f"Combos on more than one feedback night: {sum(1 for c in combos if len(on_sup[c]) > 1)}.")
             pref = [d for d in sup if nmap[d].supervision_preferred]
             if any(n.supervision_preferred for n in nights):
-                lines.append(f"On a 'Supervision preferred' show day: {len(pref)} of {len(sup)}.")
+                lines.append(f"On a 'Feedback nights preferred' show day: {len(pref)} of {len(sup)}.")
             fy = [c for c in combos if combos[c].first_year and shows.get(c)]
             if fy and settings.first_year_first_show_supervised:
                 missed = sorted(combos[c].name for c in fy if min(d for d, _ in shows[c]) not in supervised)
-                lines.append(f"First-year combos whose first show is supervised: {len(fy) - len(missed)} of {len(fy)}"
+                lines.append(f"First-year combos whose first show is on a feedback night: {len(fy) - len(missed)} of {len(fy)}"
                              + (f" (not: {', '.join(missed)})." if missed else "."))
             if sup and settings.supervision_timing in ("early", "late"):
                 first, last = nights[0].date, nights[-1].date
@@ -122,19 +122,19 @@ def schedule_stats(sets: Sets, nights: List[Night], combos: Dict[str, Combo], in
                 half = sum(1 for d in sup if (d <= mid) == (settings.supervision_timing == "early"))
                 lines.append(f"In the {'first' if settings.supervision_timing == 'early' else 'second'} half of the "
                              f"semester (preferred): {half} of {len(sup)}.")
-            sections.append(("Supervision", lines))
+            sections.append(("Feedback nights", lines))
             need = settings.min_supervised_per_combo
             for c in combos:
                 if len(on_sup[c]) < need:
-                    problems.append(f"{combos[c].name} plays {len(on_sup[c])} supervised night(s) but needs {need}.")
+                    problems.append(f"{combos[c].name} plays {len(on_sup[c])} feedback night(s) but needs {need}.")
             for d in sup:
                 empty = [k for k in range(1, nmap[d].n_slots + 1)
                          if sets.get(d, {}).get(k) is None and k not in typed.get(d, {})]
                 if empty:
-                    problems.append(f"{make_label(d)} is a supervised night but has open set(s) "
-                                    f"{', '.join(map(str, empty))}: supervised nights must be full.")
+                    problems.append(f"{make_label(d)} is a feedback night but has open set(s) "
+                                    f"{', '.join(map(str, empty))}: feedback nights must be full.")
             if cap and len(sup) > cap:
-                problems.append(f"{len(sup)} supervised nights, more than the settings' maximum of {cap}.")
+                problems.append(f"{len(sup)} feedback nights, more than the settings' maximum of {cap}.")
 
     # ---- spacing
     gaps = []                                              # (days, combo, d1, d2)

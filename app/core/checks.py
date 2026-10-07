@@ -104,7 +104,7 @@ def check_new_combo(new, combos, blocked, nights, settings: Settings, instrument
     if few and len(new.members) < few:
         heads.append(f"Only {len(new.members)} member{'s' if len(new.members) != 1 else ''} (fewer than {few}).")
     if not new.professor:
-        heads.append("No supervisor listed.")
+        heads.append("No coach listed.")
     for c in combos:
         if c.members == new.members:
             heads.append(f"The same members as {c.name}: a duplicate submission?")

@@ -179,7 +179,7 @@ def main():
                 if opt.breaks:                      # a manual override: it must really break something
                     overrides += 1
                     breaking.append((sets, result, opt, c))
-                    if not found and not any("twice" in b or "supervis" in b for b in opt.breaks):
+                    if not found and not any("twice" in b or "feedback night" in b for b in opt.breaks):
                         bad.append(f"{opt.title}: marked as breaking '{opt.breaks[0]}', but the check finds nothing")
                     continue
                 samples.setdefault((opt.kind, opt.same_night), (sets, result, opt, c))
@@ -428,7 +428,7 @@ def main():
         print("FAIL  max_supervised_nights too small was accepted")
         failures += 1
     except ScheduleError as e:
-        ok = "supervised nights" in str(e) and "Max supervised nights" in str(e)
+        ok = "feedback nights" in str(e) and "Max feedback nights" in str(e)
         print(f"{'PASS' if ok else 'FAIL'}  too-small supervision cap is explained")
         failures += not ok
 
@@ -444,8 +444,8 @@ def main():
             bad.append(f"{timing}: first-year combos without a supervised first show: {missed} (of {len(fy)})")
         sets = {d: {k: c for k, c in enumerate(cs, start=1)} for d, cs in r.lineup.items()}
         sections, problems = schedule_stats(sets, r.nights, r.combos, inp, s, r.supervised)
-        lines = dict(sections)["Supervision"]
-        if problems or not any(l.startswith(f"First-year combos whose first show is supervised: {len(fy)} of") for l in lines):
+        lines = dict(sections)["Feedback nights"]
+        if problems or not any(l.startswith(f"First-year combos whose first show is on a feedback night: {len(fy)} of") for l in lines):
             bad.append(f"{timing}: rule check {problems[:2]} / {lines}")
     mean = {t: sum(d.toordinal() for d in r.supervised) / len(r.supervised) for t, r in runs.items()}
     if not mean["early"] < mean["late"]:
@@ -981,7 +981,7 @@ def main():
     waiting = Combo("Pending 9", "Pending 9", frozenset({"late.one@mail.mcgill.ca", "late.two@mail.mcgill.ca"}))
     trouble, heads = check_new_combo(waiting, many, {"late.one@mail.mcgill.ca": {n.date for n in nights}}, nights,
                                      lim, {}, RHYTHM)
-    if not trouble or not any("No supervisor" in h for h in heads) or not any("fewer than" in h for h in heads):
+    if not trouble or not any("No coach" in h for h in heads) or not any("fewer than" in h for h in heads):
         bad.append(f"checking a waiting combo: {trouble} / {heads}")
     if check_new_combo(replace(waiting, professor="prof@mcgill.ca"), many, {}, nights, lim, {}, RHYTHM)[0]:
         bad.append("checking a waiting combo flags a combo with no conflicts")

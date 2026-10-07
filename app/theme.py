@@ -106,9 +106,8 @@ def apply(root, mode="light", scale=None):
         style.map(w, background=[("active", bg)], indicatorbackground=[("pressed", p["hover"])])
     # tabs: the open one white with blue text
     style.configure("TNotebook", background=bg, bordercolor=border, lightcolor=bg, darkcolor=bg, tabmargins=(0, 0, 0, 0))
-    style.layout("TNotebook.Tab", [("Notebook.tab", {"sticky": "nswe", "children": [   # no dotted focus box
-        ("Notebook.padding", {"side": "top", "sticky": "nswe", "children": [
-            ("Notebook.label", {"side": "top", "sticky": ""})]})]})])
+    for w in ("TNotebook.Tab", "TButton", "TCheckbutton", "TRadiobutton"):   # no dotted box after a click
+        style.layout(w, _without_focus(style.layout(w)))
     style.configure("TNotebook.Tab", padding=(size(14), size(6)), background=bg, bordercolor=border, lightcolor=bg,
                     darkcolor=bg, foreground=muted)
     style.map("TNotebook.Tab", background=[("selected", panel), ("active", p["hover"])],
@@ -143,6 +142,20 @@ def apply(root, mode="light", scale=None):
     for w in _toplevels(root):                         # windows already open (a theme switch)
         w.configure(background=bg)
     return p
+
+
+def _without_focus(layout):
+    """A ttk layout minus its '.focus' elements (the dotted box drawn around a clicked tab, button or checkbox);
+    their children move up a level."""
+    out = []
+    for name, opts in layout:
+        children = _without_focus(opts.get("children", []))
+        if name.endswith(".focus"):
+            out += children
+        else:
+            out.append((name, {**opts, "children": children} if children else
+                        {k: v for k, v in opts.items() if k != "children"}))
+    return out
 
 
 def _toplevels(widget):

@@ -19,7 +19,7 @@ Makes the semester's combo show calendar and handles swaps during the semester.
   combo. **Check combos** points out problems before the schedule is made, and **Check this combo** says whether
   a combo waiting for a decision would fit, before you approve it.
 - **Schedule:** makes the whole semester in about a minute. Every combo gets its shows, never on a night one of its
-  members can't make, with supervised nights, first-year combos starting later, and shows spread out. Exports a
+  members can't make, with feedback nights (a faculty member attends), first-year combos starting later, and shows spread out. Exports a
   calendar PDF and an Excel file, ready to send.
 - **Swaps:** when a combo can't make a show, lists every possible trade or move, best first, and warns about side
   effects. Also handles giving a show away and claiming an open set. Copies a ready-to-send email for the liaisons.
@@ -41,18 +41,18 @@ members can't make any Upstairs night), the app says exactly what's in the way.
 **Hard rules**, never broken:
 - A combo never plays a night one of its members can't make.
 - Every combo gets its shows (at least the minimum, at each venue, and no more than the maximum).
-- Every combo plays a supervised night, and supervised nights are full.
+- Every combo plays a feedback night (a faculty member attends), and feedback nights are full.
 
 **Goals**, most important first. When two clash, the higher one wins:
 1. Fill the sets that should be filled.
 2. First-year combos don't play before their date.
 3. Every combo gets the same number of shows.
-4. A first-year combo's first show is on a supervised night.
-5. Supervised nights fall on the preferred show days.
+4. A first-year combo's first show is on a feedback night.
+5. Feedback nights fall on the preferred show days.
 6. Each combo's shows are spread apart.
-7. As few supervised nights as possible.
+7. As few feedback nights as possible.
 8. Each combo plays at every venue it can.
-9. Supervised nights early or late in the semester, if chosen.
+9. Feedback nights early or late in the semester, if chosen.
 10. No student plays twice in one night.
 
 The same rules and goals check every swap.

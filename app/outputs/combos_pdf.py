@@ -30,7 +30,7 @@ def esc(s):
 
 
 def combo_block(c, name_of, instruments, width):
-    sup = esc(name_of(c.professor)) if c.professor else "<font color='#C00000'>No supervisor</font>"
+    sup = esc(name_of(c.professor)) if c.professor else "<font color='#C00000'>No coach</font>"
     title = esc(c.name) + ("  <font size=7 color='#555555'>(first year)</font>" if c.first_year else "")
     rows = [[[Paragraph(title, COMBO), Paragraph(sup, SUPER)]]]
     for e in by_instrument(c.members, lambda e: instruments.get((c.name, e), ""), name_of):

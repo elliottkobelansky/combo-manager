@@ -187,7 +187,7 @@ def email_warnings(e, rules, known=(), supervisor=False):
     if typo:
         out.append(f"{e}: '{dom}' looks like a typo of '{typo}'.")
     elif supervisor and rules.domain and rules.is_student(e):
-        out.append(f"{e} is a student address, not a supervisor's.")
+        out.append(f"{e} is a student address, not a coach's.")
     elif supervisor and not rules.is_professor(e):
         out.append(f"{e} isn't a {rules.prof_domain} address.")
 
@@ -209,7 +209,7 @@ def check_addresses(combos, blocked, rules, notes):
     if rules.domain and rules.prof_domain and rules.prof_domain != rules.domain:
         for e in sorted(members):                     # a student who typed the staff domain (mcgill.ca for mail.mcgill.ca)
             if e.endswith("@" + rules.prof_domain):
-                notes.append(("warn", f"{e} ({members[e].name}): a student on the professors' domain? Students use "
+                notes.append(("warn", f"{e} ({members[e].name}): a student on the faculty domain? Students use "
                                       f"{rules.domain}: if so, fix it (Combos tab: Change email)."))
     if rules.domain:
         for e in everyone:
@@ -385,11 +385,11 @@ def parse_approvals(path, sheet, semester, notes, store, rules=EmailRules(), use
         prof_m = EMAIL_RE.search(prof_raw or "")
         prof = store.fix_email(prof_m.group(0).lower()) if prof_m else ""
         if prof_raw is not None and not prof:
-            notes.append(("warn", f"{what} {who}: no supervisor email."))
+            notes.append(("warn", f"{what} {who}: no coach email."))
         elif rules.domain and rules.is_student(prof):
-            notes.append(("warn", f"{what} {who}: supervisor '{prof}' is a student address. A mistake?"))
+            notes.append(("warn", f"{what} {who}: coach '{prof}' is a student address. A mistake?"))
         elif prof and not rules.is_professor(prof):
-            notes.append(("warn", f"{what} {who}: supervisor '{prof}' isn't a {rules.prof_domain} address. A typo?"))
+            notes.append(("warn", f"{what} {who}: coach '{prof}' isn't a {rules.prof_domain} address. A typo?"))
         (app_withdrawn if changes["withdrawn"] else found).append(
             dict(xl=xl, key=key, ref=ref, members=frozenset(members), liaison=liaison, prof=prof, name=name,
                  fy=use_first_year and (changes["first_year"] if changes["first_year"] is not None else fy)))

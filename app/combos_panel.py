@@ -140,7 +140,7 @@ class CombosPanel:
         self.show_links()
         n_people = len({e for c in combos.values() for e in c.members})
         self.info.configure(text=f"{len(combos)} combos, {n_people} students." + (
-            " * = supervised night." if shows else " (No schedule yet: shows aren't listed.)"))
+            " * = feedback night." if shows else " (No schedule yet: shows aren't listed.)"))
         self.fill()
 
     def show_links(self):
@@ -218,7 +218,7 @@ class CombosPanel:
                 if (c.name, e) in touched_people:
                     self.mark(pid)
             if c.professor:
-                pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (supervisor)",
+                pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (coach)",
                                        values=("", "", "", "", self.mail(c.professor)), tags=(shade,))
                 self.people[pid] = (None, c.professor)
         for c in self.data["pending"]:                    # submitted, no decision yet: shown, not editable
@@ -231,7 +231,7 @@ class CombosPanel:
                                     open=bool(q) or self.tree_key(label) in open_items, tags=("removed",))
             self.pending_items[item] = c
             for e in self.member_order(c) + ([c.professor] if c.professor else []):
-                pid = self.tree.insert(item, "end", text="    " + self.name(e) + ("  (supervisor)" if e == c.professor
+                pid = self.tree.insert(item, "end", text="    " + self.name(e) + ("  (coach)" if e == c.professor
                                                                                  else ""),
                                        values=("", "", "", len(self.data["blocked"].get(e, ())) or "", e),
                                        tags=("removed",))
@@ -252,7 +252,7 @@ class CombosPanel:
                                        values=("", instrument, "", "", e), tags=("removed",))
                 self.withdrawn_items[pid] = c          # right-click on a member: put the combo back
             if c.professor:
-                pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (supervisor)",
+                pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (coach)",
                                        values=("", "", "", "", c.professor), tags=("removed",))
                 self.withdrawn_items[pid] = c
 
@@ -594,7 +594,7 @@ class CombosPanel:
         emails = people + ([combo.professor] if combo.professor and combo.professor not in people else [])
         what = f"{len(emails)} email{'' if len(emails) == 1 else 's'} of {combo.name}"
         copy(self.frame, "; ".join(emails), what, self.get_palette())
-        self.info.configure(text=f"Copied {what} (students{' and supervisor' if combo.professor else ''}): paste "
+        self.info.configure(text=f"Copied {what} (students{' and coach' if combo.professor else ''}): paste "
                                  "with Ctrl+V.")
         self.last_copied = "; ".join(emails)          # (kept for tests)
 
@@ -802,8 +802,8 @@ class CombosPanel:
                      "confirm, these sets become OPEN in the schedule (a backup is kept): volunteers can claim them, or give one to a "
                      "combo in the Schedule tab (who could take it).")
         if sup:
-            text += ("\n\n\u26a0 " + ", ".join(make_label(d) for d in sup) + (" is a supervised night" if len(sup) == 1
-                     else " are supervised nights") + ", which must be full: give that set to another combo.")
+            text += ("\n\n\u26a0 " + ", ".join(make_label(d) for d in sup) + (" is a feedback night" if len(sup) == 1
+                     else " are feedback nights") + ", which must be full: give that set to another combo.")
         text += "\n\nYou can put the combo back here."
         if not dialogs.askyesno("Withdraw a combo", text, yes="Withdraw", no="Cancel", icon="warning"):
             return
@@ -1056,7 +1056,7 @@ class NewComboDialog:
         box = ttk.Frame(win, padding=16)
         box.pack(fill="both", expand=True)
         ttk.Label(box, text="New combo", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
-        ttk.Label(box, text="Its liaison, other members and supervisor by email. It gets the next number.",
+        ttk.Label(box, text="Its liaison, other members and coach by email. It gets the next number.",
                   style="Hint.TLabel", wraplength=440,
                   justify="left").grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 10))
         self.liaison, self.supervisor = ttk.Entry(box, width=46), ttk.Entry(box, width=46)
@@ -1064,7 +1064,7 @@ class NewComboDialog:
         self.first_year = tk.BooleanVar()
         rows = [("Liaison", self.liaison, "Their email."),
                 ("Other members", self.members, "Emails: one per line, or pasted from anywhere."),
-                ("Supervisor", self.supervisor, "Their email (optional now).")]
+                ("Coach", self.supervisor, "Their email (optional now).")]
         for r, (label, widget, hint) in enumerate(rows, start=1):
             ttk.Label(box, text=label).grid(row=2 * r, column=0, sticky="nw", padx=(0, 12), pady=(6, 0))
             widget.grid(row=2 * r, column=1, sticky="w", pady=(6, 0))
@@ -1096,7 +1096,7 @@ class NewComboDialog:
         members = [e for e in dict.fromkeys(self.clean(self.members.get("1.0", "end"))) if e != liaison[0]]
         sup = self.clean(self.supervisor.get(), supervisor=True)
         if self.supervisor.get().strip() and not sup:
-            dialogs.showerror("New combo", "The supervisor's email doesn't look like an email address.",
+            dialogs.showerror("New combo", "The coach's email doesn't look like an email address.",
                                  parent=self.win)
             return
         liaison, sup, fy = liaison[0], sup[0] if sup else "", self.first_year.get()

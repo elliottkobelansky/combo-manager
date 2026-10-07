@@ -235,7 +235,7 @@ class SwapPanel:
         self.shows = sorted((d, k) for d, row in st["sets"].items() for k, c in row.items() if c == cid)
         for i, (d, k) in enumerate(self.shows):
             n = nmap.get(d)
-            sup = " · prof" if st["supervised"] and d in st["supervised"] else ""
+            sup = " · feedback" if st["supervised"] and d in st["supervised"] else ""
             self.show_list.insert("", "end", iid=str(i), values=(make_label(d), f"{n.venue if n else '?'}, set {k}{sup}"))
 
     def find(self):
@@ -311,7 +311,7 @@ class SwapPanel:
             self.details.configure(text=(
                 f"No open set {self.short()} can take without breaking a rule." if claim else
                 f"{self.short()} can't give this show away without breaking a rule (it needs it for its minimum "
-                "shows, a venue minimum or its supervised night)." if give else
+                "shows, a venue minimum or its feedback night)." if give else
                 "No swap for this show keeps every rule.")
                 + " The options in red break one (it's named): pick one only when it's agreed, e.g. the student "
                   "can make it after all. The app asks first, and the rule check keeps flagging it.")

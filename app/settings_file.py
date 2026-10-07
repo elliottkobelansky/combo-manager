@@ -59,9 +59,9 @@ HELP = {
     "use_first_year": "On: combos marked First year in the approvals don't play before the date below (unless "
                       "there's no other way). Off: every combo is treated the same.",
     "first_year_earliest_date": "The first day first-year combos can play. Needed while the switch above is on.",
-    "first_year_first_show_supervised": "On: a first-year combo's first show is on a supervised night, so they get "
-                                        "feedback on their first set (a strong preference, can add a supervised "
-                                        "night). Needs supervised nights on.",
+    "first_year_first_show_supervised": "On: a first-year combo's first show is on a feedback night, so they get "
+                                        "feedback on their first set (a strong preference, can add a feedback "
+                                        "night). Needs feedback nights on.",
     "min_days_between_shows": "Ideal gap between one combo's shows; closer pairs are avoided, the closer the more.",
     "max_blocked_dates_per_person": "Warning only: flags students who blocked more show nights than this.",
     "min_usable_nights_per_combo": "Warning only: flags combos whose members' conflicts leave fewer usable nights.",
@@ -76,17 +76,17 @@ HELP = {
     "min_shows_per_combo": "Every combo gets at least this many shows, at any venues (each venue's minimum still "
                            "applies). With leftover sets left open: exactly this many.",
     "max_shows_per_combo": "Cap on total shows per combo. Blank = no cap.",
-    "min_supervised_per_combo": "How many nights each combo plays with a professor attending from start to end "
-                                "(those nights have no open sets). Usually 1; 0 = no supervised nights at all.",
-    "max_supervised_nights": "The most supervised nights in the whole semester, all professors together "
-                             "(not per professor). One night covers every combo playing it. Blank = no limit (still "
+    "min_supervised_per_combo": "How many nights each combo plays with a faculty member attending from start to end "
+                                "(those nights have no open sets). Usually 1; 0 = no feedback nights at all.",
+    "max_supervised_nights": "The most feedback nights in the whole semester, all faculty together "
+                             "(not per faculty member). One night covers every combo playing it. Blank = no limit (still "
                              "as few as possible).",
-    "supervision_timing": "A light preference for when the supervised nights fall: earlier or later in the "
+    "supervision_timing": "A light preference for when the feedback nights fall: earlier or later in the "
                           "semester. First-year combos' first shows still come first.",
     "solver_time_limit_sec": "How long the solver searches (roughly seconds). 90 is plenty: it stops early once it has the best schedule.",
     "student_email_domain": "Students' email domain, e.g. mail.mcgill.ca. Other addresses are fine, just listed. "
                             "Blank = don't check.",
-    "professor_email_domain": "Supervisors' email domain, e.g. mcgill.ca: a supervisor with another address is "
+    "professor_email_domain": "Coaches' and faculty email domain, e.g. mcgill.ca: a coach with another address is "
                               "pointed out (a typo?). Blank = don't check.",
 }
 
@@ -127,9 +127,9 @@ LABELS = {"semester_name": "Semester name", "start_date": "First possible show d
           "end_date": "Last possible show day", "min_shows_per_combo": "Minimum shows per combo",
           "max_shows_per_combo": "Maximum shows per combo", "min_days_between_shows": "Ideal days between shows",
           "first_year_earliest_date": "First-year combos play from",
-          "min_supervised_per_combo": "Supervised nights per combo",
-          "max_supervised_nights": "Max supervised nights (all professors)",
-          "student_email_domain": "Student email domain", "professor_email_domain": "Professor email domain",
+          "min_supervised_per_combo": "Feedback nights per combo",
+          "max_supervised_nights": "Max feedback nights",
+          "student_email_domain": "Student email domain", "professor_email_domain": "Faculty email domain",
           "max_blocked_dates_per_person": "Warn: conflicts per person",
           "min_usable_nights_per_combo": "Warn: usable nights per combo",
           "min_members_per_combo": "Warn: members per combo", "solver_time_limit_sec": "Solver time (seconds)",
@@ -289,7 +289,7 @@ def validate(data):
                       "turn first-year combos off.")
     timing = str(data.get("supervision_timing") or "none").strip().lower()
     if timing not in ("none", "early", "late"):
-        errors.append("Semester tab: 'Supervised nights preferred' must be 'Any time', 'Earlier in the semester' or 'Later in the semester'.")
+        errors.append("Semester tab: 'Feedback nights preferred' must be 'Any time', 'Earlier in the semester' or 'Later in the semester'.")
     min_total, max_total = get_int("min_shows_per_combo", low=1), get_int("max_shows_per_combo", low=1)
     if min_total is None and blank(data.get("min_shows_per_combo")):
         errors.append("Semester tab: the minimum shows per combo is missing (e.g. 2).")

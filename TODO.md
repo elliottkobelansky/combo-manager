@@ -6,7 +6,7 @@ First real use: **Winter 2027**.
 
 ### Microsoft 365 (forms and flows)
 - [ ] **Decision email:** after the Accept / Reject click, the approval flow emails the liaison (Cc the members and
-  the supervisor) with the director's comment. Write the wording first (accepted: what happens next and when the
+  the coach) with the director's comment. Write the wording first (accepted: what happens next and when the
   schedule comes out; rejected: why, who to contact). One step can pick the text with
   `if(startsWith(outputs('Decision'), 'Accept'), '...', '...')`.
 - [ ] **Form texts:** finish both forms' instructions. Keep the words the app looks for in the table headers
@@ -23,7 +23,7 @@ First real use: **Winter 2027**.
 
 ### Winter 2027 settings (Semester tab)
 - [ ] Semester name, first / last show day, skip dates (reading week, holidays; the defaults are placeholders).
-- [ ] Show days: venues, weekdays, sets per night, minimums, set times, "supervised nights preferred here".
+- [ ] Show days: venues, weekdays, sets per night, minimums, set times, "feedback nights preferred here".
 - [ ] Solver time: 90.
 - [ ] Once real sign-ups are in: tune "Ideal days between shows" (`python app/solve.py --compare-gaps 14 21 28 35`).
 
@@ -35,17 +35,15 @@ First real use: **Winter 2027**.
 
 ## Features
 
-- [ ] **Move supervised nights** without making a new schedule: mark a night supervised or not, with the rule check
-  (every combo still on one, supervised nights full, the cap), like a swap.
+- [ ] **Move feedback nights** without making a new schedule: mark a night as a feedback night or not, with the rule
+  check (every combo still on one, feedback nights full, the cap), like a swap.
 - [ ] **Guitarists:** rhythm section or not, for "Warn: combos per rhythm player"? (Today: rhythm section, with
   piano, bass and drums.)
-- [ ] **Summary wording:** what to call the person at a supervised night (professor, supervisor, "combo cop"...), and
-  use the same word everywhere: the night and swap summaries, the tabs, the PDFs. Today it's a mix.
 
 ## Later (ideas)
 
 - **Ready-to-send emails** once the schedule is final (per combo: its dates, the swap policy, contacts).
-- **Supervisors:** which professor attends each supervised night, and their availability.
+- **Faculty:** which faculty member attends each feedback night, and their availability.
 - **Messy form entries:** point out member entries that aren't emails ("TBD", a name alone), domain typos, and the
   same person under two addresses.
 - **Warnings** when an approvals row changes after the combo was edited in the app.
@@ -60,5 +58,7 @@ First real use: **Winter 2027**.
 - The schedule is made once and not re-solved; students swap among themselves (Swaps tab).
 - Edits made in the app live in the app's own files; the approvals spreadsheet is never written to.
 - Approving stays in Outlook (it closes the request and will send the decision email).
+- Feedback nights (a faculty member attends); each combo's own professor is its coach. The form's "Supervisor"
+  column keeps its name.
 - First-year combos are marked when approving ("Accept - first-year combo"), not by a question on the form.
 - The name is **Combo Manager**.

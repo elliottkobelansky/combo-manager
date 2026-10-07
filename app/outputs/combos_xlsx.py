@@ -28,7 +28,7 @@ def write_combos_xlsx(path, combos, name_of, semester, instruments=None, shows=N
                  "liaison" if e == c.liaison else "")
                 for e in by_instrument(c.members, lambda e: instruments.get((c.name, e), ""), name_of)]
         if c.professor:
-            rows.append((name_of(c.professor) + "  (supervisor)", "", c.professor, "supervisor"))
+            rows.append((name_of(c.professor) + "  (coach)", "", c.professor, "supervisor"))
         return rows
 
     wb = Workbook()
@@ -42,7 +42,7 @@ def write_combos_xlsx(path, combos, name_of, semester, instruments=None, shows=N
     ws["A2"].font = font(italic=True, color=GREY)
     for c in combos:
         ws.append([])
-        dates = [d.replace("*", " (supervised)") for d in shows.get(c.id, [])]
+        dates = [d.replace("*", " (feedback night)") for d in shows.get(c.id, [])]
         ws.append([c.name + ("  ·  first-year combo" if c.first_year else "")
                    + (f"  ·  shows: {', '.join(dates)}" if dates else "")])
         for col in range(1, 4):
@@ -57,7 +57,7 @@ def write_combos_xlsx(path, combos, name_of, semester, instruments=None, shows=N
                 cell.font = font(italic=kind == "supervisor")
                 cell.border = Border(left=COL_LINE, right=COL_LINE, bottom=BLOCK_LINE if last else COL_LINE)
         if not c.professor:
-            ws.append(["No supervisor yet"])
+            ws.append(["No coach yet"])
             ws.cell(ws.max_row, 1).font = font(italic=True, color="C00000")
     for letter, w in zip("ABC", (34, 16, 34)):
         ws.column_dimensions[letter].width = w

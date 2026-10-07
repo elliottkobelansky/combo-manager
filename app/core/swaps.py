@@ -171,7 +171,7 @@ def swap_options(sets: Sets, nights: List[Night], combos: Dict[str, Combo], inp:
             if moved and b["n"] == a["n"]:
                 opt.notes.append(f"{name}: " + ", ".join(f"{v} {a['venues'][v]}\u2192{b['venues'][v]}" for v in sorted(moved)))
             if b["sup"] != a["sup"]:
-                opt.notes.append(f"{name} {'gains' if b['sup'] > a['sup'] else 'leaves'} a supervised night")
+                opt.notes.append(f"{name} {'gains' if b['sup'] > a['sup'] else 'leaves'} a feedback night")
         if kind == "move" and not same:
             opt.notes.append(f"{label(d, k)} becomes open")
         opt.score += 10 * len(opt.warnings) + 0.5 * len(opt.notes) + {"trade": 0, "move": 0.2}.get(kind, 0)

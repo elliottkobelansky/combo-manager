@@ -4,7 +4,7 @@ change and never read back, so editing it changes nothing.
     By night    one table per show night: set, time, combo, each member (liaison marked) with their instrument
                 (in the Combos tab's order), and the supervisor
     All sets    one row per set (date, venue, set, times, combo, supervised): for sorting and filtering
-    Supervision the supervised nights and who plays them (when every combo has a supervised night)
+    Feedback nights  the feedback nights and who plays them (when every combo has one)
     Changes     every change since the schedule was made (swaps, give-aways, text in sets, withdrawn combos), newest
                 first: when, on which computer, what, and each set's before and after
     Report      what the solver said when the schedule was made
@@ -72,7 +72,7 @@ def write_schedule_xlsx(path, schedule, combos, settings, name_of, instruments):
     ws["A2"].font = font(italic=True, color=GREY)
     for n in schedule.nights:
         ws.append([])
-        ws.append([f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  supervised night" if n.date in supervised
+        ws.append([f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  feedback night" if n.date in supervised
                                                                    else "")])
         r = ws.max_row
         for col in range(1, 6):
@@ -89,7 +89,7 @@ def write_schedule_xlsx(path, schedule, combos, settings, name_of, instruments):
                 people = [(name_of(e) + ("  (liaison)" if e == combo.liaison else ""), inst[e])
                           for e in by_instrument(combo.members, inst.get, name_of)]
                 if combo.professor:
-                    people.append((name_of(combo.professor) + "  (supervisor)", ""))
+                    people.append((name_of(combo.professor) + "  (coach)", ""))
                 for i, (who, instrument) in enumerate(people or [("", "")]):
                     ws.append([k, when, combo.name] if i == 0 else ["", "", ""])
                     ws.cell(ws.max_row, 4).value, ws.cell(ws.max_row, 5).value = who, instrument
@@ -141,7 +141,7 @@ def write_schedule_xlsx(path, schedule, combos, settings, name_of, instruments):
         sup = [[n.date, WEEKDAYS[n.date.weekday()], n.venue,
                 ", ".join(combos[c].name for k, c in sorted(schedule.sets.get(n.date, {}).items()) if c)]
                for n in schedule.nights if n.date in supervised]
-        s = sheet("Supervision", ["Date", "Day", "Venue", "Combos playing"], sup, (14, 12, 14, 60))
+        s = sheet("Feedback nights", ["Date", "Day", "Venue", "Combos playing"], sup, (14, 12, 14, 60))
         for r in range(2, s.max_row + 1):
             s.cell(row=r, column=1).number_format = "yyyy-mm-dd"
     rows = []

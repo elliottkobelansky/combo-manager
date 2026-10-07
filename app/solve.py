@@ -102,7 +102,7 @@ def print_stats(folder, sched, inp, settings, store, export=False, full=False, t
         for p in problems:
             print(f"  \u2716 {p}")
     else:
-        print("All rules hold: no conflicts played, venue minimums met, no combo twice in a night, supervised "
+        print("All rules hold: no conflicts played, venue minimums met, no combo twice in a night, feedback "
               "nights as set.")
     if to_look_at:
         print(f"(Check combos lists {to_look_at} thing{'s' if to_look_at > 1 else ''} to look at in the combos and "
@@ -110,7 +110,7 @@ def print_stats(folder, sched, inp, settings, store, export=False, full=False, t
     by = {title: lines for title, lines in sections}
     if True:                                          # (a few lines at a glance, always)
         glance = [by.get("Overview", [""])[0], by.get("Shows per combo", [""])[0].replace("Total: ", "Shows per combo: "),
-                  next((l.split(":")[0] + "." for l in by.get("Supervision", []) if "supervised night(s)" in l), ""),
+                  next((l.split(":")[0] + "." for l in by.get("Feedback nights", []) if "feedback night(s)" in l), ""),
                   "Spacing: " + by["Spacing between a combo's shows"][0] if by.get("Spacing between a combo's shows")
                   else "", next((l for l in by.get("Students", []) if "twice" in l), ""), (by.get("Open sets") or [""])[0]]
         print("\nAt a glance (tick 'All stats' for everything):")

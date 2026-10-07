@@ -136,7 +136,7 @@ class SchedulePanel:
                 lines.append((k, who, kind))
             n_open = sum(1 for _, _, kind in lines if kind == "open")
             open_total += n_open
-            title = f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  PROF" if n.date in sup else "")
+            title = f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  FEEDBACK" if n.date in sup else "")
             if self.only_open.get() and not n_open:
                 continue
             if q and q not in (title + " " + " ".join(w for _, w, _ in lines)).lower():
@@ -439,7 +439,7 @@ class SchedulePanel:
                 else "")
         else:
             n = info["night"]
-            lines = [f"{make_label(d)}, {n.venue}" + (" (a professor attends)" if info["supervised"] else "")]
+            lines = [f"{make_label(d)}, {n.venue}" + (" (a faculty member attends)" if info["supervised"] else "")]
             for k, when, who, names in info["sets"]:
                 lines.append(f"  {when or f'Set {k}'}  {who}" + (f": {', '.join(names)}" if names else ""))
             text, msg = "\n".join(lines), "the night summary"
