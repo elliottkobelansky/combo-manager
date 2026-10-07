@@ -1,14 +1,21 @@
 # Data and outputs live in the data folder chosen in the app, never in the program folder: from Winter 2027 they
 # hold real student emails. In case a data folder ends up in here anyway, none of it goes into git:
 data/
+ComboManagerData*/
+AppFiles/
+App data/
+Exports/
+Archive/
 *.xlsx
 *.pdf
 !Quick Start.pdf
 *.bak
+*.zip
 scheduler_data.json
+semester.json
 settings.json
-Schedule backups/
-Combo Scheduler backup*.zip
+schedule.json
+in_use.json
 
 # Python
 __pycache__/
