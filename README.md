@@ -10,6 +10,8 @@ Makes the semester's combo show calendar and handles swaps during the semester.
 |---|---|
 | ![The Combos tab](docs/combos.png) | ![The Swaps tab](docs/swaps.png) |
 
+*The screenshots use made-up data: the names and emails are fake.*
+
 ## What it does
 
 - **Combos:** brings in the approved sign-ups and conflicts from the forms, or lets you add them by hand. Add or
