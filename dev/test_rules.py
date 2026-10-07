@@ -967,6 +967,15 @@ def main():
         bad.append(f"combos-per-player limits: {said}")
     if instrument_limits(many, {}, lim, RHYTHM):
         bad.append("combos-per-player limits flag people with no instrument set")
+    from core.checks import check_new_combo                     # checking a combo waiting for a decision
+    nights = generate_nights(lim)
+    waiting = Combo("Pending 9", "Pending 9", frozenset({"late.one@mail.mcgill.ca", "late.two@mail.mcgill.ca"}))
+    trouble, heads = check_new_combo(waiting, many, {"late.one@mail.mcgill.ca": {n.date for n in nights}}, nights,
+                                     lim, {}, RHYTHM)
+    if not trouble or not any("No supervisor" in h for h in heads) or not any("fewer than" in h for h in heads):
+        bad.append(f"checking a waiting combo: {trouble} / {heads}")
+    if check_new_combo(replace(waiting, professor="prof@mcgill.ca"), many, {}, nights, lim, {}, RHYTHM)[0]:
+        bad.append("checking a waiting combo flags a combo with no conflicts")
     st = Store(tmp)                                        # no sheets linked: only the combos made in the app
     st.set_linked("approvals", False)
     st.set_linked("conflicts", False)

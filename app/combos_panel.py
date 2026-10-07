@@ -489,7 +489,8 @@ class CombosPanel:
         elif kind is None:
             menu.add_command(label="New combo...", command=self.new_combo)
         elif kind == "pending":
-            menu.add_command(label="Awaiting approval (in Outlook)", state="disabled")
+            menu.add_command(label="Check this combo...", command=lambda: self.check_pending(combo))
+            menu.add_command(label="Approve or reject it in Outlook", state="disabled")
         elif kind == "withdrawn":
             menu.add_command(label="Put back combo...", command=self.put_back)
         else:
@@ -510,6 +511,32 @@ class CombosPanel:
             menu.add_command(label="New combo...", command=self.new_combo)
         self.menu = menu                              # (kept for tests)
         return menu
+
+    def check_pending(self, combo):
+        """A combo waiting for a decision: would it fit, next to the accepted ones? Says what would stop it being
+        scheduled, and what's worth knowing before approving it in Outlook."""
+        from core.checks import check_new_combo
+        from util import RHYTHM
+        d = self.data
+        usual = self.store.usual_instruments()
+        instruments = {**d["instruments"], **{(combo.name, e): usual[e] for e in combo.members if usual.get(e)}}
+        problems, heads = check_new_combo(combo, list(d["combos"].values()), d["blocked"], d["nights"], d["settings"],
+                                          instruments, RHYTHM, self.name)
+        who = self.name(combo.liaison) if combo.liaison else "no liaison"
+        text = f"{who}'s combo ({len(combo.members)} members), waiting for a decision.\n\n"
+        if problems:
+            text += "\u2716 It couldn't be scheduled as things are:\n" + "".join(f"\u2022 {t}\n" for t in problems) + "\n"
+        if heads:
+            text += "\u26a0 Worth knowing:\n" + "".join(f"\u2022 {t}\n" for t in heads) + "\n"
+        if not problems and not heads:
+            text += "\u2713 No problems found: it can be approved.\n\n"
+        if d["sets"]:
+            text += ("The schedule is already made: once approved, this combo starts with no shows and can claim "
+                     "open sets (Swaps tab).\n\n")
+        text += "Approve or reject it in Outlook, then Sync."
+        (messagebox.showwarning if problems else messagebox.showinfo)("Check this combo", text.strip(),
+                                                                       parent=self.frame)
+        self.last_check = (problems, heads)            # (kept for tests)
 
     def show_combo(self, cid):
         """Picks a combo in the list (from the Schedule tab's Go to combo): opened, scrolled to, selected. The

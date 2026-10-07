@@ -16,7 +16,8 @@ Makes the semester's combo show calendar and handles swaps during the semester.
 
 - **Combos:** brings in the approved sign-ups and conflicts from the forms, or lets you add them by hand. Add or
   remove members, change the liaison, fix names and emails, set instruments, mark first-year combos, withdraw a
-  combo. **Check combos** points out problems before the schedule is made.
+  combo. **Check combos** points out problems before the schedule is made, and **Check this combo** says whether
+  a combo waiting for a decision would fit, before you approve it.
 - **Schedule:** makes the whole semester in about a minute. Every combo gets its shows, never on a night one of its
   members can't make, with supervised nights, first-year combos starting later, and shows spread out. Exports a
   calendar PDF and an Excel file, ready to send.

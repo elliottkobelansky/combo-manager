@@ -10,7 +10,7 @@ Combo Manager keeps the semester's combos, makes the show calendar, and handles 
 
 ## 2. Collect the combos (Combos tab, as sign-ups come in)
 
-1. Approve or reject sign-ups in Outlook, as they arrive.
+1. Approve or reject sign-ups in Outlook, as they arrive. Not sure? Right-click the combo (in grey, waiting for a decision) > **Check this combo**.
 2. Click **Sync** to bring the approved combos in. To add one by hand: right-click > **New combo**.
 3. Click **Check combos** and fix what it lists.
 

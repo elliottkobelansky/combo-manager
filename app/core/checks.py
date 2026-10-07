@@ -72,3 +72,46 @@ def instrument_limits(combos, instruments, settings: Settings, rhythm, name_of=l
                        f"({', '.join(names)}): the limit for {'rhythm-section' if is_rhythm else 'other'} players is "
                        f"{limit}.")
     return out
+
+
+def check_new_combo(new, combos, blocked, nights, settings: Settings, instruments, rhythm, name_of=lambda e: e):
+    """What approving `new` (a combo waiting for a decision) would mean, next to the accepted `combos`. -> (problems:
+    it couldn't be scheduled as things are, heads_ups: worth knowing). blocked: {email: dates}; instruments:
+    {(combo name, email): instrument}, with the new combo's members' usual instruments under its name."""
+    problems, heads = [], []
+    if not new.members:
+        return ["It has no members."], []
+    night_dates = {n.date for n in nights}
+    no = set().union(*[set(blocked.get(e, ())) for e in new.members]) & night_dates
+    ok = night_dates - no
+    show_min = {}
+    for sd in settings.show_days:
+        show_min[sd.venue] = max(show_min.get(sd.venue, 0), sd.min_per_combo)
+    for venue in sorted({n.venue for n in nights}):
+        need = show_min.get(venue, 0)
+        usable = sum(1 for n in nights if n.venue == venue and n.date in ok)
+        sets = sum(n.n_slots for n in nights if n.venue == venue)
+        if need and usable < need:
+            problems.append(f"Its members' conflicts leave {usable} usable {venue} night(s); every combo needs {need}.")
+        if need and (len(combos) + 1) * need > sets:
+            problems.append(f"{venue} has {sets} sets: not enough for {len(combos) + 1} combos x {need} show(s).")
+    if settings.min_shows_per_combo and len(ok) < settings.min_shows_per_combo:
+        problems.append(f"Its members' conflicts leave {len(ok)} usable night(s); every combo needs "
+                        f"{settings.min_shows_per_combo}.")
+    elif settings.min_usable_nights_per_combo and len(ok) < settings.min_usable_nights_per_combo:
+        heads.append(f"Only {len(ok)} usable nights (its members' conflicts).")
+    few = settings.min_members_per_combo
+    if few and len(new.members) < few:
+        heads.append(f"Only {len(new.members)} member{'s' if len(new.members) != 1 else ''} (fewer than {few}).")
+    if not new.professor:
+        heads.append("No supervisor listed.")
+    for c in combos:
+        if c.members == new.members:
+            heads.append(f"The same members as {c.name}: a duplicate submission?")
+    for e in sorted(new.members, key=lambda e: name_of(e).lower()):
+        others = sorted(c.name for c in combos if e in c.members)
+        if others:
+            heads.append(f"{name_of(e)} is also in {', '.join(others)}.")
+    heads += [w for w in instrument_limits(list(combos) + [new], instruments, settings, rhythm, name_of)
+              if any(f"{name_of(e)} (" in w for e in new.members)]
+    return problems, heads

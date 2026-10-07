@@ -35,9 +35,6 @@ First real use: **Winter 2027**.
 
 ## Features
 
-- [ ] **Check a pending combo before approving it:** a right-click **Check this combo** on a combo waiting for a
-  decision, saying whether it would break a rule (members in too many combos, conflicts leaving too few nights, a
-  missing supervisor...), so the director can decide in Outlook knowing that.
 - [ ] **Move supervised nights** without making a new schedule: mark a night supervised or not, with the rule check
   (every combo still on one, supervised nights full, the cap), like a swap.
 - [ ] **Guitarists:** rhythm section or not, for "Warn: combos per rhythm player"? (Today: rhythm section, with
