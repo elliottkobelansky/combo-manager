@@ -338,7 +338,11 @@ class App:
         self.tabs.add(self.about_tab(), text="About")
         self.out = self.results["schedule"].text
         self.color_output()
-        self.buttons += [self.schedule.make_button, self.schedule.check_button, self.combos.check_button]
+        # off while a step runs in the background (each back to how it was after)
+        self.buttons += [self.schedule.make_button, self.schedule.check_button, self.schedule.sent_box,
+                         self.schedule.confirm_button, self.combos.check_button, self.combos.sync_button,
+                         self.combos.confirm_button, self.swaps.save_button]
+        self.schedule.is_busy = self.swaps.is_busy = lambda: self.busy
         self.status = ttk.Label(shell, text="Ready.", style="Hint.TLabel")
         self.status.pack(fill="x", pady=(8, 0))
         self.root.after(300, self.autoload)
@@ -999,6 +1003,7 @@ class App:
             return
         self.busy = True
         self.status.configure(text=message)
+        self.button_states = {b: str(b.cget("state")) for b in self.buttons}
         for b in self.buttons:
             b.configure(state="disabled")
 
@@ -1017,8 +1022,10 @@ class App:
             self.combos.show_links()
         self.autoload()                               # the schedule may have changed
         self.status.configure(text="Ready.")
-        for b in self.buttons:
-            b.configure(state="normal")
+        for b, state in getattr(self, "button_states", {}).items():
+            b.configure(state=state)
+        self.schedule.refresh_tools()                 # (the schedule may be new, or locked)
+        self.swaps.refresh_pending()
 
 
 def bring_to_front(root):

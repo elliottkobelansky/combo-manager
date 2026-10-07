@@ -12,7 +12,7 @@ import app_log
 from core.model import make_label
 from core.swaps import claimers
 from data_folder import CONTACTS_XLSX, SCHEDULE_PDF, SCHEDULE_XLSX
-from theme import bind_right_click, in_background, popup, scrolled_tree
+from theme import RIGHT_CLICK, in_background, popup, scrolled_tree
 
 
 class SchedulePanel:
@@ -24,12 +24,13 @@ class SchedulePanel:
         self.make, self.check = make or (lambda: None), check or (lambda: None)
         self.open_file = open_file or (lambda path: None)
         self.goto_combo = goto_combo or (lambda cid: None)
+        self.is_busy = lambda: False                      # set by the app: a step is running in the background
         self.get_palette = get_palette
         self.rows = {}                                    # tree item -> (night, set number)
         self.night_rows = {}                              # tree item -> night (the bold rows)
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
 
-        # the steps: make (once), check (any time), the lock once it's out, and the files
+        # the steps: make (once), check (any time), the lock once it's out
         tools = ttk.Frame(self.frame)
         tools.pack(fill="x", pady=(0, 12))
         self.make_button = ttk.Button(tools, text="Make schedule", style="Accent.TButton", command=self.make)
@@ -40,10 +41,6 @@ class SchedulePanel:
         self.sent_box = ttk.Checkbutton(tools, text="Lock schedule",
                                         variable=self.sent, command=self.set_sent)
         self.sent_box.pack(side="left", padx=(16, 0))
-        ttk.Button(tools, text="Open Excel", style="Accent.TButton",
-                   command=lambda: self.export_file(SCHEDULE_XLSX)).pack(side="right")
-        ttk.Button(tools, text="Open PDF", style="Accent.TButton",
-                   command=lambda: self.export_file(SCHEDULE_PDF)).pack(side="right", padx=(0, 6))
         self.tools_hint = ttk.Label(self.frame, text="", style="Hint.TLabel")   # shown while it's locked
         self.tools_anchor = tools
 
@@ -64,8 +61,9 @@ class SchedulePanel:
         self.pending_label.pack(side="left")
         ttk.Button(self.pending_bar, text="Discard all", command=lambda: self.swaps.discard_all()).pack(side="right")
         ttk.Button(self.pending_bar, text="Undo last", command=lambda: self.swaps.undo_last()).pack(side="right", padx=6)
-        ttk.Button(self.pending_bar, text="Confirm changes", style="Accent.TButton",
-                   command=lambda: self.swaps.save_all()).pack(side="right")
+        self.confirm_button = ttk.Button(self.pending_bar, text="Confirm changes", style="Accent.TButton",
+                                         command=lambda: self.swaps.save_all())
+        self.confirm_button.pack(side="right")
         self.pending_anchor = ttk.Frame(self.frame)      # keeps the bar's place between the search row and the hint
         self.pending_anchor.pack(fill="x")
 
@@ -82,9 +80,14 @@ class SchedulePanel:
         self.actions = ttk.Button(bottom, text="Actions \u25be", command=self.actions_menu)   # = the right-click menu
         self.actions.pack(side="left", padx=(6, 0))
         ttk.Button(bottom, text="Export contact lists", command=self.export_contacts).pack(side="left", padx=(12, 0))
+        ttk.Button(bottom, text="Open Excel", style="Accent.TButton",
+                   command=lambda: self.export_file(SCHEDULE_XLSX)).pack(side="right")
+        ttk.Button(bottom, text="Open PDF", style="Accent.TButton",
+                   command=lambda: self.export_file(SCHEDULE_PDF)).pack(side="right", padx=(0, 6))
         self.status = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.status.pack(side="left", padx=10)
-        bind_right_click(self.frame, self.right_click)    # anywhere on the tab
+        for ev in RIGHT_CLICK:                            # on the list only: the tab's own steps stay buttons
+            self.tree.bind(ev, self.right_click)
         self.recolor()
         swaps.listeners.append(self.refresh)
 
@@ -172,6 +175,9 @@ class SchedulePanel:
                                    state="disabled" if sent else "normal")
         self.check_button.configure(style="Accent.TButton" if exists else "TButton",
                                     state="normal" if exists else "disabled")
+        if self.is_busy():                                # a step is running: these wait for it
+            for b in (self.make_button, self.check_button, self.sent_box):
+                b.configure(state="disabled")
         if sent:
             self.tools_hint.configure(text="Locked: Make a new schedule is off. Changes from now on: Swaps tab "
                                            "(or untick 'Lock schedule' to start over).")
@@ -214,9 +220,6 @@ class SchedulePanel:
 
     # actions
     def slot(self, event=None):
-        if event is not None and event.widget is not self.tree:     # empty space elsewhere on the tab: nothing picked
-            self.tree.selection_set(())
-            return None, None
         item = self.tree.identify_row(event.y) if event else (self.tree.selection() or [None])[0]
         if item:
             self.tree.selection_set(item)
@@ -235,21 +238,9 @@ class SchedulePanel:
 
     def right_click(self, event):
         item, slot = self.slot(event)
-        menu = self.build_menu(item, slot) or self.tab_menu()
-        popup(menu, event.x_root, event.y_root)
-
-    def tab_menu(self):
-        """Right-click with nothing picked: the tab's own steps."""
-        exists = bool(self.swaps.state)
-        sent = exists and bool(self.swaps.state.get("published"))
-        menu = self.menu()
-        menu.add_command(label="Make a new schedule..." if exists else "Make schedule", command=self.make,
-                         state="disabled" if sent else "normal")
-        menu.add_command(label="Check schedule", command=self.check, state="normal" if exists else "disabled")
-        if exists:
-            menu.add_separator()
-            menu.add_command(label="(Right-click a night or a set for more)", state="disabled")
-        return menu
+        menu = self.build_menu(item, slot)
+        if menu:
+            popup(menu, event.x_root, event.y_root)
 
     def actions_menu(self):
         """The Actions button: the right-click menu for the picked night or set, opened above the button."""

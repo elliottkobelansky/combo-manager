@@ -71,8 +71,9 @@ class CombosPanel:
         self.pending_title.pack(side="left")
         ttk.Button(self.pending_box, text="Discard all", command=self.discard_all).pack(side="right")
         ttk.Button(self.pending_box, text="Undo last", command=self.undo_last).pack(side="right", padx=6)
-        ttk.Button(self.pending_box, text="Confirm changes", style="Accent.TButton",
-                   command=self.confirm).pack(side="right")
+        self.confirm_button = ttk.Button(self.pending_box, text="Confirm changes", style="Accent.TButton",
+                                         command=self.confirm)
+        self.confirm_button.pack(side="right")
         self.bottom = bottom
         self.check_button = ttk.Button(bottom, text="Check combos", style="Accent.TButton",
                                        command=lambda: self.on_check())
@@ -450,7 +451,10 @@ class CombosPanel:
         p = self.get_palette() or {}
         menu = tk.Menu(self.tree, tearoff=0, background=p.get("panel"), foreground=p.get("text"),
                        activebackground=p.get("accent"), activeforeground=p.get("accent_text"))
-        if combo is not None:
+        if kind in ("person", "supervisor", "removed"):    # a person: only what's about them
+            menu.add_command(label=f"Copy email of {self.name(email)}", command=lambda: self.copy_person(email))
+            menu.add_separator()
+        elif combo is not None:
             if combo.liaison:
                 menu.add_command(label=f"Copy liaison email of {combo.name} ({self.name(combo.liaison)})",
                                  command=lambda: self.copy_emails(combo, liaison=True))
@@ -475,20 +479,16 @@ class CombosPanel:
         elif kind == "supervisor":
             menu.add_command(label="Change name...", command=self.rename)
             menu.add_command(label="Change email...", command=self.edit_email)
-        if kind is None:
+        if kind in ("person", "supervisor", "removed"):
+            pass
+        elif kind is None:
             menu.add_command(label="New combo...", command=self.new_combo)
-            menu.add_command(label="Check combos", command=lambda: self.on_check())
-            menu.add_separator()
-            menu.add_command(label="(Right-click a combo or a person for more)", state="disabled")
         elif kind == "pending":
             menu.add_command(label="Waiting for a decision: approve or reject it in Outlook", state="disabled")
         elif kind == "withdrawn":
             menu.add_command(label=f"Put back {combo.name}...", command=self.put_back)
         else:
-            if kind == "combo":
-                menu.add_command(label=f"Change the liaison of {combo.name}...", command=self.make_liaison)
-            else:
-                menu.add_separator()
+            menu.add_command(label=f"Change the liaison of {combo.name}...", command=self.make_liaison)
             menu.add_command(label=f"Add a member to {combo.name}...", command=self.add_member)
             if not self.data["settings"].use_first_year:
                 pass                                  # first-year combos are off (Settings): no tag, no option
@@ -500,7 +500,7 @@ class CombosPanel:
                                  command=lambda: self.set_first_year(combo, True))
             menu.add_separator()
             menu.add_command(label=f"Withdraw {combo.name}...", command=self.withdraw)
-        if kind is not None:
+        if kind in ("combo", "withdrawn", "pending"):
             menu.add_separator()
             menu.add_command(label="New combo...", command=self.new_combo)
         self.menu = menu                              # (kept for tests)
@@ -539,6 +539,12 @@ class CombosPanel:
         out.update({d: ("form", False) for d in self.store.overruled(sem).get(email, ())})
         out.update({d: ("app", True) for d in added})
         return dict(sorted(out.items()))
+
+    def copy_person(self, email):
+        from clipboard import copy
+        copy(self.frame, email, f"the email of {self.name(email)}", self.get_palette())
+        self.info.configure(text=f"Copied the email of {self.name(email)}: paste with Ctrl+V.")
+        self.last_copied = email                      # (kept for tests)
 
     def copy_emails(self, combo, liaison=False):
         """The combo's emails, ready to paste into Outlook: the liaison, the other members by name, the supervisor.

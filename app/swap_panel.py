@@ -29,6 +29,7 @@ class SwapPanel:
         self.pending, self.base_sets = [], None       # changes not saved yet; the schedule as it is on disk
         self.search_id = 0                            # the latest option search (an older one's results are dropped)
         self.listeners = []                           # called whenever the (pending) schedule changes
+        self.is_busy = lambda: False                  # set by the app: a step is running in the background
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
 
         # a line only when there's something to say (it couldn't load; the schedule has problems already)
@@ -437,6 +438,8 @@ class SwapPanel:
         self.pending_list.configure(height=min(max(n, 2), 6))
         for b in (self.save_button, self.undo_button, self.discard_button):
             b.configure(state="normal" if n else "disabled")
+        if self.is_busy():                                # a step is running: Confirm waits for it
+            self.save_button.configure(state="disabled")
 
     def rebuild_sets(self):
         sets = {d: dict(row) for d, row in self.base_sets.items()}
