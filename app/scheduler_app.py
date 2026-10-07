@@ -37,6 +37,7 @@ import shared_folder  # noqa: E402
 import app_log  # noqa: E402
 AUTHOR, EMAIL = "Elliott Kobelansky", "elliottkobelansky@gmail.com"
 APP_NAME = "Combo Manager"
+VERSION = "0.1.0"                                 # up by 0.1 per release; 1.0 once it is trusted for real use
 PACKAGES = {"openpyxl": "openpyxl", "ortools": "ortools", "reportlab": "reportlab"}   # import name -> pip name
 OPTIONAL = {"tkcalendar": "tkcalendar"}   # the pop-up calendars
 
@@ -341,7 +342,8 @@ class App:
         self.out = self.results["schedule"].text
         self.color_output()
         # off while a step runs in the background (each back to how it was after)
-        self.buttons += [self.schedule.make_button, self.schedule.check_button, self.schedule.sent_box,
+        self.buttons += [self.schedule.make_button, self.schedule.check_button, self.schedule.versions_button,
+                         self.schedule.sent_box,
                          self.schedule.confirm_button, self.combos.check_button, self.combos.sync_button,
                          self.combos.confirm_button, self.swaps.save_button]
         self.buttons += self.schedule.file_buttons + self.combos.file_buttons     # the files are being rewritten
@@ -365,7 +367,7 @@ class App:
         shared_folder.claim(folder)
         self.told_taken = False
         app_log.set_folder(folder)
-        app_log.write(f"Opened the data folder {folder}" + (f" (taken over from {shared_folder.describe(other)})"
+        app_log.write(f"Opened the data folder {folder} (version {VERSION})" + (f" (taken over from {shared_folder.describe(other)})"
                                                              if other else ""))
         return True
 
@@ -558,7 +560,11 @@ class App:
 
     def about_tab(self):
         tab = ttk.Frame(self.tabs, padding=(28, 28))
-        ttk.Label(tab, text=APP_NAME, style="Title.TLabel").pack(anchor="w")
+        title = ttk.Frame(tab)
+        title.pack(anchor="w")
+        ttk.Label(title, text=APP_NAME, style="Title.TLabel").pack(side="left")
+        ttk.Label(title, text=f"Version {VERSION}", style="Hint.TLabel").pack(side="left", padx=(12, 0), anchor="s",
+                                                                           pady=(0, 4))
         ttk.Label(tab, text=f"Made by {AUTHOR}.", style="CardTitle.TLabel").pack(anchor="w", pady=(10, 0))
         ttk.Label(tab, text="Questions, ideas, or something not working the way it should? Get in touch, happy to "
                             "help:", wraplength=640, justify="left").pack(anchor="w", pady=(14, 4))
@@ -566,7 +572,7 @@ class App:
         row.pack(anchor="w")
         email = ttk.Label(row, text=EMAIL, style="Link.TLabel", cursor="hand2")   # click: opens the mail app
         email.pack(side="left")
-        email.bind("<Button-1>", lambda _: __import__("webbrowser").open(f"mailto:{EMAIL}?subject=Combo%20Scheduler"))
+        email.bind("<Button-1>", lambda _: __import__("webbrowser").open(f"mailto:{EMAIL}?subject=Combo%20Manager%20{VERSION}"))
 
         def copy(_=None):
             from clipboard import copy_text
@@ -1104,7 +1110,7 @@ def selftest(out):
     """Loads every part the app needs (its modules, the solver, the PDF and Excel writers, the look, the pop-up
     calendar) and writes what happened to the file `out`. -> 0 when everything works. For checking a build: a
     missing piece shows up here instead of on the director's computer."""
-    lines, failed = [], 0
+    lines, failed = [f"{APP_NAME} {VERSION}"], 0
 
     def step(what, fn):
         nonlocal failed

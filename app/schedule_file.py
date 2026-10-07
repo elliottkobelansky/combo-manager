@@ -210,6 +210,63 @@ def summary(folder):
                 typed=sum(len(r) for r in data.get("typed", {}).values()))
 
 
+@dataclass
+class Version:
+    """An earlier version of the schedule: a copy in AppFiles/ScheduleBackups, made just before it was changed."""
+    path: Path
+    replaced: datetime                    # when it stopped being the schedule (the copy was made)
+    same: bool                            # the same schedule as now (not one from before a Make a new schedule)
+    made: str                             # when its schedule was made
+    since: List[List[str]]                # same: what was done since, in order (each a history entry's titles)
+
+
+def versions(folder):
+    """The earlier versions of this semester's schedule, newest first (copies from another semester, or that can't
+    be read, are left out)."""
+    current = _read(folder) or {}
+    history = current.get("history", [])
+    found = []
+    for p in schedule_backups(folder).glob("*.json"):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict) or "sets" not in data or data.get("semester") != current.get("semester"):
+            continue
+        m = re.search(r"(\d{4})-(\d\d)-(\d\d)-(\d\d)(\d\d)(\d\d)", p.name)
+        replaced = datetime(*map(int, m.groups())) if m else datetime.fromtimestamp(p.stat().st_mtime)
+        own = data.get("history", [])
+        same = data.get("made") == current.get("made") and history[:len(own)] == own
+        found.append(Version(p, replaced, same, data.get("made", ""),
+                             [h.get("what", []) for h in history[len(own):]] if same else []))
+    return sorted(found, key=lambda v: v.replaced, reverse=True)
+
+
+def restore_version(folder, version):
+    """Puts an earlier version back as the schedule. The schedule as it is now is copied into ScheduleBackups first
+    (so this can be undone the same way); the lock stays as it is now; the history keeps everything, plus this
+    restore with each set it changed. -> the copy of the schedule as it was."""
+    current = _read(folder)
+    try:
+        data = json.loads(Path(version.path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise ScheduleFileError(f"{Path(version.path).name} can't be read ({e}). Nothing was changed.")
+    if current is None or data.get("semester") != current.get("semester"):
+        raise ScheduleFileError("That version is from another semester. Nothing was changed.")
+    copy = backup(folder)
+    keys = {(d, k) for src in (current, data) for part in ("sets", "typed") for d, row in src.get(part, {}).items()
+            for k in row}
+    changes = [{"night": d, "set": int(k), "before": _shown(current, d, k), "after": _shown(data, d, k)}
+               for d, k in sorted(keys, key=lambda x: (x[0], int(x[1])))
+               if _shown(current, d, k) != _shown(data, d, k)]
+    data["published"] = bool(current.get("published"))
+    data["history"] = current.get("history", []) + [
+        _entry([f"Restored the version from {version.replaced:%a %b} {version.replaced.day}, "
+                f"{version.replaced:%H:%M}"], changes)]
+    _write(folder, data)
+    return copy
+
+
 def set_published(folder, on):
     """Locks the schedule (e.g. once it's final) or unlocks it. While it is, Make schedule is off. Kept in the history."""
     data = _read(folder)

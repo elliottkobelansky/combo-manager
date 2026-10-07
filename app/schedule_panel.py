@@ -37,6 +37,8 @@ class SchedulePanel:
         self.make_button.pack(side="left")
         self.check_button = ttk.Button(tools, text="Check schedule", command=self.check)
         self.check_button.pack(side="left", padx=(6, 0))
+        self.versions_button = ttk.Button(tools, text="Earlier versions...", command=self.show_versions)
+        self.versions_button.pack(side="left", padx=(6, 0))
         self.sent = tk.BooleanVar()
         self.sent_box = ttk.Checkbutton(tools, text="Lock schedule",
                                         variable=self.sent, command=self.set_sent)
@@ -174,8 +176,9 @@ class SchedulePanel:
                                    state="disabled" if sent else "normal")
         self.check_button.configure(style="Accent.TButton" if exists else "TButton",
                                     state="normal" if exists else "disabled")
+        self.versions_button.configure(state="normal" if exists else "disabled")
         if self.is_busy():                                # a step is running: these wait for it
-            for b in (self.make_button, self.check_button, self.sent_box):
+            for b in (self.make_button, self.check_button, self.versions_button, self.sent_box):
                 b.configure(state="disabled")
         if sent:
             self.tools_hint.configure(text="Locked: Make a new schedule is off. Changes from now on: Swaps tab "
@@ -307,6 +310,92 @@ class SchedulePanel:
         self.status.configure(text=f"Not saved yet: {make_label(d)} set {k} "
                                    + (f"says '{text.strip()}'." if text.strip() else "is open again.")
                                    + " (Confirm changes, above)")
+
+    # earlier versions (AppFiles/ScheduleBackups)
+    def show_versions(self):
+        """The Earlier versions window: the copies kept before each change, what restoring one would undo, and
+        Restore."""
+        from schedule_file import ScheduleFileError, restore_version, versions
+        folder = self.swaps.get_folder()
+        found = versions(folder) if self.swaps.state else []
+        win = tk.Toplevel(self.frame)
+        win.title("Earlier versions")
+        win.transient(self.frame.winfo_toplevel())
+        box = ttk.Frame(win, padding=20)
+        box.pack(fill="both", expand=True)
+        ttk.Label(box, text="Earlier versions of the schedule", style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(box, text="A copy is kept each time the schedule changes. Pick one to see what restoring it would "
+                            "undo.", style="Hint.TLabel", wraplength=640, justify="left").pack(anchor="w", pady=(2, 10))
+        table, tree = scrolled_tree(box, [("#0", "Version", 140, False), ("next", "The change made next", 500, True)])
+        table.pack(fill="both", expand=True)
+        tree.configure(height=10)
+        tree.tag_configure("other", foreground=(self.get_palette() or {}).get("muted"))
+        details = ttk.Label(box, text="", wraplength=640, justify="left")
+        details.pack(anchor="w", fill="x", pady=(10, 0))
+        bar = ttk.Frame(box)
+        bar.pack(fill="x", pady=(14, 0))
+        ttk.Button(bar, text="Close", command=win.destroy).pack(side="right")
+        restore = ttk.Button(bar, text="Restore this version", style="Accent.TButton", state="disabled")
+        restore.pack(side="right", padx=(0, 6))
+
+        def when(t):
+            return f"{t:%a %b} {t.day}, {t:%H:%M}"
+        rows = {}
+        for v in found:
+            if v.same:
+                then = "; ".join(v.since[0]) if v.since else ""
+                rows[tree.insert("", "end", text=when(v.replaced), values=(then,))] = v
+            else:
+                made = v.made[:10]
+                rows[tree.insert("", "end", text=when(v.replaced), values=(f"(an earlier schedule, made {made})",),
+                                 tags=("other",))] = v
+        if not found:
+            details.configure(text="No earlier versions yet: one is kept each time the schedule changes.")
+
+        def picked(_=None):
+            sel = tree.selection()
+            v = rows.get(sel[0]) if sel else None
+            restore.configure(state="normal" if v and not self.is_busy() else "disabled")
+            if not v:
+                return
+            if not v.same:
+                details.configure(text=f"A different schedule, made {v.made[:10]}, from before Make a new schedule. "
+                                       "Restoring it replaces the whole schedule: almost every show would move.")
+                return
+            done = ["; ".join(w) for w in v.since]
+            lines = "\n".join(f"\u2022 {w}" for w in done[:8]) + (f"\n\u2022 ...and {len(done) - 8} more"
+                                                                   if len(done) > 8 else "")
+            details.configure(text="Restoring it undoes what was done since:\n" + lines if done else
+                              "The same as the schedule now.")
+        tree.bind("<<TreeviewSelect>>", picked)
+
+        def do_restore():
+            sel = tree.selection()
+            v = rows.get(sel[0]) if sel else None
+            if not v:
+                return
+            if self.swaps.pending:
+                messagebox.showinfo("Earlier versions", "The schedule has unsaved changes: confirm or discard them "
+                                    "first.", parent=win)
+                return
+            if not messagebox.askyesno(
+                    "Restore this version?", f"Put back the schedule as it was on {when(v.replaced)}?\n\nThe "
+                    "schedule as it is now is kept as a version too, so this can be undone here.",
+                    icon="warning", default="no", parent=win):
+                return
+            try:
+                restore_version(folder, v)
+            except ScheduleFileError as e:
+                messagebox.showerror("Couldn't restore", str(e), parent=win)
+                return
+            app_log.write(f"Schedule tab: restored the version from {when(v.replaced)} ({v.path.name})")
+            win.destroy()
+            self.swaps.load(quiet=True)
+            self.status.configure(text=f"Restored the version from {when(v.replaced)}. Rebuilding the exports...")
+            self.export(lambda code: self.status.configure(text=self.status.cget("text").replace(
+                " Rebuilding the exports...", " Exports rebuilt.")))
+        restore.configure(command=do_restore)
+        win.grab_set()
 
     # a night's emails and summary (copied)
     def night_info(self, d):

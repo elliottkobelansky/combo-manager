@@ -17,7 +17,7 @@ for testing): **`./combo-manager.sh`**. The window's tabs:
   conflicts, in a fold-out box under the list. Edits wait until **Confirm changes**. **Open PDF / Open Excel**: the
   combo list.
 - **Schedule**: every show night and its sets. **Make schedule** (once per semester), **Check schedule** (the
-  rule check first, then a few stats at a glance; tick **All stats** on the results box for every section), **Lock schedule** (tick it once the schedule is final: no new schedule can be made while it's ticked), **Open
+  rule check first, then a few stats at a glance; tick **All stats** on the results box for every section), **Earlier versions...** (go back to the schedule as it was before a change), **Lock schedule** (tick it once the schedule is final: no new schedule can be made while it's ticked), **Open
   PDF / Open Excel**; results in a fold-out box.
 - **Swaps**: **Swap**, **Give away**, **Claim** (see [swaps](#during-the-semester-swaps)).
 - **Semester**: the semester's settings (dates, show nights, rules), shared by every computer, saved with **Save**.
@@ -189,8 +189,10 @@ for any combo still Pending.
 **The schedule itself is `AppFiles/schedule.json`** (`app/schedule_file.py`): who plays which set, text typed into
 sets, the supervised nights and the nights' dates, venues and times. Only the app (and `solve.py`) change it: a new
 schedule, swaps, give-aways and claims, text in a set (Schedule tab), withdrawn combos. Every change backs it up first
-into `AppFiles/ScheduleBackups`. `Schedule.pdf` and `Schedule.xlsx` are **exports**, rebuilt after every change
-(and with **Export PDF** / **Export Excel**, Schedule tab) and never read back: editing them changes nothing. One
+into `AppFiles/ScheduleBackups`, and **Earlier versions...** (Schedule tab) lists those copies with the change made
+next, shows what restoring one would undo, and restores it (the schedule as it is goes into the list first, so a
+restore can be undone the same way; the lock stays as it is; the history keeps it all). `Schedule.pdf` and `Schedule.xlsx` are **exports**, rebuilt after every change
+(and with **Open PDF** / **Open Excel**, Schedule tab) and never read back: editing them changes nothing. One
 open in Excel when it's rebuilt is skipped with a warning (the schedule is saved anyway); close it and export again.
 Print `Schedule.pdf` with `Combos.pdf` (Combos tab): the combo numbers on the calendar match the list.
 

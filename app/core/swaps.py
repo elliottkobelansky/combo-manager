@@ -85,7 +85,7 @@ def swap_options(sets: Sets, nights: List[Night], combos: Dict[str, Combo], inp:
                 if slot and (d2, k2) != slot:
                     continue
                 if sets.get(d2, {}).get(k2) is None and k2 not in typed.get(d2, {}):
-                    candidates.append(("claim", {(d2, k2): cid}, f"Claim the open set {label(d2, k2)}",
+                    candidates.append(("claim", {(d2, k2): cid}, f"{me} claims the open set {label(d2, k2)}",
                                        "open set", place(d2, k2), False))
     for d2 in sorted(set(sets) | set(nmap)) if d is not None else []:
         row = sets.get(d2, {})
@@ -97,12 +97,12 @@ def swap_options(sets: Sets, nights: List[Night], combos: Dict[str, Combo], inp:
                 continue
             changes = {(d, k): other, (d2, k2): cid}
             if other is None:
-                title = (f"Move to set {k2} the same night ({label(d2, k2)})" if d2 == d else
-                         f"Move to the open set {label(d2, k2)}")
+                title = (f"{me} moves to set {k2} the same night ({label(d2, k2)})" if d2 == d else
+                         f"{me} moves to the open set {label(d2, k2)}")
                 candidates.append(("move", changes, title, "open set", place(d2, k2), d2 == d))
             else:
                 name = combos[other].name
-                title = (f"Swap set order with {name} (set {k} \u2194 set {k2}, same night)" if d2 == d else
+                title = (f"{me} swaps set order with {name} (set {k} \u2194 set {k2}, same night)" if d2 == d else
                          f"Trade with {name}: {me} plays {label(d2, k2)}; {name} plays {label(d, k)}")
                 candidates.append(("trade", changes, title, name, place(d2, k2), d2 == d))
     # give the show away: to another combo (one playing that night already breaks a rule), or leave the set open
