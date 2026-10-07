@@ -31,20 +31,18 @@ class SwapPanel:
         self.listeners = []                           # called whenever the (pending) schedule changes
         self.frame = ttk.Frame(parent, padding=(4, 12, 4, 4))
 
-        top = ttk.Frame(self.frame)
-        top.pack(fill="x")
-        self.info = ttk.Label(top, text="", style="Hint.TLabel")
-        self.info.pack(side="left")
+        # a line only when there's something to say (it couldn't load; the schedule has problems already)
+        self.info = ttk.Label(self.frame, text="", style="Hint.TLabel")
 
-        body = ttk.Frame(self.frame)
-        body.pack(fill="both", expand=True, pady=(12, 0))
+        body = self.body = ttk.Frame(self.frame)
+        body.pack(fill="both", expand=True)
         left = ttk.Frame(body)
         left.pack(side="left", fill="y")
         ttk.Label(left, text="Combo", style="CardTitle.TLabel").pack(anchor="w")
         self.combo = ttk.Combobox(left, state="readonly", width=30)
         self.combo.pack(anchor="w", pady=(4, 10))
         self.combo.bind("<<ComboboxSelected>>", lambda _: (self.show_combo(), self.list_options()))
-        ttk.Label(left, text="Its shows (pick one; not needed to claim)", style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(left, text="Shows", style="CardTitle.TLabel").pack(anchor="w")
         self.show_list = ttk.Treeview(left, columns=("when", "where"), show="headings", height=8, selectmode="browse")
         self.show_list.heading("when", text="Night")
         self.show_list.heading("where", text="Venue, set")
@@ -61,7 +59,7 @@ class SwapPanel:
         for value, text in (("swap", "Swap"), ("give", "Give away"), ("claim", "Claim")):
             ttk.Radiobutton(mode, text=text, value=value, variable=self.mode,
                             command=self.list_options).pack(side="left", padx=(0, 16))
-        ttk.Label(right, text="Legal options, best first", style="CardTitle.TLabel").pack(anchor="w", pady=(10, 0))
+        ttk.Label(right, text="Options", style="CardTitle.TLabel").pack(anchor="w", pady=(10, 0))
         table = ttk.Frame(right)
         table.pack(fill="both", expand=True, pady=(4, 0))
         bar = ttk.Scrollbar(table, orient="vertical")
@@ -158,7 +156,7 @@ class SwapPanel:
             self.combo.configure(values=[])
             self.combo.set("")
             self.clear(self.show_list, self.option_list)
-            self.info.configure(text="Not loaded: " + str(e).strip().splitlines()[0])
+            self.say("Not loaded: " + str(e).strip().splitlines()[0])
             self.notify()
             return
         names = Store(folder).names
@@ -180,14 +178,22 @@ class SwapPanel:
         self.labels = {cid: f"{c.name} ({who(c.liaison)})" if c.liaison else c.name for cid, c in combos.items()}
         self.by_name = {c.name: cid for cid, c in combos.items()}
         self.combo.configure(values=[self.labels[cid] for cid in sorted(combos, key=lambda c: combos[c].name)])
-        self.info.configure(text=f"Loaded {len(combos)} combos." + (
-            f" The schedule has {len(problems)} problem(s) already; swaps that fix one are marked." if problems else ""))
+        self.say(f"The schedule has {len(problems)} problem(s) already; swaps that fix one are marked in green."
+                 if problems else "")
         if self.combo.get() in self.combo.cget("values"):
             self.show_combo()
         else:
             self.combo.set("")
             self.clear(self.show_list, self.option_list)
         self.notify()
+
+    def say(self, text):
+        """The line above the lists: shown only with something in it."""
+        self.info.configure(text=text)
+        if text:
+            self.info.pack(fill="x", pady=(0, 10), before=self.body)
+        else:
+            self.info.pack_forget()
 
     def clear(self, *trees):
         for t in trees:
