@@ -47,7 +47,7 @@ GENERAL = [  # (key, label, kind)  kind: text, wide (longer text), date, date?, 
     ("min_usable_nights_per_combo", "Warn: usable nights per combo", "int?"),
     ("min_members_per_combo", "Warn: members per combo", "int?"),
     ("max_combos_rhythm", "Warn: combos per rhythm player", "int?"),
-    ("max_combos_other", "Warn: combos per other player", "int?"),
+    ("max_combos_other", "Warn: combos per non-rhythm player", "int?"),
     ("solver_time_limit_sec", "Solver time (seconds)", "int"),
 ]
 POLICIES = {"open": "Leave open", "auto": "Fill every set"}      # semester.json value -> what the menu shows

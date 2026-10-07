@@ -53,7 +53,7 @@ class Settings:
     min_usable_nights_per_combo: Optional[int] = 3
     min_members_per_combo: Optional[int] = 4      # warning only: combos with fewer members are flagged
     max_combos_rhythm: Optional[int] = 2          # warning only: combos per rhythm-section player (util.RHYTHM)
-    max_combos_other: Optional[int] = 1           # warning only: combos per other player (horns, voice, ...)
+    max_combos_other: Optional[int] = 1           # warning only: combos per non-rhythm player (horns, voice, ...)
     max_shows_per_combo: Optional[int] = 4
     min_shows_per_combo: Optional[int] = None   # total, at any venues (venue minimums still apply); open mode: exactly.
                                                 # Required in semester.json; None only for a hand-built Settings

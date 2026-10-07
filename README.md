@@ -32,8 +32,13 @@ Makes the semester's combo show calendar and handles swaps during the semester.
 
 The schedule isn't built by hand-written rules of thumb: it's solved as an **optimization problem**. The app
 describes every possible way to place the combos on the show nights, the rules each one must follow, and what makes
-one schedule better than another. A solver (Google's OR-Tools) then searches all of them and picks the best one. It
-usually proves it's the best possible in under a minute, and the same input always gives the same schedule.
+one schedule better than another. A solver (Google's OR-Tools) then searches all of them for the best one. The same input
+always gives the same schedule.
+
+**You can count on a good schedule.** Whenever the rules can be met at all, the app finds the best possible
+schedule, usually in under a minute. If its time runs out first (a very large semester), it still gives a valid
+schedule, usually just as good, and says so. The only time there's no schedule is when the rules truly can't
+be met (e.g. a combo's members can't make any Upstairs night); then it says exactly what's in the way.
 
 **Hard rules**, never broken:
 - A combo never plays a night one of its members can't make.
@@ -46,14 +51,13 @@ usually proves it's the best possible in under a minute, and the same input alwa
 3. Every combo gets the same number of shows.
 4. A first-year combo's first show is on a supervised night.
 5. Supervised nights fall on the preferred show days.
-6. As few supervised nights as possible.
-7. Each combo plays at every venue it can.
-8. Supervised nights early or late in the semester, if chosen.
-9. Each combo's shows are spread apart.
+6. Each combo's shows are spread apart.
+7. As few supervised nights as possible.
+8. Each combo plays at every venue it can.
+9. Supervised nights early or late in the semester, if chosen.
 10. No student plays twice in one night.
 
-If no schedule can keep every hard rule, the app says why in plain words (e.g. "Combo 10 has 0 usable Upstairs
-nights but needs 1"). The same rules and goals check every swap.
+The same rules and goals check every swap.
 
 ## Download
 

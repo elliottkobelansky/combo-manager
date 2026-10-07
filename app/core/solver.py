@@ -12,12 +12,12 @@ W_FIRST_YEAR = 800  # per show a first-year combo plays before first_year_earlie
 W_SPREAD = 600      # per unit of (max - min) shows per combo, per venue and overall: equal show counts
 W_FY_SUP = 500      # per first-year combo whose first show isn't on a supervised night (feedback on their first set)
 W_SUP_DAY = 400     # per supervised night that isn't on a "Supervision preferred" show day (ShowDays sheet)
+W_SPACING = 350     # max cost of one pair of a combo's shows (same-day). The cost falls off quadratically and
+                    # reaches 0 at min_days_between_shows.
 W_SUPERVISED = 300  # per supervised night: as few nights needing a professor as possible (within the cap)
 W_VENUES = 150      # per combo with no show at a venue it could play at: 1 Upstairs + 1 Clara beats Upstairs twice
 W_SUP_TIMING = 100  # per supervised night at the wrong end of the semester (supervision_timing earlier / later),
                     # scaled 0..100 by how far it is from the preferred end
-W_SPACING = 80      # max cost of one pair of a combo's shows (same-day). The cost falls off quadratically and
-                    # reaches 0 at min_days_between_shows.
 W_SHARED = 30       # per student who plays twice in one night (two of their combos on the same night): minor
 W_PRIMARY = 15      # auto mode: extras should go to required venues (e.g. Tuesday) before optional ones
 

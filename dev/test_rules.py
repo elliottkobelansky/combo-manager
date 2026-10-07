@@ -963,7 +963,7 @@ def main():
     inst = {(c.name, "kai.drums@mail.mcgill.ca"): "Drums" for c in many} | {
         ("Combo 01", "sam.guest@gmail.com"): "Trumpet", ("Combo 02", "sam.guest@gmail.com"): "Trumpet"}
     said = instrument_limits(many, inst, lim, RHYTHM)
-    if len(said) != 2 or "rhythm-section players is 2" not in said[0] or "other players is 1" not in said[1]:
+    if len(said) != 2 or "rhythm-section players is 2" not in said[0] or "non-rhythm players is 1" not in said[1]:
         bad.append(f"combos-per-player limits: {said}")
     if instrument_limits(many, {}, lim, RHYTHM):
         bad.append("combos-per-player limits flag people with no instrument set")

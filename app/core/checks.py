@@ -69,7 +69,7 @@ def instrument_limits(combos, instruments, settings: Settings, rhythm, name_of=l
         limit = settings.max_combos_rhythm if is_rhythm else settings.max_combos_other
         if limit and len(names) > limit:
             out.append(f"{name_of(e)} ({', '.join(sorted(played))}) is in {len(names)} combos "
-                       f"({', '.join(names)}): the limit for {'rhythm-section' if is_rhythm else 'other'} players is "
+                       f"({', '.join(names)}): the limit for {'rhythm-section' if is_rhythm else 'non-rhythm'} players is "
                        f"{limit}.")
     return out
 

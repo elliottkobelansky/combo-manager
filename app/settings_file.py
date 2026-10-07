@@ -69,7 +69,7 @@ HELP = {
                              "removed in the Combos tab). Blank = no warning.",
     "max_combos_rhythm": "Warning only: flags piano, guitar, bass and drum players in more combos than this. "
                          "Blank = no warning.",
-    "max_combos_other": "Warning only: flags other players (horns, voice, ...) in more combos than this. Only "
+    "max_combos_other": "Warning only: flags non-rhythm players (horns, voice, ...) in more combos than this. Only "
                         "people whose instrument is set are checked. Blank = no warning.",
     "extra_slot_policy": "Leave open: each combo gets its shows; the sets left over stay open for volunteers, or you "
                          "fill them by hand (Schedule or Swaps tab). Fill every set: some combos get extra shows.",
@@ -133,7 +133,7 @@ LABELS = {"semester_name": "Semester name", "start_date": "First possible show d
           "max_blocked_dates_per_person": "Warn: conflicts per person",
           "min_usable_nights_per_combo": "Warn: usable nights per combo",
           "min_members_per_combo": "Warn: members per combo", "solver_time_limit_sec": "Solver time (seconds)",
-          "max_combos_rhythm": "Warn: combos per rhythm player", "max_combos_other": "Warn: combos per other player"}
+          "max_combos_rhythm": "Warn: combos per rhythm player", "max_combos_other": "Warn: combos per non-rhythm player"}
 
 
 def label(key):
