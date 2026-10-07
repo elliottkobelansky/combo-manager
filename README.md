@@ -29,7 +29,7 @@ Makes the semester's combo show calendar and handles swaps during the semester.
 
 ## Download
 
-Repo **Actions** tab > latest "Build the apps" run > **Artifacts**:
+The repo's **Releases** page (right side of the repo's front page), latest version:
 
 - **Windows:** `Combo-Manager-windows`. First time: **More info > Run anyway**.
 - **Mac:** `Combo-Manager-mac-arm64` (M1 and later) or `-mac-intel`. First time: **System Settings > Privacy &

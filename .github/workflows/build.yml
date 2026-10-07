@@ -1,15 +1,18 @@
-# Builds the Windows and Mac apps on every push to main (and on demand: Actions tab > Build the apps > Run workflow):
-# runs the tests on each system, builds the app with dev/build_exe.py, checks the built app loads every part it
-# needs (--selftest), and keeps the result for 30 days: open the run, then Artifacts > Combo-Manager-windows /
-# Combo-Manager-mac-arm64 (Apple Silicon: M1 and later) / Combo-Manager-mac-intel (older Macs).
-# A tag like v1.0 also puts the zips on a GitHub Release, a lasting download link to hand out.
+# Builds the Windows and Mac apps, only when asked (they use paid minutes on a private repo; Mac minutes count 10x):
+#   - by hand: Actions tab > Build the apps > Run workflow
+#   - for a release: push a tag like v0.2.0; the zips then also go on a GitHub Release, a lasting download link
+# Each build runs the tests, builds the app with dev/build_exe.py, and checks the built app loads every part it needs
+# (--selftest). Downloads: open the run > Artifacts (Combo-Manager-windows / -mac-arm64 / -mac-intel).
 name: Build the apps
 
 on:
   push:
-    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
+
+concurrency:                 # a newer build of the same thing cancels an older one still running
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write          # only used to attach the zip to a Release (tags)
