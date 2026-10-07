@@ -10,6 +10,21 @@ Makes the semester's combo show calendar and handles swaps during the semester.
 |---|---|
 | ![The Combos tab](docs/combos.png) | ![The Swaps tab](docs/swaps.png) |
 
+## What it does
+
+- **Combos:** brings in the approved sign-ups and conflicts from the forms, or lets you add them by hand. Add or
+  remove members, change the liaison, fix names and emails, set instruments, mark first-year combos, withdraw a
+  combo. **Check combos** points out problems before the schedule is made.
+- **Schedule:** makes the whole semester in about a minute. Every combo gets its shows, never on a night one of its
+  members can't make, with supervised nights, first-year combos starting later, and shows spread out. Exports a
+  calendar PDF and an Excel file, ready to send.
+- **Swaps:** when a combo can't make a show, lists every possible trade or move, best first, and warns about side
+  effects. Also handles giving a show away and claiming an open set. Copies a ready-to-send email for the liaisons.
+- **Safe changes:** nothing is saved until **Confirm changes**. **Earlier versions** brings back the schedule as it
+  was before any change, and **Lock schedule** stops it being remade by accident.
+- **Semester:** the dates, show nights, venues and rules, each explained in the app.
+- **Emails:** copy the liaisons' or everyone's emails for a night or a combo, ready to paste into Outlook.
+
 ## Download
 
 Repo **Actions** tab > latest "Build the apps" run > **Artifacts**:
@@ -31,19 +46,4 @@ Everything is kept in one folder (e.g. `ComboManagerData`, can be in OneDrive), 
 
 Back it up now and then: **Settings** tab > **Backup...**
 
-## Development
-
-- Run from source (Linux): `./combo-manager.sh`
-- Tests: `python dev/test_rules.py` (run after every change)
-- Fake data to try things: `python dev/make_fake_forms.py FOLDER`
-- Build: GitHub does it on every push. Locally: `pip install -r requirements.txt pyinstaller`, then
-  `python dev/build_exe.py`
-- Version: `VERSION` in `app/scheduler_app.py`
-- Quick Start: edit `QUICK_START.md`, then `python dev/make_quick_start.py`
-
-Code: `app/scheduler_app.py` is the window (one `*_panel.py` file per tab), `app/core/` the scheduling and swap
-logic, `app/inputs.py` reads the spreadsheets, `app/outputs/` writes the PDFs and Excel files.
-
-## License
-
-MIT (see `LICENSE`).
+Working on the code? See `DEVELOPMENT.md`.
