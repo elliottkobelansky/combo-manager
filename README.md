@@ -8,19 +8,13 @@ fill (the combo sign-up form and the conflicts form).
 
 ## Getting the app
 
-GitHub builds it on every push (`.github/workflows/build.yml`): tests, then a PyInstaller build
-(`dev/build_exe.py`), then a self-check of the built app. Download from the repo's **Actions** tab > latest "Build
-the apps" run > **Artifacts**: `Combo-Manager-windows`, `Combo-Manager-mac-arm64` (M1 and later) or
-`Combo-Manager-mac-intel`. A tag like `v0.1.0` also attaches them to a GitHub **Release** (a lasting link).
-No Python needed; a newer version just replaces the old one (the data lives elsewhere).
+GitHub builds it on every push: repo's **Actions** tab > latest "Build the apps" run > **Artifacts**
+(`Combo-Manager-windows`, `-mac-arm64` for M1 and later, `-mac-intel`). A tag like `v0.1.0` also puts them on a
+**Release** page. A newer version just replaces the old one: the data lives elsewhere.
 
-- **Windows:** unzip anywhere, double-click `Combo Manager.exe`; first time: **More info > Run anyway** (unsigned).
-- **Mac:** unzip, drag to Applications, double-click; first time: **System Settings > Privacy & Security > Open
-  Anyway** (not signed with an Apple Developer ID, $99/year). The zip is made with `ditto`; a plain zip breaks it.
-- **Linux, from source (testing):** `./combo-manager.sh` (needs `python3-venv python3-tk`); it makes a private
-  Python in `~/.combo-scheduler-python` and offers to install the packages (`requirements.txt`, pinned versions).
-
-The version is `VERSION` in `app/scheduler_app.py` (About tab, the log, the self-check).
+- **Windows:** first time, **More info > Run anyway** (the app isn't signed).
+- **Mac:** first time, **System Settings > Privacy & Security > Open Anyway** (signing costs $99/year).
+- **Linux (testing):** `./combo-manager.sh`.
 
 ## The window
 
@@ -60,14 +54,11 @@ can be local or synced (OneDrive, SharePoint, Dropbox, a network drive); the app
 - **Earlier versions...** (Schedule tab): a copy of the schedule is kept before every change; restore any of them
   (undoable the same way).
 - **The log:** `AppFiles/Logs/<computer>.txt`: every step, save and error. When something goes wrong, send it.
-- Per-computer choices (which folder, text size, dark mode) are in `~/.combo_scheduler.json`.
 
 ## A semester, step by step
 
-**1. Settings (Semester tab).** Semester name, first and last show day, the show days (weekday, venue, sets, set
-times, minimum shows there, "supervised nights preferred here"), skip dates (with a reason, shown on the calendar)
-and rare extra dates. Set times: first set, length and break give every set's time (19:00, 45, 15 gives 7:00–7:45,
-8:00–8:45, ...); blank shows set numbers instead. See [Settings explained](#settings-explained).
+**1. Settings (Semester tab).** The semester's name and dates, the weekly show days (venue, sets, set times),
+and the days off. Each field is explained next to it.
 
 **2. Combos and conflicts (Combos tab).** Link the forms' sheets and **Sync**, or enter them by hand (right-click >
 **New combo**; on a person, **Edit conflicts...**). Both can be mixed. **Check combos** before making the schedule.
@@ -86,8 +77,8 @@ they're read.
 
 **3. Make the schedule (Schedule tab).** **Make schedule** takes a minute and always gives the same result for the
 same input. Then **Open PDF** (print it with `Combos.pdf`: the numbers match) and **Lock schedule** once it's final,
-so a new one can't be made by accident. Once a schedule exists it decides the nights: changing dates or show days in
-Settings only affects the next schedule.
+so a new one can't be made by accident. Once a schedule exists it decides the nights: changing dates or show days on
+the Semester tab only affects the next schedule.
 
 **4. During the semester.**
 - **Swaps tab:** pick a combo and a show. **Swap** lists every trade and move, best first: green fixes a problem,
@@ -112,68 +103,29 @@ Supervision, **Changes** (every change since the schedule was made: for "my show
 
 ## What the solver does
 
-Hard rules, never broken:
+Never broken:
 - A combo never plays a night one of its members marked as a conflict.
-- Every combo gets at least its minimum shows at each venue, and `min_shows_per_combo` in total (at most
-  `max_shows_per_combo`). In `open` mode exactly that many; leftover sets stay open for volunteers.
-- Every combo plays at least `min_supervised_per_combo` supervised nights (a professor attends; usually 1). A
-  supervised night is always full. At most `max_supervised_nights` of them, and as few as possible.
+- Every combo gets its minimum shows (in total and at each venue), and no more than the maximum. With **Leftover
+  sets: Leave open**, exactly the minimum; the rest stay open for volunteers.
+- Every combo plays its **supervised nights** (a professor attends; usually 1). A supervised night is always full.
 
-Goals, most important first (a lower one gives way to a higher one):
-1. Give every combo its shows.
-2. First-year combos don't play before `first_year_earliest_date`.
+Goals, most important first:
+1. Every combo gets its shows.
+2. First-year combos don't play before their date, and their first show is supervised.
 3. Equal numbers of shows.
-4. A first-year combo's first show is on a supervised night.
-5. Supervised nights on the show days marked "supervised nights preferred here".
-6. As few supervised nights as possible.
-7. Each combo plays at every venue it can.
-8. Supervised nights earlier or later in the semester, if chosen.
-9. Each combo's shows spread apart (see [Tuning](#tuning)).
-10. No student playing twice in one night (if it happens, their two sets are back-to-back).
-11. A combo that went late last time goes early this time.
+4. Supervised nights on the preferred show days, and as few of them as possible.
+5. Each combo plays at every venue it can.
+6. Each combo's shows spread apart (**Ideal days between shows**).
+7. No student playing twice in one night.
 
 If no schedule is possible, it says why in plain words (e.g. "Combo 10 has 0 usable Upstairs nights but needs 1").
-The Report sheet lists any goal it had to give up.
-
-## Settings explained
-
-| Setting | Meaning |
-|---|---|
-| `semester_name` | The semester being scheduled (e.g. `Winter 2027`); titles the exports. Only spreadsheet rows with exactly this Semester are read. |
-| `start_date`, `end_date` | Show nights are generated between these dates. |
-| `min_days_between_shows` | Ideal gap between one combo's shows. **Tune this** (below). |
-| `use_first_year`, `first_year_earliest_date` | First-year combos (First year = Yes in the approvals, or tagged in the app) don't play before this date. Off: every combo is treated the same. |
-| `first_year_first_show_supervised` | A first-year combo's first show is on a supervised night (goal 4). |
-| `extra_slot_policy` | `open` (recommended): each combo gets its shows, leftover sets stay open. `auto`: every set is filled, some combos get extra shows. |
-| `min_shows_per_combo`, `max_shows_per_combo` | Shows per combo in total, at any venues (each venue's own minimum still applies). Max blank = no cap. |
-| `min_supervised_per_combo` | Supervised nights per combo (usually 1; 0 = none at all). |
-| `max_supervised_nights` | Total supervised nights in the semester, all professors together. Blank = no limit (still as few as possible). |
-| `supervision_timing` | Supervised nights preferred `early`, `late`, or `none`. A light preference. |
-| `max_blocked_dates_per_person`, `min_usable_nights_per_combo`, `min_members_per_combo` | Warnings only, in Check combos. |
-| `solver_time_limit_sec` | How long the solver searches. 90 is plenty unless the Report says FEASIBLE instead of OPTIMAL. |
-| `student_email_domain`, `professor_email_domain` | Used only to point out likely typos (a student on the professors' domain, ...). Blank = don't check. |
-
-## Tuning
-
-**`min_days_between_shows`** is the one to tune. Too low and shows end up closer than they need to be; too high and
-the solver runs out of time (FEASIBLE instead of OPTIMAL) for no real gain. About a third of the semester is a good
-start. With real data, compare a few values (nothing is written):
-
-    python app/solve.py --compare-gaps 14 21 28 35
-
-Pick the smallest value where *closest* stops improving and the solver still says OPTIMAL.
-
-**`solver_time_limit_sec`:** FEASIBLE means the solver stopped before proving it found the best schedule. The
-schedule is still valid; raise the limit (e.g. 180) to let it keep looking.
-
-The goals' weights are the `W_...` constants in `app/core/solver.py`; you shouldn't need them.
+The Report sheet lists any goal it had to give up. Every setting is explained next to it on the Semester tab.
 
 ## For developers
 
-**Command line** (what the buttons run): `python app/solve.py` makes a new schedule (asks first; `-y` skips) and
-`--export` also writes the exports; `--check` is Check combos; `--stats` is Check schedule (`--full` for every
-stat; with `--export` it rebuilds the exports). `--folder PATH` for another data folder; `--approvals` /
-`--conflicts PATH` for other input files.
+**Command line:** `python app/solve.py --help`. Useful once real sign-ups are in: `--compare-gaps 14 21 28 35`
+tries several **Ideal days between shows** (writes nothing); pick the smallest where *closest* stops improving and
+the solver still says OPTIMAL.
 
 **Tests:** `python dev/test_rules.py` after any change (fake scenarios, every hard rule checked independently; works
 in a temporary folder). Demo data: `python dev/make_fake_forms.py FOLDER`, then **Change folder...** to it.
