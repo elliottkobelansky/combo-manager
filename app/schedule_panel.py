@@ -164,14 +164,14 @@ class SchedulePanel:
                                  + (f" · {pending} unsaved change(s)" if pending else ""))
 
     def refresh_tools(self):
-        """The Make button is the main one only before there's a schedule; after that it's a plain 'Make a new
-        schedule...', and off while the schedule is locked."""
+        """The Make button: 'Make schedule' before there's a schedule, 'Make a new schedule...' after; blue, and grey
+        (off) while the schedule is locked or a step runs."""
         st = self.swaps.state
         exists, sent = bool(st), bool(st and st.get("published"))
         self.sent.set(sent)
         self.sent_box.configure(state="normal" if exists else "disabled")
         self.make_button.configure(text="Make a new schedule..." if exists else "Make schedule",
-                                   style="TButton" if exists else "Accent.TButton",
+                                   style="Accent.TButton",     # blue; grey while locked or a step runs
                                    state="disabled" if sent else "normal")
         self.check_button.configure(style="Accent.TButton" if exists else "TButton",
                                     state="normal" if exists else "disabled")

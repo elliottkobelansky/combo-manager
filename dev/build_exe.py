@@ -1,10 +1,15 @@
-"""Builds the packaged app with PyInstaller: dist/Combo Manager/, a folder with the program (Combo Manager.exe
-on Windows) and everything it needs, so no Python install and no Setup screen. Plus the Quick Start, and a zip of the
-folder to hand out. Build on the system it's for (Windows for the .exe); GitHub Actions does it on every push
-(.github/workflows/build.yml).
+"""Builds the packaged app with PyInstaller, with everything it needs (no Python install, no Setup screen), plus
+the Quick Start, zipped to hand out. Build on the system it's for; GitHub Actions does both on every push
+(.github/workflows/build.yml):
+
+- Windows: dist/Combo Manager/ (Combo Manager.exe and its files) -> dist/Combo-Manager-windows.zip
+- Mac: dist/Combo Manager.app -> dist/Combo-Manager-mac-arm64.zip (Apple Silicon) or -mac-intel.zip, a folder
+  with the .app and the Quick Start. Not signed with an Apple Developer ID (only ad hoc), so the first time the Mac
+  says it can't check it: System Settings > Privacy & Security > Open Anyway (once).
 
     pip install -r requirements.txt pyinstaller
     python dev/build_exe.py            # then check it:  "dist/Combo Manager/Combo Manager.exe" --selftest t.txt
+                                       # on a Mac:  "dist/Combo Manager.app/Contents/MacOS/Combo Manager" --selftest t.txt
 
 A folder, not a single .exe: it starts faster and antivirus programs flag it less.
 
@@ -79,7 +84,10 @@ def main():
         "--hidden-import", "babel.numbers",
         "--collect-data", "reportlab",                 # PDF fonts
         "--exclude-module", "matplotlib", "--exclude-module", "IPython", "--exclude-module", "pytest",
-    ] + runtime_binaries())
+    ] + runtime_binaries() + (["--osx-bundle-identifier", "app.combomanager"] if platform.system() == "Darwin"
+                              else []))
+    if platform.system() == "Darwin":
+        return package_mac()
     folder = DIST / NAME
     if platform.system() == "Windows":
         missing = missing_dlls(folder)
@@ -94,6 +102,24 @@ def main():
     zip_path = shutil.make_archive(str(DIST / f"Combo-Manager-{system}"), "zip", DIST, NAME)
     size = sum(p.stat().st_size for p in folder.rglob("*") if p.is_file()) // 2**20
     print(f"\nBuilt {folder} ({size} MB) and {zip_path}.")
+
+
+def package_mac():
+    """dist/Combo-Manager-mac-<arch>.zip: a 'Combo Manager' folder with the .app and the Quick Start. Zipped with
+    ditto, which keeps what's inside the .app as it is (symlinks, the signature); a plain zip breaks it."""
+    import subprocess
+    app = DIST / f"{NAME}.app"
+    stage = DIST / "mac" / NAME
+    shutil.rmtree(stage.parent, ignore_errors=True)
+    stage.mkdir(parents=True)
+    subprocess.run(["ditto", str(app), str(stage / app.name)], check=True)
+    shutil.copy2(ROOT / "Quick Start.pdf", stage / "Quick Start.pdf")
+    arch = "arm64" if platform.machine() == "arm64" else "intel"
+    zip_path = DIST / f"Combo-Manager-mac-{arch}.zip"
+    zip_path.unlink(missing_ok=True)
+    subprocess.run(["ditto", "-c", "-k", "--keepParent", str(stage), str(zip_path)], check=True)
+    size = sum(p.stat().st_size for p in app.rglob("*") if p.is_file() and not p.is_symlink()) // 2**20
+    print(f"\nBuilt {app} ({size} MB) and {zip_path}.")
 
 
 if __name__ == "__main__":
