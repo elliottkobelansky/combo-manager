@@ -230,7 +230,7 @@ class ResultsBox(ttk.Frame):
 
     def __init__(self, parent, title, height=12):
         super().__init__(parent)
-        self.title, self.is_open = title, False
+        self.title, self.is_open, self.options = title, False, []
         self.head = ttk.Frame(self)                   # the title bar (room on its right for an option: add_option)
         self.head.pack(fill="x")
         self.toggle = ttk.Button(self.head, style="Fold.TButton", command=lambda: self.show(not self.is_open))
@@ -247,14 +247,20 @@ class ResultsBox(ttk.Frame):
     def show(self, on=True):
         self.is_open = on
         self.toggle.configure(text=("\u25be  " if on else "\u25b8  ") + self.title)
+        for w in getattr(self, "options", []):
+            if on:
+                w.pack(side="right", padx=(10, 4))
+            else:
+                w.pack_forget()
         if on:
             self.body.pack(fill="both", expand=True)
         else:
             self.body.pack_forget()
 
     def add_option(self, text, var):
-        """A tick on the right of the title bar (e.g. 'All stats')."""
-        ttk.Checkbutton(self.head, text=text, variable=var).pack(side="right", padx=(10, 4))
+        """A tick on the right of the title bar (e.g. 'All stats'), shown while the box is open."""
+        self.options.append(ttk.Checkbutton(self.head, text=text, variable=var))
+        self.show(self.is_open)
 
     def clear(self):
         self.text.configure(state="normal")

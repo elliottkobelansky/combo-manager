@@ -317,13 +317,14 @@ class App:
                                       lambda done: self.run(["--stats", "--export"],
                                                             "Exporting Schedule.pdf and Schedule.xlsx...", on_done=done),
                                       self.open_file, lambda: self.palette, open_path, make=self.make_schedule,
-                                      check=lambda: self.run(["--stats"] + (["--full"] if self.full_stats.get() else
-                                                                            []), "Checking the schedule..."))
+                                      check=lambda: self.run(["--stats", "--full"], "Checking the schedule..."))
         self.tabs.add(self.schedule.frame, text="Schedule")
         self.results["schedule"] = self.results_box(self.schedule, "Results of the last Make schedule or Check")
         self.full_stats = tk.BooleanVar(value=bool(load_config().get("full_stats")))   # remembered on this computer
         self.results["schedule"].add_option("All stats", self.full_stats)
-        self.full_stats.trace_add("write", lambda *_: save_config(full_stats=self.full_stats.get()))
+        self.full_stats.trace_add("write", lambda *_: (save_config(full_stats=self.full_stats.get()),
+                                                       self.show_check()))
+        self.last_check = None                        # the last Check schedule's output: All stats shows or hides
         self.tabs.add(self.swaps.frame, text="Swaps")
         self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette, on_save=self.autoload,
                                       on_dirty=lambda dirty: self.settings and self.tabs.tab(
@@ -929,6 +930,9 @@ class App:
         if self.busy:
             return
         self.top_first = "-y" not in args             # a check: what matters is at the top (a make: follow along)
+        checking = "--full" in args                   # Check schedule: shown once done, with or without All stats
+        if target == "schedule":
+            self.last_check = None
         box = self.results.get(target)
         if box:
             self.out = box.text
@@ -939,9 +943,14 @@ class App:
 
         def job():
             out = []
-            code = run_solve(args, self.folder, lambda t: (out.append(t), self.write(t)))
+            code = run_solve(args, self.folder, (lambda t: out.append(t)) if checking else
+                             (lambda t: (out.append(t), self.write(t))))
             if code != 0:
-                self.write("\nThere are problems: see the red lines.\n")
+                out.append("\nThere are problems: see the red lines.\n")
+                if not checking:
+                    self.write(out[-1])
+            if checking:
+                self.queue.put(lambda: self.show_check("".join(out)))
             app_log.write(f"{message} (solve.py {' '.join(args)}): " + ("done" if code == 0 else f"exit code {code}")
                           + "\n" + (intro or "") + "".join(out))
             if on_done:
@@ -950,6 +959,28 @@ class App:
         if ticker and self.busy:
             self.runs += 1
             self.root.after(10000, self.tick, self.runs, time.monotonic())
+
+    def show_check(self, text=None):
+        """The last Check schedule's output in the Schedule tab's results box: the sections between the solve.py
+        ALL_STATS markers only while All stats is ticked (so the tick works without checking again)."""
+        if text is not None:
+            self.last_check = text
+        box = self.results.get("schedule")
+        if not self.last_check or not box or (self.busy and text is None):
+            return
+        start, end = "--- all stats ---", "--- end of all stats ---"
+        shown, hide = [], False
+        for line in self.last_check.splitlines(keepends=True):
+            if line.strip() == start:
+                hide = not self.full_stats.get()
+            elif line.strip() == end:
+                hide = False
+            elif not hide:
+                shown.append(line)
+        box.clear()
+        self.out = box.text
+        self.write("".join(shown))
+        self.queue.put(lambda: self.out.see("1.0"))
 
     def tick(self, run, started):
         if not self.busy or run != self.runs:         # finished, or another run started since

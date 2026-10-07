@@ -83,6 +83,9 @@ def write_exports(folder, sched, combos, settings, store):
               "Close it, then Export again (Schedule tab).")
 
 
+ALL_STATS = ("--- all stats ---", "--- end of all stats ---")   # around the full sections (the app shows or hides them)
+
+
 def print_stats(folder, sched, inp, settings, store, export=False, full=False, to_look_at=0):
     """The rule check first, then the stats: a few lines at a glance, or every section with full. to_look_at: how
     many things Check combos lists (pointed to, not repeated)."""
@@ -104,12 +107,7 @@ def print_stats(folder, sched, inp, settings, store, export=False, full=False, t
         print(f"(Check combos lists {to_look_at} thing{'s' if to_look_at > 1 else ''} to look at in the combos and "
               "conflicts.)")
     by = {title: lines for title, lines in sections}
-    if full:
-        for title, lines in sections:
-            print(f"\n{title}")
-            for line in lines:
-                print(f"  {line}")
-    else:
+    if True:                                          # (a few lines at a glance, always)
         glance = [by.get("Overview", [""])[0], by.get("Shows per combo", [""])[0].replace("Total: ", "Shows per combo: "),
                   next((l.split(":")[0] + "." for l in by.get("Supervision", []) if "supervised night(s)" in l), ""),
                   "Spacing: " + by["Spacing between a combo's shows"][0] if by.get("Spacing between a combo's shows")
@@ -117,6 +115,13 @@ def print_stats(folder, sched, inp, settings, store, export=False, full=False, t
         print("\nAt a glance (tick 'All stats' for everything):")
         for line in filter(None, glance):
             print(f"  {line}")
+    if full:
+        print(ALL_STATS[0])
+        for title, lines in sections:
+            print(f"\n{title}")
+            for line in lines:
+                print(f"  {line}")
+        print(ALL_STATS[1])
     if export:
         print()
         write_exports(folder, sched, combos, settings, store)
