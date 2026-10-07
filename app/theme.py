@@ -106,6 +106,9 @@ def apply(root, mode="light", scale=None):
         style.map(w, background=[("active", bg)], indicatorbackground=[("pressed", p["hover"])])
     # tabs: the open one white with blue text
     style.configure("TNotebook", background=bg, bordercolor=border, lightcolor=bg, darkcolor=bg, tabmargins=(0, 0, 0, 0))
+    style.layout("TNotebook.Tab", [("Notebook.tab", {"sticky": "nswe", "children": [   # no dotted focus box
+        ("Notebook.padding", {"side": "top", "sticky": "nswe", "children": [
+            ("Notebook.label", {"side": "top", "sticky": ""})]})]})])
     style.configure("TNotebook.Tab", padding=(size(14), size(6)), background=bg, bordercolor=border, lightcolor=bg,
                     darkcolor=bg, foreground=muted)
     style.map("TNotebook.Tab", background=[("selected", panel), ("active", p["hover"])],
