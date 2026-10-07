@@ -7,8 +7,9 @@ import json
 import sys
 import tkinter as tk
 from datetime import date
-from tkinter import messagebox, ttk
+from tkinter import ttk
 
+import dialogs
 from core import generate_nights
 from core.model import WEEKDAYS, make_label
 from data_folder import SETTINGS_FILE, settings_path
@@ -132,7 +133,7 @@ class DateField(ttk.Frame):
 
     def pick(self):
         if Calendar is None:
-            messagebox.showinfo("Calendar not installed", "The pop-up calendar needs the tkcalendar package.\n\n"
+            dialogs.showinfo("Calendar not installed", "The pop-up calendar needs the tkcalendar package.\n\n"
                                 "On the Run tab, click 'Install missing packages', then close and reopen this "
                                 "window. Until then, type dates as YYYY-MM-DD (e.g. 2027-03-02).", parent=self)
             return
@@ -277,7 +278,7 @@ class ListEditor:
                     else:
                         new[key] = w.get().strip() or None
             except ValueError:
-                messagebox.showerror("Not a number", "Numbers must be whole numbers.", parent=win)
+                dialogs.showerror("Not a number", "Numbers must be whole numbers.", parent=win)
                 return
             if index is None:
                 self.rows.append(new)
@@ -386,7 +387,7 @@ class SettingsPanel:
             try:
                 data = read_data(self.path)
             except SettingsError as e:
-                messagebox.showerror("Semester", str(e))
+                dialogs.showerror("Semester", str(e))
                 data = dict(DEFAULTS)
         else:
             data, note = dict(DEFAULTS), "No settings yet: these are example values. Check them, then Save."
@@ -493,12 +494,11 @@ class SettingsPanel:
         if on_file == new.semester_name:              # the schedule is already the new semester's
             return None
         self.old_semester = on_file or old.semester_name
-        answer = messagebox.askyesnocancel(
+        answer = dialogs.askyesnocancel(
             "New semester", f"The semester changes from {old.semester_name} to {new.semester_name}.\n\n"
             f"Move {self.old_semester}'s files (the schedule, Schedule.xlsx, the PDFs, schedule backups) into "
-            f"'Archive/{self.old_semester}' in the data folder?\n\nYes: move them (recommended).\nNo: leave them (the "
-            f"app ignores a schedule from another semester; making the {new.semester_name} schedule moves them "
-            "then).\nCancel: don't save.")
+            f"'Archive/{self.old_semester}' in the data folder? (Recommended. If you leave them, making the "
+            f"{new.semester_name} schedule moves them then.)", yes="Move them", no="Leave them", cancel="Don't save")
         return "cancel" if answer is None else answer
 
     def nights_ok(self, new):
@@ -525,19 +525,19 @@ class SettingsPanel:
         lines = ([f"\u2022 New nights: {dates(added)}."] if added else []) + (
             [f"\u2022 Nights removed: {dates(removed)}."] if removed else []) + (
             [f"\u2022 Sets or set times change on {len(changed)} night(s)."] if changed else [])
-        return messagebox.askyesno(
+        return dialogs.askyesno(
             "For the next schedule", "These changes affect the show nights:\n\n" + "\n".join(lines)
-            + "\n\nThey apply to the next schedule you make (Run tab, step 2). The current schedule keeps its own "
-            "nights, shows and times: the app, the check and the exports all follow it.\n\nSave?",
+            + "\n\nThey apply to the next schedule you make. The current schedule keeps its own nights, shows "
+            "and times: the app, the check and the exports all follow it.", yes="Save", no="Cancel",
             icon="info", default="yes")
 
     def ask_to_save(self):
         """For leaving the tab, changing folder or closing with unsaved changes. True = go ahead, False = stay."""
         if not self.dirty:
             return True
-        answer = messagebox.askyesnocancel(
-            "Unsaved settings", "The settings have changes that aren't saved.\n\nYes: save them now.\nNo: undo them."
-            "\nCancel: go back to the Semester tab.", icon="warning")
+        answer = dialogs.askyesnocancel(
+            "Unsaved settings", "The settings have changes that aren't saved.", yes="Save", no="Undo them",
+            cancel="Go back", icon="warning")
         if answer is None:
             return False
         if answer:
@@ -549,18 +549,18 @@ class SettingsPanel:
         try:
             data = self.collect()
         except ValueError:
-            messagebox.showerror("Not a number", "The number fields must hold whole numbers (or be blank).")
+            dialogs.showerror("Not a number", "The number fields must hold whole numbers (or be blank).")
             return False
         try:
             new, warnings = validate(data)
         except SettingsError as e:
-            messagebox.showerror("Can't save yet", f"Please fix these first:\n\n{e}")
+            dialogs.showerror("Can't save yet", f"Please fix these first:\n\n{e}")
             return False
         if fingerprint(self.path) != self.read_as:
-            answer = messagebox.askyesnocancel(
+            answer = dialogs.askyesnocancel(
                 "Settings changed elsewhere", f"{SETTINGS_FILE} was changed on another computer since this tab "
-                "loaded it.\n\nYes: save yours anyway (replaces those changes).\nNo: load those settings instead "
-                "(your unsaved changes here are lost).\nCancel: go back.", icon="warning", default="cancel")
+                "loaded it. Save yours anyway (replaces those changes), or load theirs (your unsaved changes here "
+                "are lost)?", yes="Save mine", no="Load theirs", icon="warning", default="cancel")
             if answer is None:
                 return False
             if not answer:

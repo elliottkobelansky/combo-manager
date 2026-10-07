@@ -35,10 +35,8 @@ describes every possible way to place the combos on the show nights, the rules e
 one schedule better than another. A solver (Google's OR-Tools) then searches all of them for the best one. The same input
 always gives the same schedule.
 
-**You can count on a good schedule.** Whenever the rules can be met at all, the app finds the best possible
-schedule, usually in under a minute. If its time runs out first (a very large semester), it still gives a valid
-schedule, usually just as good, and says so. The only time there's no schedule is when the rules truly can't
-be met (e.g. a combo's members can't make any Upstairs night); then it says exactly what's in the way.
+Under most circumstances, this gives the best schedule possible. When the rules can't all be met (e.g. a combo's
+members can't make any Upstairs night), the app says exactly what's in the way.
 
 **Hard rules**, never broken:
 - A combo never plays a night one of its members can't make.

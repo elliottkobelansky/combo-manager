@@ -6,9 +6,10 @@ claim only adds a pending change, and the exports ask what to do with unsaved ch
 straight away: text typed into an open set (e.g. "Jam session"), or clearing it.
 """
 import tkinter as tk
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import simpledialog, ttk
 
 import app_log
+import dialogs
 from core.model import make_label
 from core.swaps import claimers
 from data_folder import SCHEDULE_PDF, SCHEDULE_XLSX
@@ -191,17 +192,17 @@ class SchedulePanel:
         """The 'Lock schedule' tick (e.g. once the schedule is final): saved with the schedule (every
         computer sees it). Unticking asks first: it lets a new schedule be made again."""
         from schedule_file import set_published
-        if not self.sent.get() and not messagebox.askyesno(
+        if not self.sent.get() and not dialogs.askyesno(
                 "Unlock the schedule?", "Unticking this lets a brand-new schedule be made again, which would replace this one: "
-                "almost every show would move.\n\nFor changes to this schedule, use the Swaps tab instead.\n\n"
-                "Unlock it anyway?",
+                "almost every show would move.\n\nFor changes to this schedule, use the Swaps tab instead.",
+                yes="Unlock", no="Keep locked",
                 icon="warning", default="no"):
             self.sent.set(True)
             return
         try:
             set_published(self.swaps.get_folder(), self.sent.get())
         except OSError as e:
-            messagebox.showerror("Couldn't save", str(e))
+            dialogs.showerror("Couldn't save", str(e))
         if self.swaps.state:
             self.swaps.state["published"] = self.sent.get()
         app_log.write("Schedule locked" if self.sent.get() else "Schedule unlocked")
@@ -375,18 +376,18 @@ class SchedulePanel:
             if not v:
                 return
             if self.swaps.pending:
-                messagebox.showinfo("Earlier versions", "The schedule has unsaved changes: confirm or discard them "
+                dialogs.showinfo("Earlier versions", "The schedule has unsaved changes: confirm or discard them "
                                     "first.", parent=win)
                 return
-            if not messagebox.askyesno(
+            if not dialogs.askyesno(
                     "Restore this version?", f"Put back the schedule as it was on {when(v.replaced)}?\n\nThe "
                     "schedule as it is now is kept as a version too, so this can be undone here.",
-                    icon="warning", default="no", parent=win):
+                    yes="Restore", no="Cancel", icon="warning", default="no", parent=win):
                 return
             try:
                 restore_version(folder, v)
             except ScheduleFileError as e:
-                messagebox.showerror("Couldn't restore", str(e), parent=win)
+                dialogs.showerror("Couldn't restore", str(e), parent=win)
                 return
             app_log.write(f"Schedule tab: restored the version from {when(v.replaced)} ({v.path.name})")
             win.destroy()
@@ -480,10 +481,10 @@ class SchedulePanel:
     def export_file(self, name):
         """Rebuilds Schedule.pdf and Schedule.xlsx, then opens `name` (one of them)."""
         if self.swaps.pending:
-            answer = messagebox.askyesnocancel(
-                "Unsaved changes", "Some changes haven't been saved yet.\n\n"
-                "Yes: save them into the schedule first, then export.\nNo: export the saved schedule only (your "
-                "changes stay unsaved).\nCancel: do nothing.")
+            answer = dialogs.askyesnocancel(
+                "Unsaved changes", "Some changes haven't been saved yet. Save them into the schedule first, or "
+                "export the saved schedule only (your changes stay unsaved)?", yes="Save and export",
+                no="Export saved only")
             if answer is None:
                 return
             if answer:

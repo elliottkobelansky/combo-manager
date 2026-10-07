@@ -19,6 +19,9 @@ PALETTES = {
 }
 
 
+PALETTE = PALETTES["light"]                           # the colours in use (set by apply)
+
+
 def ui_font():
     if sys.platform.startswith("win"):
         return "Segoe UI"
@@ -59,8 +62,9 @@ def apply(root, mode="light", scale=None):
     global SCALE
     if scale:
         SCALE = scale
+    global PALETTE
     mode = mode if mode in PALETTES else "light"
-    p = PALETTES[mode]
+    p = PALETTE = PALETTES[mode]
     style = ttk.Style(root)
     style.theme_use("clam")
     _scale_named_fonts(root)

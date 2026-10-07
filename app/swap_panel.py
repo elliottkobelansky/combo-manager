@@ -7,10 +7,11 @@ For a picked option (buttons, or right-click on it): copy the liaisons' emails o
 of it in words (core.swaps.swap_summary) to send them.
 """
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
 
 import app_log
 from app_config import input_files
+import dialogs
 from core.model import make_label
 from data_folder import settings_path
 from core.swaps import apply_option, involved, swap_options, swap_summary
@@ -141,8 +142,9 @@ class SwapPanel:
         keeps the pending schedule); a Reload click asks first."""
         keep = bool(self.pending) and quiet and self.state is not None
         if self.pending and not keep:
-            if not messagebox.askyesno("Discard unsaved changes?", "Some changes haven't been saved. Reload "
-                                       "anyway and lose them?", icon="warning"):
+            if not dialogs.askyesno("Discard unsaved changes?", "Some changes haven't been saved. "
+                                       "Reloading loses them.", yes="Reload anyway", no="Cancel",
+                                       default="no", icon="warning"):
                 return
         if not keep:
             self.pending = []
@@ -165,7 +167,7 @@ class SwapPanel:
             if keep:
                 return
             if not quiet:
-                messagebox.showerror("Can't load the schedule", str(e))
+                dialogs.showerror("Can't load the schedule", str(e))
             self.state = None
             self.combo.configure(values=[])
             self.combo.set("")
@@ -391,12 +393,12 @@ class SwapPanel:
         """An option that breaks a hard rule: says which, and asks. True = go ahead (or it breaks none)."""
         if not option.breaks:
             return True
-        return messagebox.askyesno(
+        return dialogs.askyesno(
             "Break a rule?", f"{option.title}\n\nThis breaks " + ("a hard rule" if len(option.breaks) == 1 else
                                                                   f"{len(option.breaks)} hard rules") + ":\n"
             + "\n".join(f"\u2716 {b}" for b in option.breaks)
-            + "\n\nOnly do this when it's agreed (e.g. the student can make it after all). The rule check (Run tab, "
-            "step 3) keeps flagging it.\n\nAdd it anyway?", icon="warning", default="no")
+            + "\n\nOnly do this when it's agreed (e.g. the student can make it after all). Check schedule keeps "
+            "flagging it.", yes="Add it anyway", no="Cancel", icon="warning", default="no")
 
     def notify(self):
         for f in self.listeners:
@@ -489,8 +491,9 @@ class SwapPanel:
             self.after_change(f"Undone: {o.title}")
 
     def discard_all(self):
-        if self.pending and messagebox.askyesno("Discard all?", "Throw away the unsaved changes? The schedule "
-                                                "hasn't been changed."):
+        if self.pending and dialogs.askyesno("Discard all?", "Throw away the unsaved changes? The schedule "
+                                                "hasn't been changed.", yes="Discard",
+                                             no="Keep them", default="no"):
             self.pending = []
             self.rebuild_sets()
             self.after_change("Unsaved changes discarded.")
@@ -505,16 +508,16 @@ class SwapPanel:
                    if self.base_sets.get(d, {}).get(k) != c}
         texts = self.typed_changes()
         if not changes and not texts:
-            messagebox.showinfo("Nothing to save", "The unsaved changes cancel each other out.")
+            dialogs.showinfo("Nothing to save", "The unsaved changes cancel each other out.")
             self.pending = []
             self.after_change("Nothing to save.")
             return
         warns = sum(1 for o in self.pending if o.warnings)
         breaks = sum(1 for o in self.pending if o.breaks)
-        if not messagebox.askyesno("Confirm changes?", "Save the unsaved changes into the schedule?"
+        if not dialogs.askyesno("Confirm changes?", "Save the unsaved changes into the schedule?"
                                    + ("\n\nSome of them have a heads-up (\u26a0)." if warns else "")
                                    + ("\n\n\u2716 Some of them break a hard rule (agreed)." if breaks else "")
-                                   + "\n\nA copy of the schedule as it is goes to 'AppFiles/ScheduleBackups' first."):
+                                   + "\n\nThe schedule as it is now is kept (Earlier versions...).", yes="Save", no="Cancel"):
             return
         if not self.same_as_on_disk():
             return
@@ -522,7 +525,7 @@ class SwapPanel:
             backup = save_changes(self.get_folder(), st["combos"], sets=changes, typed=texts,
                                   what=[("\u2716 rule overridden: " if o.breaks else "") + o.title for o in self.pending])
         except ScheduleFileError as e:
-            messagebox.showerror("Couldn't save", str(e))
+            dialogs.showerror("Couldn't save", str(e))
             return
         n = len(self.pending)
         app_log.write(f"Swaps tab: saved {n} change(s); backup {backup}\n"
@@ -541,15 +544,15 @@ class SwapPanel:
         try:
             sched = load_schedule(self.get_folder(), st["combos"], st["settings"])
         except ScheduleFileError as e:
-            messagebox.showerror("Couldn't save", str(e))
+            dialogs.showerror("Couldn't save", str(e))
             return False
         if sched.sets == self.base_sets and sched.typed == self.base_typed:
             return True
-        if messagebox.askyesno(
+        if dialogs.askyesno(
                 "Schedule changed elsewhere", "The schedule was changed since these changes were planned (on "
                 "another computer), so they might not fit any more. Nothing was saved.\n\n"
                 "Reload the schedule as it is now? Your unsaved changes are dropped; redo the ones still "
-                "needed.", icon="warning"):
+                "needed.", yes="Reload", no="Cancel", icon="warning"):
             self.pending = []
             self.load()
         return False

@@ -43,7 +43,8 @@ OPTIONAL = {"tkcalendar": "tkcalendar"}   # the pop-up calendars
 
 try:
     import tkinter as tk
-    from tkinter import filedialog, messagebox, ttk
+    from tkinter import filedialog, ttk
+    import dialogs  # noqa: E402  (the app's own pop-ups)
 except ImportError:                                   # e.g. Homebrew Python on a Mac without python-tk
     print("This Python has no tkinter (the window toolkit). Install Python from https://www.python.org/downloads/"
           " (it includes tkinter), or on Linux: sudo apt install python3-tk")
@@ -248,10 +249,10 @@ class App:
                     folder.mkdir()
                     start_folder(folder)
                 except (OSError, ValueError) as e:
-                    messagebox.showerror("Can't make the folder", f"Can't make {folder}:\n{e}")
+                    dialogs.showerror("Can't make the folder", f"Can't make {folder}:\n{e}")
                     return
                 use(folder)
-                messagebox.showinfo(
+                dialogs.showinfo(
                     "Your new data folder", f"{folder}\n\nIt's ready, with example settings. Next:\n\n"
                     "1. Semester tab: the semester's name and dates, the show nights and venues. Save.\n"
                     "2. Combos tab: the combos. Enter them (right-click > New combo), or link the sheets the "
@@ -274,12 +275,12 @@ class App:
         has it open (or the user opens it anyway). True = go ahead (it's marked as open here)."""
         why = problem(folder)
         if why:
-            messagebox.showerror("Can't use this folder", f"{folder}\n\nThis folder can't be the data folder: {why}.")
+            dialogs.showerror("Can't use this folder", f"{folder}\n\nThis folder can't be the data folder: {why}.")
             return False
-        if not looks_like_data_folder(folder) and not messagebox.askyesno(
+        if not looks_like_data_folder(folder) and not dialogs.askyesno(
                 "Use this folder?", f"{folder}\n\nThis folder has other things in it and no Combo Manager files. The "
-                "app's files would be added among them.\n\nUse it anyway? (Usually better: a folder of its "
-                f"own, e.g. '{APP_NAME} data'.)", icon="warning", default="no"):
+                "app's files would be added among them. (Usually better: a folder of its own.)",
+                yes="Use it anyway", no="Cancel", icon="warning", default="no"):
             return False
         return self.take_folder(folder)
 
@@ -359,10 +360,10 @@ class App:
         """Marks folder as open here. When another computer has it open: says so, and asks whether to open it
         anyway. False = don't."""
         other = shared_folder.holder(folder)
-        if other and not messagebox.askyesno(
+        if other and not dialogs.askyesno(
                 "Data folder in use", f"This data folder is open in {APP_NAME} on "
                 f"{shared_folder.describe(other)}.\n\nTwo computers changing it at the same time can lose changes: "
-                "best close the app there first.\n\nOpen it here anyway?", icon="warning", default="no"):
+                "best close the app there first.", yes="Open it anyway", no="Don't open", icon="warning", default="no"):
             return False
         shared_folder.claim(folder)
         self.told_taken = False
@@ -376,7 +377,7 @@ class App:
         other = shared_folder.refresh(self.folder)
         if other and not self.told_taken:
             self.told_taken = True
-            messagebox.showwarning(
+            dialogs.showwarning(
                 "Data folder opened elsewhere", f"The data folder was also opened on {shared_folder.describe(other)}."
                 "\n\nChanges saved on both at the same time can be lost: best close the app on one of them. (Saving "
                 "here still checks that nothing changed underneath.)")
@@ -387,7 +388,7 @@ class App:
         copies = shared_folder.conflict_copies(self.folder)
         if copies:
             lines = "\n".join(f"  {c.relative_to(self.folder)}  (next to {u.name})" for c, u in copies)
-            messagebox.showwarning(
+            dialogs.showwarning(
                 "Two versions of a file", "The sync app (OneDrive, Dropbox, ...) kept two versions of these files, "
                 "probably because two computers "
                 f"saved them at the same time:\n\n{lines}\n\nThe app only reads the file with the usual name. Open "
@@ -530,9 +531,9 @@ class App:
         if self.combos and not self.combos.ask_to_save():
             self.tabs.select(self.combos.frame)
             return
-        if self.swaps and self.swaps.pending and not messagebox.askyesno(
-                "Unsaved changes", "The schedule has unsaved changes (Schedule and Swaps tabs). "
-                "Close anyway and lose them?", icon="warning"):
+        if self.swaps and self.swaps.pending and not dialogs.askyesno(
+                "Unsaved changes", "The schedule has unsaved changes (Schedule and Swaps tabs). Closing "
+                "loses them.", yes="Close anyway", no="Go back", default="no", icon="warning"):
             return
         self.let_go()
         self.root.destroy()
@@ -596,7 +597,7 @@ class App:
     def open_log(self):
         """Opens the folder with this computer's log file (AppFiles/Logs in the data folder)."""
         if not self.folder:
-            messagebox.showinfo("The log", "No data folder chosen yet, so there's no log.")
+            dialogs.showinfo("The log", "No data folder chosen yet, so there's no log.")
             return
         log = app_log.path(self.folder)
         log.parent.mkdir(parents=True, exist_ok=True)
@@ -607,7 +608,7 @@ class App:
         app_log.error("in the window", value)
         where = f"\n\nThe details are in the log ({app_log.path(self.folder)}): please send that file to whoever " \
                 "maintains the app (About tab)." if self.folder else ""
-        messagebox.showerror("Something went wrong", f"{value}{where}")
+        dialogs.showerror("Something went wrong", f"{value}{where}")
 
     def folder_text(self, room=60):
         """The data folder, shortened in the middle when long: 'Data folder:  /home/.../Shared/Combos'."""
@@ -681,7 +682,7 @@ class App:
     def wait_for_step(self):
         """True (and says so) while a step runs in the background: it's writing into the data folder."""
         if self.busy:
-            messagebox.showinfo("Still working", "Wait for the current step to finish (see the bottom of the "
+            dialogs.showinfo("Still working", "Wait for the current step to finish (see the bottom of the "
                                 "window), then try again.")
         return self.busy
 
@@ -736,13 +737,13 @@ class App:
         def done(n):
             if isinstance(n, OSError):
                 self.status.configure(text="")
-                messagebox.showerror("Backup", f"Couldn't make the backup:\n{n}")
+                dialogs.showerror("Backup", f"Couldn't make the backup:\n{n}")
                 return
             save_config(backup_dir=str(dest.parent))
             app_log.write(f"Backup saved: {dest} ({n} files)")
             self.status.configure(text=f"Backup saved: {dest} ({n} files).")
             inside = dest.resolve().is_relative_to(self.folder.resolve())
-            messagebox.showinfo("Backup saved", f"Saved {dest.name} ({n} files) in:\n{dest.parent}\n\n" + (
+            dialogs.showinfo("Backup saved", f"Saved {dest.name} ({n} files) in:\n{dest.parent}\n\n" + (
                 "It's inside the data folder, so it's lost along with it: copy it somewhere else too (another "
                 "drive, a USB stick, an email to yourself)." if inside else
                 "Keep it somewhere that wouldn't be lost along with this computer or the data folder. To use it: "
@@ -822,7 +823,7 @@ class App:
             try:
                 info = read_backup(path)
             except BackupError as e:
-                messagebox.showerror("Restore", str(e), parent=win)
+                dialogs.showerror("Restore", str(e), parent=win)
                 return
             picked.update(path=path, info=info)
             made = info.get("made", "")
@@ -847,10 +848,10 @@ class App:
             try:
                 if mode.get() == "here":
                     other = shared_folder.holder(self.folder)
-                    if other and not messagebox.askyesno(
+                    if other and not dialogs.askyesno(
                             "Restore", f"This data folder is also open on {shared_folder.describe(other)}. Restoring "
-                            "changes it for them too, and anything they save meanwhile may be lost.\n\nRestore "
-                            "anyway?", icon="warning", default="no", parent=win):
+                            "changes it for them too, and anything they save meanwhile may be lost.",
+                            yes="Restore anyway", no="Cancel", icon="warning", default="no", parent=win):
                         return
                     safety = restore_in_place(picked["path"], self.folder, keep_inputs.get())
                     app_log.write(f"Restored {picked['path']} into this folder (kept the input spreadsheets: "
@@ -863,7 +864,7 @@ class App:
                     app_log.write(f"Restored {picked['path']} into this new folder")
                     result.append(("new", dest))
             except (BackupError, OSError) as e:
-                messagebox.showerror("Restore", f"Couldn't restore the backup:\n{e}", parent=win)
+                dialogs.showerror("Restore", f"Couldn't restore the backup:\n{e}", parent=win)
                 return
             win.destroy()
         ttk.Button(box, text="Choose a backup...", command=choose).grid(row=2, column=2, sticky="e")
@@ -887,9 +888,9 @@ class App:
         if self.combos and not self.combos.ask_to_save():
             self.tabs.select(self.combos.frame)
             return
-        if self.swaps and self.swaps.pending and not messagebox.askyesno(
+        if self.swaps and self.swaps.pending and not dialogs.askyesno(
                 "Unsaved changes", "The schedule has unsaved changes (Schedule and Swaps tabs): restoring "
-                "throws them away. Go on?", icon="warning"):
+                "throws them away.", yes="Restore anyway", no="Cancel", default="no", icon="warning"):
             return
         before = self.folder
         got = self.restore()
@@ -899,7 +900,7 @@ class App:
         if how == "new":
             self.switch_folder(path)
             if self.folder == path:
-                messagebox.showinfo("Restored", f"Restored into:\n{path}\n\nThis computer uses it from now on. "
+                dialogs.showinfo("Restored", f"Restored into:\n{path}\n\nThis computer uses it from now on. "
                                     f"The folder used before is unchanged:\n{before}\n(Change folder... goes back "
                                     "to it.) Other computers and the forms still use that one until pointed here.")
             return
@@ -912,7 +913,7 @@ class App:
             self.settings.reload()
         self.autoload()
         self.check_copies()
-        messagebox.showinfo("Restored", "The backup is now in this data folder. Other computers get it through "
+        dialogs.showinfo("Restored", "The backup is now in this data folder. Other computers get it through "
                             f"the sync.\n\nWhat was in the folder before is saved in:\n{path}\n(To undo: "
                             "Restore... that file.)")
 
@@ -926,7 +927,7 @@ class App:
             self.run(["--stats", "--export"], f"Making {name}...",
                      on_done=lambda code: path.exists() and open_path(path))
         else:
-            messagebox.showinfo("Not there yet", f"There is no {name} in the Exports folder yet.")
+            dialogs.showinfo("Not there yet", f"There is no {name} in the Exports folder yet.")
 
     def make_schedule(self):
         """Makes a brand-new schedule. Once one exists it says what would be lost, and it's off entirely while the
@@ -934,15 +935,16 @@ class App:
         from schedule_file import has_schedule, summary
         other = self.other_semester()
         if other is not None:                         # last semester's files: filed away, nothing is lost
-            if not messagebox.askyesno(
+            if not dialogs.askyesno(
                     "New semester", f"The schedule is {('for ' + other) if other else 'from another semester'}. "
                     f"Its files (schedule, PDFs, backups) will be moved into "
-                    f"'Archive/{other or 'Old schedule'}' in the data folder, then a new schedule is made.\n\nGo ahead?"):
+                    f"'Archive/{other or 'Old schedule'}' in the data folder, then a new schedule is made.",
+                    yes="Make the schedule", no="Cancel"):
                 return
         elif has_schedule(self.folder):
             info = summary(self.folder)
             if info.get("published"):
-                messagebox.showinfo("Make a new schedule", "The schedule is locked, so a new one "
+                dialogs.showinfo("Make a new schedule", "The schedule is locked, so a new one "
                                     "can't be made. Use swaps for changes (Swaps tab). To really start over, "
                                     "untick 'Lock schedule' on the Schedule tab first.")
                 return
@@ -954,10 +956,10 @@ class App:
                             "withdrawn combos) won't be in the new one.")
             if info.get("typed"):
                 lost.append(f"\u2022 {info['typed']} set(s) with text typed in (e.g. Jam session) will be empty.")
-            if not messagebox.askyesno(
+            if not dialogs.askyesno(
                     "Replace the schedule?", f"This replaces the current schedule{when}:\n\n" + "\n".join(lost)
                     + "\n\nA copy is kept in AppFiles > ScheduleBackups. Only do this before the schedule goes to "
-                    "students; after that, use swaps.\n\nMake a new schedule?", icon="warning", default="no"):
+                    "students; after that, use swaps.", yes="Replace it", no="Keep it", icon="warning", default="no"):
                 return
         self.run(["-y", "--export"], "Making the schedule (this can take up to a minute)...", ticker=True)
 
@@ -994,7 +996,7 @@ class App:
         doesn't look frozen."""
         missing = missing_packages()
         if missing:
-            messagebox.showwarning("Missing packages", f"Install these first: {', '.join(missing)}.")
+            dialogs.showwarning("Missing packages", f"Install these first: {', '.join(missing)}.")
             return
         if self.busy:
             return

@@ -7,10 +7,11 @@ member changes are kept in scheduler_data.json in the data folder (store.py), so
 tab all use them. The linked sheets themselves are never changed.
 """
 import tkinter as tk
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import simpledialog, ttk
 
 import app_log
 from app_config import input_files
+import dialogs
 from core.model import make_label
 from data_folder import COMBOS_PDF, COMBOS_XLSX, export_path, settings_path
 from inputs import EMAIL_RE, EmailRules, InputError, email_warnings, load_input, name_from_email
@@ -111,7 +112,7 @@ class CombosPanel:
             self.store = store
         except (SettingsError, InputError, ValueError) as e:
             if not quiet:
-                messagebox.showerror("Can't load the combos", str(e))
+                dialogs.showerror("Can't load the combos", str(e))
             self.data = None
             self.tree.delete(*self.tree.get_children())
             self.info.configure(text="Not loaded: " + str(e).strip().splitlines()[0])
@@ -315,7 +316,7 @@ class CombosPanel:
         sel = self.tree.selection()
         email = self.people.get(sel[0], (None, None))[1] if sel else None
         if not email:
-            messagebox.showinfo("Change an email", "Open a combo and pick a person (double-click their email works "
+            dialogs.showinfo("Change an email", "Open a combo and pick a person (double-click their email works "
                                                    "too).")
             return
         new = simpledialog.askstring(
@@ -325,7 +326,7 @@ class CombosPanel:
             return
         new = new.strip().lower()
         if not EMAIL_RE.fullmatch(new):
-            messagebox.showerror("Change email", f"'{new}' doesn't look like an email address.")
+            dialogs.showerror("Change email", f"'{new}' doesn't look like an email address.")
             return
         if new == email:
             return
@@ -339,7 +340,7 @@ class CombosPanel:
         sel = self.tree.selection()
         item = item or (sel[0] if sel else None)
         if item not in self.people or not self.people[item][0]:
-            messagebox.showinfo("Set an instrument", "Open a combo and pick one of its members first.")
+            dialogs.showinfo("Set an instrument", "Open a combo and pick one of its members first.")
             return
         combo, email = self.people[item]
         current = self.data["instruments"].get((combo, email), "")
@@ -386,7 +387,7 @@ class CombosPanel:
         sel = self.tree.selection()
         email = self.people.get(sel[0], (None, None))[1] if sel else None
         if not email:
-            messagebox.showinfo("Change a name", "Open a combo and pick a person (double-click works too).")
+            dialogs.showinfo("Change a name", "Open a combo and pick a person (double-click works too).")
             return
         new = simpledialog.askstring("Change name", f"Name for {email}:", initialvalue=self.name(email),
                                      parent=self.frame)
@@ -534,7 +535,7 @@ class CombosPanel:
             text += ("The schedule is already made: once approved, this combo starts with no shows and can claim "
                      "open sets (Swaps tab).\n\n")
         text += "Approve or reject it in Outlook, then Sync."
-        (messagebox.showwarning if problems else messagebox.showinfo)("Check this combo", text.strip(),
+        (dialogs.showwarning if problems else dialogs.showinfo)("Check this combo", text.strip(),
                                                                        parent=self.frame)
         self.last_check = (problems, heads)            # (kept for tests)
 
@@ -642,8 +643,9 @@ class CombosPanel:
             self.info.configure(text=f"Undone: {p['text']}")
 
     def discard_all(self, ask=True):
-        if self.pending and (not ask or messagebox.askyesno(
-                "Discard all?", "Throw away the unsaved changes? Nothing has been saved.")):
+        if self.pending and (not ask or dialogs.askyesno(
+                "Discard all?", "Throw away the unsaved changes? Nothing has been saved.", yes="Discard",
+                no="Keep them", default="no")):
             self.pending = []
             self.load(quiet=True)
             self.refresh_pending()
@@ -657,9 +659,9 @@ class CombosPanel:
         """For closing the app or changing folder with pending changes: save, discard, or stay. True = go ahead."""
         if not self.pending:
             return True
-        answer = messagebox.askyesnocancel(
-            "Unsaved combo changes", "Some changes in the Combos tab haven't been saved.\n\n"
-            "Yes: save them now.\nNo: throw them away.\nCancel: go back.", icon="warning")
+        answer = dialogs.askyesnocancel(
+            "Unsaved combo changes", "Some changes in the Combos tab haven't been saved.", yes="Save",
+            no="Discard", cancel="Go back", icon="warning")
         if answer is None:
             return False
         if answer:
@@ -677,7 +679,7 @@ class CombosPanel:
         withdrawals = [p["withdraw"] for p in self.pending if p["withdraw"]]
         swaps = self.get_swaps()
         if withdrawals and swaps and swaps.pending:
-            messagebox.showinfo("Confirm changes", "A combo is withdrawn, and the schedule has unsaved changes "
+            dialogs.showinfo("Confirm changes", "A combo is withdrawn, and the schedule has unsaved changes "
                                 "(Schedule and Swaps tabs). Confirm or discard those first, then confirm here.")
             return False
         try:
@@ -686,7 +688,7 @@ class CombosPanel:
                 p["change"](store)
             store.save()
         except (OSError, ValueError) as e:
-            messagebox.showerror("Couldn't save", f"{e}\n\nThe changes are still pending.")
+            dialogs.showerror("Couldn't save", f"{e}\n\nThe changes are still pending.")
             return False
         opened, backup = [], None
         for name, ref in dict.fromkeys(withdrawals):  # once each; not one that was put back again
@@ -694,7 +696,7 @@ class CombosPanel:
                 try:
                     cells, copy = open_sets_of(folder, name)
                 except (OSError, ScheduleFileError) as e:
-                    messagebox.showerror("Couldn't open the sets", f"{name} is withdrawn, but its sets couldn't be "
+                    dialogs.showerror("Couldn't open the sets", f"{name} is withdrawn, but its sets couldn't be "
                                          f"opened in the schedule: {e}\nThe rule check (Run tab, step 3) shows them.")
                     continue
                 opened += [(name, d, k) for d, k in cells]
@@ -717,14 +719,14 @@ class CombosPanel:
     def add_member(self):
         kind, combo, _ = self.selected()
         if not combo:
-            messagebox.showinfo("Add a member", "Pick a combo (or one of its members) first.")
+            dialogs.showinfo("Add a member", "Pick a combo (or one of its members) first.")
             return
         AddMemberDialog(self, combo)
 
     def remove_member(self):
         kind, combo, email = self.selected()
         if kind != "person":
-            messagebox.showinfo("Remove a member", "Open a combo and pick the member to remove.")
+            dialogs.showinfo("Remove a member", "Open a combo and pick the member to remove.")
             return
         sem, rest = self.data["settings"].semester_name, sorted(combo.members - {email})
         new_liaison = None
@@ -738,8 +740,8 @@ class CombosPanel:
             warn = f"\n\n{combo.name} will have no members left."
         elif few and len(rest) < few:
             warn = f"\n\n{combo.name} will have {len(rest)} member{'s' if len(rest) != 1 else ''}, fewer than {few}."
-        if not messagebox.askyesno("Remove a member", f"Remove {self.name(email)} from {combo.name}?{warn}\n\n"
-                                   "You can put them back here."):
+        if not dialogs.askyesno("Remove a member", f"Remove {self.name(email)} from {combo.name}?{warn}\n\n"
+                                   "You can put them back here.", yes="Remove", no="Cancel"):
             return
         def change(s):
             s.remove_member(sem, combo.ref, email)
@@ -761,7 +763,7 @@ class CombosPanel:
         if kind == "combo" and combo.members:                     # a combo picked: choose from its members
             email = self.choose_liaison(combo, sorted(combo.members), f"Liaison of {combo.name}:", combo.liaison)
         elif kind != "person":
-            messagebox.showinfo("Make liaison", "Open a combo and pick the member who should be its liaison.")
+            dialogs.showinfo("Make liaison", "Open a combo and pick the member who should be its liaison.")
             return
         if not email or email == combo.liaison:
             return
@@ -785,11 +787,11 @@ class CombosPanel:
         On Confirm, if the schedule is out, its sets become open (backup first) and the exports are rebuilt."""
         kind, combo, _ = self.selected()
         if kind in (None, "withdrawn"):
-            messagebox.showinfo("Withdraw a combo", "Pick the combo to withdraw (or one of its members).")
+            dialogs.showinfo("Withdraw a combo", "Pick the combo to withdraw (or one of its members).")
             return
         swaps = self.get_swaps()
         if swaps and swaps.pending:
-            messagebox.showinfo("Withdraw a combo", "The schedule has unsaved changes (Schedule and Swaps tabs). "
+            dialogs.showinfo("Withdraw a combo", "The schedule has unsaved changes (Schedule and Swaps tabs). "
                                                    "Confirm or discard them first, then withdraw.")
             return
         shows = sorted((d, k) for d, row in self.data["sets"].items() for k, c in row.items() if c == combo.id)
@@ -803,7 +805,7 @@ class CombosPanel:
             text += ("\n\n\u26a0 " + ", ".join(make_label(d) for d in sup) + (" is a supervised night" if len(sup) == 1
                      else " are supervised nights") + ", which must be full: give that set to another combo.")
         text += "\n\nYou can put the combo back here."
-        if not messagebox.askyesno("Withdraw a combo", text, icon="warning"):
+        if not dialogs.askyesno("Withdraw a combo", text, yes="Withdraw", no="Cancel", icon="warning"):
             return
         settings = self.data["settings"]
         self.queue(lambda s: s.set_withdrawn(settings.semester_name, combo.ref, True),
@@ -814,11 +816,11 @@ class CombosPanel:
         kind, combo, _ = self.selected()
         if kind != "withdrawn":
             return
-        if self.data["sets"] and not messagebox.askyesno(
+        if self.data["sets"] and not dialogs.askyesno(
                 "Put a combo back", f"Put {combo.name} back?\n\n\u26a0 This does NOT give it its shows back: the schedule "
                 "isn't made again. Its sets were opened when it was withdrawn (others may have taken them since), so "
                 f"{combo.name} will have no shows. It can then claim open sets (Swaps tab), or you can give it sets "
-                "(Schedule tab).", icon="warning"):
+                "(Schedule tab).", yes="Put it back", no="Cancel", icon="warning"):
             return
         self.queue(lambda s: s.set_withdrawn(self.data["settings"].semester_name, combo.ref, False),
                    f"Put {combo.name} back" + (" (no shows yet: it can claim open sets in the Swaps tab)."
@@ -885,27 +887,27 @@ class CombosPanel:
 
     def saved_first(self):
         """Before an export with pending changes: save them first? True = saved, go ahead."""
-        return messagebox.askokcancel(
-            "Unsaved changes", "Some changes here aren't saved yet. Save them first, then export?"
-        ) and self.confirm()
+        return dialogs.askokcancel(
+            "Unsaved changes", "Some changes here aren't saved yet. Save them first, then export?",
+            ok="Save and export") and self.confirm()
 
     def export_pdf(self):
         if not self.data:
-            messagebox.showinfo("Combo list", "Nothing loaded yet.")
+            dialogs.showinfo("Combo list", "Nothing loaded yet.")
             return
         if self.pending and not self.saved_first():
             return
         try:
             from outputs.combos_pdf import write_combos_pdf
         except ImportError:
-            messagebox.showerror("Combo list", "The PDF needs the reportlab package: Run tab > Install missing packages.")
+            dialogs.showerror("Combo list", "The PDF needs the reportlab package: Run tab > Install missing packages.")
             return
         path = export_path(self.get_folder(), COMBOS_PDF)
         combos = sorted(self.data["combos"].values(), key=lambda c: c.name)
         try:
             write_combos_pdf(path, combos, self.name, self.data["settings"].semester_name, self.data["instruments"])
         except PermissionError:
-            messagebox.showerror("Combo list", f"Can't write {path.name}: it's open in another program. Close it and "
+            dialogs.showerror("Combo list", f"Can't write {path.name}: it's open in another program. Close it and "
                                                "try again.")
             return
         self.info.configure(text=f"Wrote {path.name}.")
@@ -916,7 +918,7 @@ class CombosPanel:
         """Combos.xlsx: one table per combo (members by instrument with emails, the liaison marked, the supervisor),
         then opens it."""
         if not self.data:
-            messagebox.showinfo("Combo list", "Nothing loaded yet.")
+            dialogs.showinfo("Combo list", "Nothing loaded yet.")
             return
         if self.pending and not self.saved_first():
             return
@@ -927,7 +929,7 @@ class CombosPanel:
             write_combos_xlsx(path, combos, self.name, self.data["settings"].semester_name, self.data["instruments"],
                               self.data["shows"])
         except PermissionError:
-            messagebox.showerror("Combo list", f"Can't write {path.name}: it's open in Excel. Close it and try again.")
+            dialogs.showerror("Combo list", f"Can't write {path.name}: it's open in Excel. Close it and try again.")
             return
         self.info.configure(text=f"Wrote {path.name}.")
         if self.open_path:
@@ -1018,15 +1020,15 @@ class AddMemberDialog:
     def add(self):
         e, panel = self.clean_email(), self.panel
         if not EMAIL_RE.fullmatch(e):
-            messagebox.showerror("Add a member", "Type an email address (or pick someone from the list).",
+            dialogs.showerror("Add a member", "Type an email address (or pick someone from the list).",
                                  parent=self.win)
             return
         if e in self.combo.members:
-            messagebox.showinfo("Add a member", f"{panel.name(e)} is already in {self.combo.name}.", parent=self.win)
+            dialogs.showinfo("Add a member", f"{panel.name(e)} is already in {self.combo.name}.", parent=self.win)
             return
         typos = email_warnings(e, panel.data["rules"], self.known)
-        if typos and not messagebox.askyesno("Add a member", "\n".join(typos) + "\n\nAdd them anyway?",
-                                             icon="warning", default="no", parent=self.win):
+        if typos and not dialogs.askyesno("Add a member", "\n".join(typos), yes="Add anyway", no="Go back",
+                                          icon="warning", default="no", parent=self.win):
             return
         sem, name, instrument = panel.data["settings"].semester_name, self.name.get().strip(), self.instrument.get().strip()
 
@@ -1089,12 +1091,12 @@ class NewComboDialog:
         p = self.panel
         liaison = self.clean(self.liaison.get())
         if not liaison:
-            messagebox.showerror("New combo", "Type the liaison's email.", parent=self.win)
+            dialogs.showerror("New combo", "Type the liaison's email.", parent=self.win)
             return
         members = [e for e in dict.fromkeys(self.clean(self.members.get("1.0", "end"))) if e != liaison[0]]
         sup = self.clean(self.supervisor.get(), supervisor=True)
         if self.supervisor.get().strip() and not sup:
-            messagebox.showerror("New combo", "The supervisor's email doesn't look like an email address.",
+            dialogs.showerror("New combo", "The supervisor's email doesn't look like an email address.",
                                  parent=self.win)
             return
         liaison, sup, fy = liaison[0], sup[0] if sup else "", self.first_year.get()
@@ -1105,8 +1107,8 @@ class NewComboDialog:
         few = p.data["settings"].min_members_per_combo
         if few and 1 + len(members) < few:
             warns.append(f"{1 + len(members)} member(s): fewer than the {few} the settings expect.")
-        if warns and not messagebox.askyesno("New combo", "Check these first:\n\n" + "\n".join(
-                f"\u2022 {w}" for w in warns) + "\n\nAdd the combo anyway?", icon="warning", default="no",
+        if warns and not dialogs.askyesno("New combo", "Check these first:\n\n" + "\n".join(
+                f"\u2022 {w}" for w in warns), yes="Add anyway", no="Go back", icon="warning", default="no",
                 parent=self.win):
             return
         others = sorted({c.name for c in p.data["combos"].values() for e in [liaison] + members if e in c.members})
@@ -1278,7 +1280,7 @@ class LinkDialog:
         other = "conflicts" if which == "approvals" else "approvals"
         others = [CONFLICTS_FILE] if which == "approvals" else [APPROVALS_FILE, OLD_APPROVALS_FILE]
         if path.name.lower() in [n.lower() for n in others] or path == self.files[other]:
-            messagebox.showerror("Wrong sheet", f"{path.name} is the {other} sheet. Choose the "
+            dialogs.showerror("Wrong sheet", f"{path.name} is the {other} sheet. Choose the "
                                  f"{self.WHAT[which][0].lower()} one here.", parent=self.win)
             return
         self.files[which], self.picked[which] = path, True
@@ -1295,7 +1297,7 @@ class LinkDialog:
                 store.set_linked(which, var.get())
             store.save()
         except (OSError, ValueError) as e:
-            messagebox.showerror("Linked sheets", str(e), parent=self.win)
+            dialogs.showerror("Linked sheets", str(e), parent=self.win)
             return
         for which in self.WHAT:
             usual = usual_inputs(folder)[which]
