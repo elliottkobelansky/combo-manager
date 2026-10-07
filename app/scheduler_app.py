@@ -590,7 +590,7 @@ class App:
         row.pack(anchor="w", pady=(24, 0))
         ttk.Label(row, text="Something not working? Send the log file with your email:").pack(side="left")
         ttk.Button(row, text="Open the log", command=self.open_log).pack(side="left", padx=(10, 0))
-        ttk.Label(tab, text="Free to use, share and change.", style="Hint.TLabel").pack(anchor="w", pady=(24, 0))
+        ttk.Label(tab, text="Free to use, share and change (MIT License).", style="Hint.TLabel").pack(anchor="w", pady=(24, 0))
         return tab
 
     def open_log(self):

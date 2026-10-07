@@ -525,3 +525,9 @@ unless you add `--force`; `test_rules.py` works in a temporary folder and never 
 
 Replace `inputs.py` with something that returns the same `ScheduleInput` (combos and each student's blocked
 dates; see `core/model.py`). The solver doesn't change.
+
+## License
+
+MIT (see `LICENSE`): free to use, copy, change and share; keep the copyright notice; no warranty. The packaged apps
+also contain other people's packages under their own licences (MIT, BSD and Apache for most; tkcalendar, the pop-up
+date picker, is GPL v3).

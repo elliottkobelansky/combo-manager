@@ -87,6 +87,7 @@ def main():
         "--exclude-module", "matplotlib", "--exclude-module", "IPython", "--exclude-module", "pytest",
         "--icon", str(ASSETS / ("icon.icns" if platform.system() == "Darwin" else "icon.ico")),   # dev/make_icon.py
         "--add-data", f"{ASSETS}{os.pathsep}assets",   # icon.png: the window's own icon
+        "--add-data", f"{ROOT / 'LICENSE'}{os.pathsep}.",       # the MIT licence, in the app folder
     ] + runtime_binaries() + (["--osx-bundle-identifier", "app.combomanager"] if platform.system() == "Darwin"
                               else []))
     if platform.system() == "Darwin":
