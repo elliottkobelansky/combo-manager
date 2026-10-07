@@ -317,9 +317,13 @@ class App:
                                       lambda done: self.run(["--stats", "--export"],
                                                             "Exporting Schedule.pdf and Schedule.xlsx...", on_done=done),
                                       self.open_file, lambda: self.palette, open_path, make=self.make_schedule,
-                                      check=lambda: self.run(["--stats"], "Checking the schedule..."))
+                                      check=lambda: self.run(["--stats"] + (["--full"] if self.full_stats.get() else
+                                                                            []), "Checking the schedule..."))
         self.tabs.add(self.schedule.frame, text="Schedule")
         self.results["schedule"] = self.results_box(self.schedule, "Results of the last Make schedule or Check")
+        self.full_stats = tk.BooleanVar(value=bool(load_config().get("full_stats")))   # remembered on this computer
+        self.results["schedule"].add_option("All stats", self.full_stats)
+        self.full_stats.trace_add("write", lambda *_: save_config(full_stats=self.full_stats.get()))
         self.tabs.add(self.swaps.frame, text="Swaps")
         self.settings = SettingsPanel(self.tabs, lambda: self.folder, lambda: self.palette, on_save=self.autoload,
                                       on_dirty=lambda dirty: self.settings and self.tabs.tab(
@@ -924,6 +928,7 @@ class App:
             return
         if self.busy:
             return
+        self.top_first = "-y" not in args             # a check: what matters is at the top (a make: follow along)
         box = self.results.get(target)
         if box:
             self.out = box.text
@@ -936,7 +941,7 @@ class App:
             out = []
             code = run_solve(args, self.folder, lambda t: (out.append(t), self.write(t)))
             if code != 0:
-                self.write("\nDone, but there are problems: see the red lines above.\n")
+                self.write("\nThere are problems: see the red lines.\n")
             app_log.write(f"{message} (solve.py {' '.join(args)}): " + ("done" if code == 0 else f"exit code {code}")
                           + "\n" + (intro or "") + "".join(out))
             if on_done:
@@ -969,6 +974,8 @@ class App:
 
     def finish(self):
         self.busy = False
+        if getattr(self, "top_first", False):
+            self.queue.put(lambda: self.out.see("1.0"))   # after the last lines are drawn
         if self.combos:
             self.combos.show_links()
         self.autoload()                               # the schedule may have changed

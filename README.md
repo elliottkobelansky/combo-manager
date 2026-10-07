@@ -17,7 +17,7 @@ Manager.bat`** (Windows), **`Combo Manager.command`** (Mac) or **`combo-manager.
   conflicts, in a fold-out box under the list. Edits wait until **Confirm changes**. **Open PDF / Open Excel**: the
   combo list.
 - **Schedule**: every show night and its sets. **Make schedule** (once per semester), **Check schedule** (the
-  rules and stats, any time), **Sent to students** (a lock: no new schedule can be made while it's ticked), **Open
+  rule check first, then a few stats at a glance; tick **All stats** on the results box for every section), **Sent to students** (a lock: no new schedule can be made while it's ticked), **Open
   PDF / Open Excel**; results in a fold-out box.
 - **Swaps**: **Swap**, **Give away**, **Claim** (see [swaps](#during-the-semester-swaps)).
 - **Settings**, **Appearance** (dark mode, text size 85% to 175%, remembered on that computer), **About** (contact,

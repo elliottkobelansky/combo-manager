@@ -83,26 +83,40 @@ def write_exports(folder, sched, combos, settings, store):
               "Close it, then Export again (Schedule tab).")
 
 
-def print_stats(folder, sched, inp, settings, store, export=False):
+def print_stats(folder, sched, inp, settings, store, export=False, full=False, to_look_at=0):
+    """The rule check first, then the stats: a few lines at a glance, or every section with full. to_look_at: how
+    many things Check combos lists (pointed to, not repeated)."""
     combos = {c.id: c for c in inp.combos}
     sections, problems = schedule_stats(sched.sets, sched.nights, combos, inp, settings, sched.supervised,
                                         lambda e: store.names.get(e) or name_from_email(e), sched.typed)
     if sched.converted:
-        print(f"\nThe old Schedule.xlsx was turned into {schedule_path(folder)} (the schedule is kept there now; the "
-              "old file is in App data/Schedule backups).")
-    print(f"\nStats for the {sched.semester} schedule in {folder}")
-    for title, lines in sections:
-        print(f"\n{title}")
-        for line in lines:
-            print(f"  {line}")
+        print("The old Schedule.xlsx was turned into the app's own schedule file (the old file is in App data > "
+              "Schedule backups).\n")
     problems = sched.problems + problems
-    print("\nRule check")
     if problems:
+        print(f"{len(problems)} problem{'s' if len(problems) > 1 else ''} with the rules:")
         for p in problems:
             print(f"  [PROBLEM] {p}")
     else:
-        print("  All hard rules hold (no conflicts played, venue minimums met, no combo twice in a night, "
-              "every combo on a supervised night).")
+        print("All rules hold: no conflicts played, venue minimums met, no combo twice in a night, supervised "
+              "nights as set.")
+    if to_look_at:
+        print(f"(Check combos lists {to_look_at} thing{'s' if to_look_at > 1 else ''} to look at in the combos and "
+              "conflicts.)")
+    by = {title: lines for title, lines in sections}
+    if full:
+        for title, lines in sections:
+            print(f"\n{title}")
+            for line in lines:
+                print(f"  {line}")
+    else:
+        glance = [by.get("Overview", [""])[0], by.get("Shows per combo", [""])[0].replace("Total: ", "Shows per combo: "),
+                  next((l.split(":")[0] + "." for l in by.get("Supervision", []) if "supervised night(s)" in l), ""),
+                  "Spacing: " + by["Spacing between a combo's shows"][0] if by.get("Spacing between a combo's shows")
+                  else "", next((l for l in by.get("Students", []) if "twice" in l), ""), (by.get("Open sets") or [""])[0]]
+        print("\nAt a glance (tick 'All stats' for everything):")
+        for line in filter(None, glance):
+            print(f"  {line}")
     if export:
         print()
         write_exports(folder, sched, combos, settings, store)
@@ -140,6 +154,7 @@ def main(argv=None):
     ap.add_argument("--compare-gaps", nargs="+", type=int, metavar="DAYS",
                     help="try these min_days_between_shows values and print a comparison; writes nothing")
     ap.add_argument("-y", "--yes", action="store_true", help="don't ask for confirmation before building the schedule")
+    ap.add_argument("--full", action="store_true", help="with --stats: every section of the stats")
     ap.add_argument("--export", "--pdf", action="store_true", dest="export",
                     help="also write Schedule.pdf and Schedule.xlsx from the schedule")
     a = ap.parse_args(argv)
@@ -170,6 +185,9 @@ def main(argv=None):
             else:
                 print("Nothing to look at.")
             return 0
+        if a.stats:                                   # the rule check and stats; input warnings: Check combos
+            return print_stats(f, sched, replace(inp, notes=[("warn", t) for t in warnings]), settings, Store(f),
+                               a.export, a.full, len(warnings) + len(setting_warnings))
         days, sets = Counter(n.weekday for n in nights), Counter()
         for n in nights:
             sets[n.weekday] += n.n_slots
@@ -181,8 +199,6 @@ def main(argv=None):
         for txt in warnings:
             print(f"\n  WARNING: {txt}")
         inp = replace(inp, notes=[("warn", t) for t in warnings])      # also saved in the schedule's report
-        if a.stats:
-            return print_stats(f, sched, inp, settings, Store(f), a.export)
         if a.compare_gaps:
             compare_gaps(inp, settings, a.compare_gaps)
             return 0

@@ -231,8 +231,10 @@ class ResultsBox(ttk.Frame):
     def __init__(self, parent, title, height=12):
         super().__init__(parent)
         self.title, self.is_open = title, False
-        self.toggle = ttk.Button(self, style="Fold.TButton", command=lambda: self.show(not self.is_open))
-        self.toggle.pack(fill="x")
+        self.head = ttk.Frame(self)                   # the title bar (room on its right for an option: add_option)
+        self.head.pack(fill="x")
+        self.toggle = ttk.Button(self.head, style="Fold.TButton", command=lambda: self.show(not self.is_open))
+        self.toggle.pack(side="left", fill="x", expand=True)
         self.body = ttk.Frame(self, style="Card.TFrame", padding=1)
         bar = ttk.Scrollbar(self.body, orient="vertical")
         bar.pack(side="right", fill="y")
@@ -249,6 +251,10 @@ class ResultsBox(ttk.Frame):
             self.body.pack(fill="both", expand=True)
         else:
             self.body.pack_forget()
+
+    def add_option(self, text, var):
+        """A tick on the right of the title bar (e.g. 'All stats')."""
+        ttk.Checkbutton(self.head, text=text, variable=var).pack(side="right", padx=(10, 4))
 
     def clear(self):
         self.text.configure(state="normal")
