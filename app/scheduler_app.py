@@ -767,6 +767,7 @@ class App:
         -> ("here", the safety backup) or ("new", the new folder), or None when cancelled."""
         from backup import BEFORE_RESTORE, BackupError, new_folder, read_backup, restore_backup, restore_in_place
         win = tk.Toplevel(self.root)
+        win.withdraw()
         win.title("Restore a backup")
         win.transient(self.root)
         box = ttk.Frame(win, padding=20)
@@ -885,6 +886,7 @@ class App:
         go.pack(side="right", padx=(0, 6))
         box.columnconfigure(1, weight=1)
         update()
+        dialogs.centre(win)
         dialogs.grab(win)
         self.root.wait_window(win)
         return result[0] if result else None

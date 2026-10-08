@@ -54,7 +54,9 @@ def show_text(widget, title, text, palette):
     """Shows text in a small window, already selected, to copy by hand."""
     import tkinter as tk
     from tkinter import ttk
+    import dialogs
     win = tk.Toplevel(widget)
+    win.withdraw()
     win.title("Copied: " + title)
     win.transient(widget.winfo_toplevel())
     box = ttk.Frame(win, padding=14)
@@ -68,3 +70,4 @@ def show_text(widget, title, text, palette):
     txt.pack(fill="both", expand=True, pady=10)
     txt.focus_set()
     ttk.Button(box, text="Close", style="Accent.TButton", command=win.destroy).pack(anchor="e")
+    dialogs.centre(win)

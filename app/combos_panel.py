@@ -932,6 +932,7 @@ class CombosPanel:
     def choose_liaison(self, combo, emails, question, current=None):
         """A small window listing the members; returns the chosen email, or None when cancelled."""
         win = tk.Toplevel(self.frame)
+        win.withdraw()
         win.title("Choose the liaison")
         win.transient(self.frame.winfo_toplevel())
         box = ttk.Frame(win, padding=16)
@@ -946,6 +947,7 @@ class CombosPanel:
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="OK", style="Accent.TButton",
                    command=lambda: (picked.append(choice.get()), win.destroy())).pack(side="right", padx=(0, 6))
+        dialogs.centre(win)
         dialogs.grab(win)
         self.frame.wait_window(win)
         return picked[0] if picked else None
@@ -1050,6 +1052,7 @@ class AddMemberDialog:
         self.shown = {e for c in panel.data["combos"].values() for e in c.members | {c.professor}}   # on the tab
         self.name_typed = False
         win = self.win = tk.Toplevel(panel.frame)
+        win.withdraw()
         win.title(f"Add a member to {combo.name}")
         win.transient(panel.frame.winfo_toplevel())
         box = ttk.Frame(win, padding=16)
@@ -1086,6 +1089,7 @@ class AddMemberDialog:
         self.instrument.bind("<Key>", lambda _: setattr(self, "instrument_typed", True))
         self.instrument.bind("<<ComboboxSelected>>", lambda _: setattr(self, "instrument_typed", True))
         self.find.focus_set()
+        dialogs.centre(win)
         dialogs.grab(win)
 
     def filter(self, event=None):
@@ -1175,6 +1179,7 @@ class NewComboDialog:
     def __init__(self, panel):
         self.panel = panel
         win = self.win = tk.Toplevel(panel.frame)
+        win.withdraw()
         win.title("New combo")
         win.transient(panel.frame.winfo_toplevel())
         box = ttk.Frame(win, padding=16)
@@ -1201,6 +1206,7 @@ class NewComboDialog:
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="Add", style="Accent.TButton", command=self.add).pack(side="right", padx=(0, 6))
         self.liaison.focus_set()
+        dialogs.centre(win)
         dialogs.grab(win)
 
     def clean(self, text, supervisor=False):
@@ -1265,6 +1271,7 @@ class ConflictsDialog:
                 if c and email in panel.data["combos"][c].members:
                     self.plays.setdefault(d, []).append(panel.data["combos"][c].name)
         win = self.win = tk.Toplevel(panel.frame)
+        win.withdraw()
         win.title("Conflicts")
         win.transient(panel.frame.winfo_toplevel())
         box = ttk.Frame(win, padding=16)
@@ -1293,6 +1300,7 @@ class ConflictsDialog:
         bar.pack(fill="x", pady=(14, 0))
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="OK", style="Accent.TButton", command=self.ok).pack(side="right", padx=(0, 6))
+        dialogs.centre(win)
         dialogs.grab(win)
 
     def row(self, d, counts, source):
@@ -1353,6 +1361,7 @@ class LinkDialog:
         self.picked = {w: is_picked(folder, w) for w in self.WHAT}
         self.vars = {w: tk.BooleanVar(value=store.linked(w)) for w in self.WHAT}
         win = self.win = tk.Toplevel(panel.frame)
+        win.withdraw()
         win.title("Linked sheets")
         win.transient(panel.frame.winfo_toplevel())
         box = ttk.Frame(win, padding=18)
@@ -1377,6 +1386,7 @@ class LinkDialog:
         ttk.Button(bar, text="OK", style="Accent.TButton", command=self.ok).pack(side="right", padx=(0, 6))
         box.columnconfigure(0, weight=1)
         self.show()
+        dialogs.centre(win)
         dialogs.grab(win)
 
     def show(self):

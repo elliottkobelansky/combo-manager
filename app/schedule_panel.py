@@ -341,6 +341,7 @@ class SchedulePanel:
         folder = self.swaps.get_folder()
         found = versions(folder) if self.swaps.state else []
         win = tk.Toplevel(self.frame)
+        win.withdraw()
         win.title("Earlier versions")
         win.transient(self.frame.winfo_toplevel())
         box = ttk.Frame(win, padding=20)
@@ -419,6 +420,7 @@ class SchedulePanel:
             self.export(lambda code: self.status.configure(text=self.status.cget("text").replace(
                 " Rebuilding the exports...", " Exports rebuilt.")))
         restore.configure(command=do_restore)
+        dialogs.centre(win)
         dialogs.grab(win)
 
     # a night's emails and reminder email (copied)
@@ -552,11 +554,7 @@ class SchedulePanel:
         ttk.Button(bar, text="OK", style="Accent.TButton", command=ok).pack(side="right", padx=(0, 6))
         win.bind("<Return>", ok)
         win.bind("<Escape>", lambda _: win.destroy())
-        win.update_idletasks()
-        x = root.winfo_rootx() + max(0, (root.winfo_width() - win.winfo_reqwidth()) // 2)
-        y = root.winfo_rooty() + max(0, (root.winfo_height() - win.winfo_reqheight()) // 3)
-        win.geometry(f"+{x}+{y}")
-        win.deiconify()
+        dialogs.centre(win)
         dialogs.grab(win)
         self.faculty_window = win                         # (kept for tests)
 

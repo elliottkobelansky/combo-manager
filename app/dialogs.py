@@ -26,6 +26,18 @@ def grab(win, tries=80):
             win.after(25, grab, win, tries - 1)
 
 
+def centre(win):
+    """Shows the (withdrawn) window win centred over the app's window, a little above the middle. Without this,
+    Windows opens a new window in the screen's top-left corner."""
+    root = win.master.winfo_toplevel() if win.master else win
+    win.update_idletasks()
+    w, h = win.winfo_reqwidth(), win.winfo_reqheight()
+    x = root.winfo_rootx() + max(0, (root.winfo_width() - w) // 2)
+    y = root.winfo_rooty() + max(0, (root.winfo_height() - h) // 3)
+    win.geometry(f"+{x}+{y}")
+    win.deiconify()
+
+
 def _ask(title, message, buttons, default, cancel, icon=None, parent=None, entry=None, choices=None):
     """buttons: [(label, value)], left to right; default / cancel: the values for Enter / Escape. entry: a text box
     under the message, with this text in it; the default button then returns what's typed. choices: the text box
@@ -74,12 +86,7 @@ def _ask(title, message, buttons, default, cancel, icon=None, parent=None, entry
     win.bind("<KP_Enter>", lambda _: close(default))
     win.bind("<Escape>", lambda _: close(cancel))
     win.protocol("WM_DELETE_WINDOW", lambda: close(cancel))
-    win.update_idletasks()                            # centred over the app's window
-    w, h = win.winfo_reqwidth(), win.winfo_reqheight()
-    x = root.winfo_rootx() + max(0, (root.winfo_width() - w) // 2)
-    y = root.winfo_rooty() + max(0, (root.winfo_height() - h) // 3)
-    win.geometry(f"+{x}+{y}")
-    win.deiconify()
+    centre(win)
     win.lift()
     grab(win)
     root.wait_window(win)

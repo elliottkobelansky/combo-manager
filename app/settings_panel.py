@@ -239,6 +239,7 @@ class ListEditor:
 
     def form(self, row, index):
         win = tk.Toplevel(self.frame)
+        win.withdraw()
         win.title(self.title)
         win.transient(self.frame.winfo_toplevel())
         top = ttk.Frame(win, padding=16)
@@ -295,6 +296,7 @@ class ListEditor:
         bar.grid(row=len(self.fields) + 1, column=0, columnspan=2, pady=(14, 0), sticky="e")
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="OK", style="Accent.TButton", command=ok).pack(side="right", padx=(0, 6))
+        dialogs.centre(win)
         dialogs.grab(win)
 
 
