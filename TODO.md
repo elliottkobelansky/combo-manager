@@ -39,11 +39,6 @@ First real use: **Winter 2027**.
   coworker approve combos; something looks wrong (Check combos / Check schedule, who to contact). Link it in the README.
 - [ ] Walk the director through `Quick Start.pdf` once.
 
-## Features
-
-- [ ] **Guitarists:** rhythm section or not, for "Warn: combos per rhythm player"? (Today: rhythm section, with
-  piano, bass and drums.)
-
 ## Later (ideas)
 
 - **Schedule email per combo** once the schedule is final (its dates, the swap policy, contacts), as a third email
@@ -70,3 +65,4 @@ First real use: **Winter 2027**.
 - The name is **Combo Manager**.
 - Feedback nights stay where the schedule put them (every combo is on one, so moving one strands its combos): when a
   faculty member can't come, pick another. (A Move feedback night version is on the `feedback-moves` branch.)
+- Guitar counts as rhythm section (with piano, bass and drums) for "Warn: combos per rhythm player".
