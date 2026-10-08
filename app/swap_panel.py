@@ -235,7 +235,7 @@ class SwapPanel:
         self.shows = sorted((d, k) for d, row in st["sets"].items() for k, c in row.items() if c == cid)
         for i, (d, k) in enumerate(self.shows):
             n = nmap.get(d)
-            sup = " · feedback" if st["supervised"] and d in st["supervised"] else ""
+            sup = " · FB" if st["supervised"] and d in st["supervised"] else ""
             self.show_list.insert("", "end", iid=str(i), values=(make_label(d), f"{n.venue if n else '?'}, set {k}{sup}"))
 
     def find(self):

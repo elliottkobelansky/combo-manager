@@ -2,8 +2,8 @@
 change and never read back, so editing it changes nothing.
 
     By night    one table per show night: set, time, combo, each member (liaison marked) with their instrument
-                (in the Combos tab's order), and the supervisor
-    All sets    one row per set (date, venue, set, times, combo, supervised): for sorting and filtering
+                (in the Combos tab's order), and the coach
+    All sets    one row per set (date, venue, set, times, combo, FB = feedback night): for sorting and filtering
     Feedback nights  the feedback nights and who plays them (when every combo has one)
     Changes     every change since the schedule was made (swaps, give-aways, text in sets, withdrawn combos), newest
                 first: when, on which computer, what, and each set's before and after
@@ -72,7 +72,7 @@ def write_schedule_xlsx(path, schedule, combos, settings, name_of, instruments):
     ws["A2"].font = font(italic=True, color=GREY)
     for n in schedule.nights:
         ws.append([])
-        ws.append([f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  feedback night" if n.date in supervised
+        ws.append([f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  FB" if n.date in supervised
                                                                    else "")])
         r = ws.max_row
         for col in range(1, 6):
@@ -131,7 +131,7 @@ def write_schedule_xlsx(path, schedule, combos, settings, name_of, instruments):
                         + [combos[cid].name if cid else text or open_text]
                         + (["Yes" if n.date in supervised else ""] if schedule.supervised is not None else []))
     s = sheet("All sets", ["Date", "Day", "Venue", "Set"] + (["Start", "End"] if timed else []) + ["Combo"]
-              + (["Supervised"] if schedule.supervised is not None else []), rows,
+              + (["FB"] if schedule.supervised is not None else []), rows,
               (14, 12, 14, 6) + ((10, 10) if timed else ()) + (36, 12))
     for r in range(2, s.max_row + 1):
         s.cell(row=r, column=1).number_format = "yyyy-mm-dd"
@@ -209,7 +209,7 @@ def read_old_schedule(path, combos):
     sets = {date: {set number: combo id or None}}. A Combo cell that is blank, 'OPEN...' or '(empty)' is open (None).
     Anything else that isn't a combo name (e.g. 'Jam session') goes in typed = {date: {set number: text}}: shown on
     the PDF as written, and the set counts as taken (None in sets). Text that looks like a mistyped combo name
-    ('Combo 5') is reported instead. supervised = the dates with Yes in the Supervised column, or None if the file
+    ('Combo 5') is reported instead. supervised = the dates with Yes in the FB column, or None if the file
     has no such column."""
     from openpyxl import load_workbook
     from util import blank, to_date
@@ -223,7 +223,7 @@ def read_old_schedule(path, combos):
     by_name = {c.name.strip().casefold(): c.id for c in combos.values()}
     head = [str(v or "").strip().lower() for v in next(ws.iter_rows(max_row=1, values_only=True), ())]
     di, si, ci = (head.index(h) if h in head else j for h, j in (("date", 0), ("set", 3), ("combo", 4)))
-    vi = head.index("supervised") if "supervised" in head else None
+    vi = next((head.index(h) for h in ("fb", "supervised") if h in head), None)   # (older files: Supervised)
     sets, problems, supervised, typed = defaultdict(dict), [], set(), defaultdict(dict)
     for i, r in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         r = tuple(r) + (None,) * (max(di, si, ci, vi or 0) + 1 - len(r))

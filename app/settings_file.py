@@ -17,6 +17,8 @@ from shared_folder import write_text
 from data_folder import problem, settings_path
 from util import blank, to_date, to_time
 
+MAX_VENUE = 15                   # characters; longer names don't fit in a calendar cell of the PDF
+
 DEFAULTS = {
     "semester_name": "Winter 2027",
     "start_date": "2027-01-12",
@@ -207,6 +209,10 @@ def validate(data):
         if not venue:
             errors.append(f"{where} ({wd}): the venue is blank.")
             continue
+        if len(venue) > MAX_VENUE:
+            errors.append(f"{where} ({wd}): the venue '{venue}' is longer than {MAX_VENUE} characters "
+                          "(it wouldn't fit on the calendar).")
+            continue
         try:
             sets = int(row.get("sets"))
             assert sets >= 1
@@ -254,6 +260,9 @@ def validate(data):
         venue = str(row.get("venue") or "").strip()
         if d is None or not venue:
             errors.append(f"Extra date {d}: the date or venue is blank.")
+        elif len(venue) > MAX_VENUE:
+            errors.append(f"Extra date {d}: the venue '{venue}' is longer than {MAX_VENUE} characters "
+                          "(it wouldn't fit on the calendar).")
         elif start and end and not (start <= d <= end):
             errors.append(f"Extra date {d} is outside the semester.")
         else:

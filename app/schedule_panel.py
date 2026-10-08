@@ -136,7 +136,7 @@ class SchedulePanel:
                 lines.append((k, who, kind))
             n_open = sum(1 for _, _, kind in lines if kind == "open")
             open_total += n_open
-            title = f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  FEEDBACK" if n.date in sup else "")
+            title = f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  FB" if n.date in sup else "")
             if self.only_open.get() and not n_open:
                 continue
             if q and q not in (title + " " + " ".join(w for _, w, _ in lines)).lower():

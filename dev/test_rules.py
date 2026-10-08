@@ -16,7 +16,7 @@ from make_fake_forms import OUTSIDE, fake_emails, make
 from openpyxl import load_workbook
 
 from inputs import load_input
-from settings_file import DEFAULTS, validate
+from settings_file import DEFAULTS, validate, SettingsError
 from data_folder import app_data, lock_path
 from shared_folder import remove
 
@@ -529,6 +529,15 @@ def main():
         bad.append("validate accepted unreadable email_domain_fixes")
     except Exception:
         pass
+    long_days = [{**DEFAULTS["show_days"][0], "venue": "The Very Long Venue Name"}]
+    for extra in ({"show_days": long_days},
+                  {"extra_dates": [{"date": "2027-02-10", "venue": "The Very Long Venue Name", "sets": 3}]}):
+        try:
+            validate({**DEFAULTS, **extra})
+            bad.append(f"a venue name too long for the calendar is accepted ({next(iter(extra))})")
+        except SettingsError as e:
+            if "longer than" not in str(e):
+                bad.append(f"long venue: unexpected message {e}")
     outside = lambda inp: [t for _, t in inp.notes if "with an email outside" in t]
     anywhere, _ = validate({**DEFAULTS, "student_email_domain": ""})
     elsewhere, _ = validate({**DEFAULTS, "student_email_domain": "school.edu"})

@@ -13,7 +13,7 @@ import dialogs
 from core import generate_nights
 from core.model import WEEKDAYS, make_label
 from data_folder import SETTINGS_FILE, settings_path
-from settings_file import DEFAULTS, HELP, SettingsError, read_data, save_data, validate
+from settings_file import DEFAULTS, HELP, MAX_VENUE, SettingsError, read_data, save_data, validate
 from shared_folder import fingerprint
 from util import to_date
 
@@ -279,6 +279,10 @@ class ListEditor:
                         new[key] = w.get().strip() or None
             except ValueError:
                 dialogs.showerror("Not a number", "Numbers must be whole numbers.", parent=win)
+                return
+            if len(new.get("venue") or "") > MAX_VENUE:
+                dialogs.showerror("Venue name too long", f"Keep the venue name to {MAX_VENUE} characters or fewer "
+                                  "(e.g. a short form), so it fits on the calendar.", parent=win)
                 return
             if index is None:
                 self.rows.append(new)
