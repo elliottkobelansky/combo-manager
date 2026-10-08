@@ -28,6 +28,14 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 FROZEN = getattr(sys, "frozen", False)                # the packaged app (PyInstaller): every package is included
+if FROZEN and sys.platform == "win32":
+    # Microsoft's C++ runtime: the app's own copy, loaded before anything asks for it by name. Otherwise Windows can
+    # pick an older one from System32 (an out-of-date Visual C++ Redistributable) and the solver won't load
+    # ("DLL load failed while importing cp_model_helper").
+    import ctypes
+    for _dll in ("vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll"):
+        with contextlib.suppress(OSError):
+            ctypes.WinDLL(str(Path(sys._MEIPASS) / _dll))
 sys.path.insert(0, str(HERE))
 # these three are standard library only: safe before the packages are installed
 from app_config import input_files, load_config, save_config, saved_folder  # noqa: E402
@@ -1138,6 +1146,15 @@ def selftest(out):
         s = cp_model.CpSolver()
         assert s.solve(m) == cp_model.OPTIMAL and s.value(x) == 3
     step("the solver (ortools)", solver)
+
+    if FROZEN and sys.platform == "win32":
+        def runtime():                                # the app's own C++ runtime is the one in use
+            import ctypes
+            buf = ctypes.create_unicode_buffer(1024)
+            ctypes.windll.kernel32.GetModuleFileNameW(ctypes.windll.kernel32.GetModuleHandleW("msvcp140.dll"),
+                                                      buf, 1024)
+            assert Path(buf.value).parent == Path(sys._MEIPASS), f"msvcp140.dll in use: {buf.value or 'none'}"
+        step("the app's own C++ runtime", runtime)
 
     def pdf():
         from reportlab.pdfgen import canvas
