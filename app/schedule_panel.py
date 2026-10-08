@@ -11,10 +11,10 @@ from tkinter import ttk
 import app_log
 import dialogs
 from core.model import make_label
+from util import TITLES
 from core.swaps import claimers
 from data_folder import SCHEDULE_PDF, SCHEDULE_XLSX
 
-TITLES = ["", "Prof.", "Dr.", "Mr.", "Ms.", "Mx."]       # a faculty member's title (anything else can be typed)
 from theme import RIGHT_CLICK, in_background, popup, scrolled_tree
 
 
@@ -457,7 +457,8 @@ class SchedulePanel:
             found[who.email.lower()] = who
         for c in st["combos"].values():
             if c.professor and c.professor.lower() not in found:
-                found[c.professor.lower()] = Faculty("", st["names"].get(c.professor) or name_from_email(c.professor),
+                found[c.professor.lower()] = Faculty(st["titles"].get(c.professor.lower(), ""),
+                                                     st["names"].get(c.professor) or name_from_email(c.professor),
                                                      c.professor)
         return sorted(found.values(), key=lambda p: p.name.lower())
 

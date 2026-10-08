@@ -161,6 +161,10 @@ class CombosPanel:
     def name(self, email):
         return self.data["names"].get(email) or name_from_email(email)
 
+    def coach_name(self, email):
+        """'Prof. Yuki Tanabe': the coach's title (if set) and name."""
+        return f"{self.store.titles.get(email.lower(), '')} {self.name(email)}".strip()
+
     def fill(self):
         if not self.data:
             return
@@ -218,7 +222,7 @@ class CombosPanel:
                 if (c.name, e) in touched_people:
                     self.mark(pid)
             if c.professor:
-                pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (coach)",
+                pid = self.tree.insert(item, "end", text="    " + self.coach_name(c.professor) + "  (coach)",
                                        values=("", "", "", "", self.mail(c.professor)), tags=(shade,))
                 self.people[pid] = (None, c.professor)
         for c in self.data["pending"]:                    # submitted, no decision yet: shown, not editable
@@ -231,8 +235,8 @@ class CombosPanel:
                                     open=bool(q) or self.tree_key(label) in open_items, tags=("removed",))
             self.pending_items[item] = c
             for e in self.member_order(c) + ([c.professor] if c.professor else []):
-                pid = self.tree.insert(item, "end", text="    " + self.name(e) + ("  (coach)" if e == c.professor
-                                                                                 else ""),
+                pid = self.tree.insert(item, "end", text="    " + (self.coach_name(e) + "  (coach)" if e == c.professor
+                                                                      else self.name(e)),
                                        values=("", "", "", len(self.data["blocked"].get(e, ())) or "", e),
                                        tags=("removed",))
                 self.pending_items[pid] = c
@@ -252,7 +256,7 @@ class CombosPanel:
                                        values=("", instrument, "", "", e), tags=("removed",))
                 self.withdrawn_items[pid] = c          # right-click on a member: put the combo back
             if c.professor:
-                pid = self.tree.insert(item, "end", text="    " + self.name(c.professor) + "  (coach)",
+                pid = self.tree.insert(item, "end", text="    " + self.coach_name(c.professor) + "  (coach)",
                                        values=("", "", "", "", c.professor), tags=("removed",))
                 self.withdrawn_items[pid] = c
 
@@ -398,6 +402,19 @@ class CombosPanel:
         self.queue(lambda s: s.set_name(email, new.strip()), f"{old} is now called '{new.strip()}'.", view="fill",
                    combo=self.combos_of(email), people=[email])
 
+    def retitle(self, email):
+        """A coach's title (Prof., Dr., ...; anything can be typed, or nothing)."""
+        from util import TITLES
+        current = self.store.titles.get(email.lower(), "")
+        new = dialogs.askstring("Change title", f"Title for {self.name(email)} (e.g. Prof.; leave it empty for none):",
+                                initialvalue=current, ok="Change", choices=TITLES, parent=self.frame)
+        if new is None or new.strip() == current:
+            return
+        new = new.strip()
+        self.queue(lambda s: s.set_title(email, new),
+                   f"{self.name(email)}'s title is now '{new}'." if new else f"{self.name(email)} has no title now.",
+                   view="fill", combo=self.combos_of(email), people=[email])
+
     def combos_of(self, email):
         """The names of the combos email is in (or supervises), withdrawn ones too."""
         every = list(self.data["combos"].values()) + list(self.data["withdrawn"].values())
@@ -484,6 +501,7 @@ class CombosPanel:
         elif kind == "removed":
             menu.add_command(label="Put back in combo", command=self.restore_member)
         elif kind == "supervisor":
+            menu.add_command(label="Change title...", command=lambda: self.retitle(email))
             menu.add_command(label="Change name...", command=self.rename)
             menu.add_command(label="Change email...", command=self.edit_email)
         if kind in ("person", "supervisor", "removed"):

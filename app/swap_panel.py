@@ -188,7 +188,8 @@ class SwapPanel:
             self.say("Not loaded: " + str(e).strip().splitlines()[0])
             self.notify()
             return
-        names = Store(folder).names
+        store = Store(folder)
+        names = store.names
         plain = {e: names.get(e) or name_from_email(e) for c in combos.values() for e in c.members}
         clash = {n for n in plain.values() if list(plain.values()).count(n) > 1}
 
@@ -200,7 +201,7 @@ class SwapPanel:
             self.base_typed = {d: dict(row) for d, row in typed.items()}
             self.base_faculty = dict(faculty)
         self.state = dict(settings=settings, inp=inp, combos=combos, sets=sets, supervised=supervised, typed=typed,
-                          faculty=faculty, names=names,
+                          faculty=faculty, names=names, titles=store.titles,
                           nights=sched.nights if not keep else self.state["nights"], name_of=name_of,
                           published=sched.published if not keep else self.state.get("published", False))
         # "Combo 07 (Ana Ruiz)": the liaison, so the director recognises the combo

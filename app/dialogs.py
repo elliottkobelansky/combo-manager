@@ -26,9 +26,10 @@ def grab(win, tries=80):
             win.after(25, grab, win, tries - 1)
 
 
-def _ask(title, message, buttons, default, cancel, icon=None, parent=None, entry=None):
+def _ask(title, message, buttons, default, cancel, icon=None, parent=None, entry=None, choices=None):
     """buttons: [(label, value)], left to right; default / cancel: the values for Enter / Escape. entry: a text box
-    under the message, with this text in it; the default button then returns what's typed."""
+    under the message, with this text in it; the default button then returns what's typed. choices: the text box
+    is a dropdown of these (anything can still be typed)."""
     root = parent.winfo_toplevel() if parent else tk._default_root
     p = theme.PALETTE
     win = tk.Toplevel(root)
@@ -55,10 +56,10 @@ def _ask(title, message, buttons, default, cancel, icon=None, parent=None, entry
     ttk.Label(box, text=message.strip(), wraplength=theme.size(470), justify="left").pack(anchor="w", pady=(10, 0))
     box_ = None
     if entry is not None:
-        box_ = ttk.Entry(box, width=52)
+        box_ = ttk.Combobox(box, values=choices, width=16) if choices else ttk.Entry(box, width=52)
         box_.insert(0, entry)
         box_.select_range(0, "end")
-        box_.pack(anchor="w", fill="x", pady=(10, 0))
+        box_.pack(anchor="w", fill="x" if not choices else None, pady=(10, 0))
     bar = ttk.Frame(box)
     bar.pack(fill="x", pady=(18, 0))
     for label, value in reversed(buttons):            # right-aligned, in the given order
@@ -110,6 +111,7 @@ def askokcancel(title, message, ok="OK", cancel="Cancel", default="ok", icon=Non
     return bool(_ask(title, message, [(cancel, False), (ok, True)], default != "cancel", False, icon, parent))
 
 
-def askstring(title, message, initialvalue="", ok="OK", parent=None, **_):
-    """A line of text: what's typed, or None when cancelled."""
-    return _ask(title, message, [("Cancel", None), (ok, True)], True, None, None, parent, entry=initialvalue or "")
+def askstring(title, message, initialvalue="", ok="OK", parent=None, choices=None, **_):
+    """A line of text: what's typed (or picked from choices), or None when cancelled."""
+    return _ask(title, message, [("Cancel", None), (ok, True)], True, None, None, parent, entry=initialvalue or "",
+                choices=choices)

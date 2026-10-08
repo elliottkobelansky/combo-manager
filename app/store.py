@@ -41,7 +41,7 @@ class Store:
         except ValueError:
             raise ValueError(f"{self.path} is damaged. Restore it from {DATA_FILE}.bak next to it, or from a backup.")
         for key in ("numbers", "names", "instruments", "emails", "members", "new_combos", "overruled",
-                    "added_conflicts", "last_instrument", "linked"):
+                    "added_conflicts", "last_instrument", "linked", "titles"):
             self.data.setdefault(key, {})
         self.changed = False
 
@@ -73,6 +73,18 @@ class Store:
 
     def set_name(self, email, name):
         self.names[email.lower()] = name
+        self.changed = True
+
+    # titles (coaches: Prof., Dr., ...)
+    @property
+    def titles(self):
+        return self.data["titles"]
+
+    def set_title(self, email, title):
+        if title.strip():
+            self.titles[email.lower()] = title.strip()
+        else:
+            self.titles.pop(email.lower(), None)
         self.changed = True
 
     # instruments
@@ -240,6 +252,8 @@ class Store:
                 self.emails[k] = new
         if shown in self.names:
             self.names.setdefault(new, self.names.pop(shown))
+        if shown in self.titles:
+            self.titles.setdefault(new, self.titles.pop(shown))
         for table in self.data["instruments"].values():
             for key in [k for k in table if k.split("|", 1)[1] == shown]:
                 table[key.split("|", 1)[0] + "|" + new] = table.pop(key)

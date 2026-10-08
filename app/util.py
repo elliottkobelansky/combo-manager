@@ -72,3 +72,5 @@ def to_time(v):
         except ValueError:
             pass
     raise ValueError(f"can't read '{v}' as a time")
+
+TITLES = ["", "Prof.", "Dr.", "Mr.", "Ms.", "Mx."]       # a coach's or faculty member's title (or anything typed)
