@@ -49,6 +49,18 @@ class CombosPanel:
         self.sync_button = ttk.Button(links, text="Sync", command=self.reload)
         self.sync_button.pack(side="right", padx=(0, 6))
 
+        # Check combos and Lock combos (like the Schedule tab's buttons)
+        tools = ttk.Frame(self.frame)
+        tools.pack(fill="x", pady=(0, 12))
+        self.check_button = ttk.Button(tools, text="Check combos", style="Accent.TButton",
+                                       command=lambda: self.on_check())
+        self.check_button.pack(side="left")
+        self.locked = tk.BooleanVar()
+        self.lock_box = ttk.Checkbutton(tools, text="Lock combos", variable=self.locked, command=self.set_locked)
+        self.lock_box.pack(side="left", padx=(16, 0))
+        self.lock_hint = ttk.Label(tools, text="Locked: nothing here can be changed (untick to edit).",
+                                   style="Hint.TLabel")
+
         top = self.search_row = ttk.Frame(self.frame)
         top.pack(fill="x")
         ttk.Label(top, text="Search").pack(side="left", padx=(0, 6))
@@ -77,9 +89,6 @@ class CombosPanel:
                                          command=self.confirm)
         self.confirm_button.pack(side="right")
         self.bottom = bottom
-        self.check_button = ttk.Button(bottom, text="Check combos", style="Accent.TButton",
-                                       command=lambda: self.on_check())
-        self.check_button.pack(side="left", padx=(0, 12))
         ttk.Button(bottom, text="Expand all", command=lambda: self.expand(True)).pack(side="left")
         ttk.Button(bottom, text="Collapse all", command=lambda: self.expand(False)).pack(side="left", padx=6)
         self.actions = ttk.Button(bottom, text="Actions \u25be", command=self.actions_menu)   # = the right-click menu
@@ -96,6 +105,42 @@ class CombosPanel:
         bind_right_click(self.frame, self.context_menu)   # anywhere on the tab (empty space: New combo...)
         self.recolor()
 
+    def set_locked(self):
+        """The 'Lock combos' tick: saved for this semester (every computer sees it). Nothing on the tab can be changed
+        while it's on."""
+        on = self.locked.get()
+        if not self.data:
+            self.locked.set(False)
+            return
+        if on and self.pending:
+            dialogs.showinfo("Lock combos", "There are unsaved changes. Confirm or discard them first, then lock.")
+            self.locked.set(False)
+            return
+        if not on and not dialogs.askyesno(
+                "Unlock the combos?", "Unlocking lets the combos be changed again: members, liaisons, coaches, "
+                "withdrawals and new combos.\n\nIf the schedule is already out, let the combos involved know about "
+                "any change you make.", yes="Unlock", no="Keep locked"):
+            self.locked.set(True)
+            return
+        sem = self.data["settings"].semester_name
+        try:
+            store = Store(self.get_folder())
+            store.set_combos_locked(sem, on)
+            store.save()
+        except (OSError, ValueError) as e:
+            dialogs.showerror("Couldn't save", str(e))
+            self.locked.set(not on)
+            return
+        self.store.set_combos_locked(sem, on)
+        app_log.write("Combos locked" if on else "Combos unlocked")
+        self.show_lock()
+
+    def show_lock(self):
+        if self.locked.get():
+            self.lock_hint.pack(side="left", padx=(12, 0))
+        else:
+            self.lock_hint.pack_forget()
+
     def load(self, quiet=False):
         """quiet: when loading by itself (app start, folder change), a problem is shown in the tab, not a pop-up.
         Pending edits are applied on top of what's saved (a preview: nothing is written)."""
@@ -110,6 +155,8 @@ class CombosPanel:
                 store.save = lambda: None                 # a preview: Confirm changes saves
             inp = load_input(folder, settings, files["approvals"], files["conflicts"], store=store)
             self.store = store
+            self.locked.set(store.combos_locked(settings.semester_name))
+            self.show_lock()
         except (SettingsError, InputError, ValueError) as e:
             if not quiet:
                 dialogs.showerror("Can't load the combos", str(e))
@@ -304,12 +351,16 @@ class CombosPanel:
 
     def click(self, event):
         """A click on a person's Instrument cell opens the dropdown there."""
+        if self.locked.get():
+            return
         item, col = self.tree.identify_row(event.y), self.tree.identify_column(event.x)
         if item in self.people and col == "#2" and self.people[item][0]:
             self.tree.selection_set(item)
             self.tree.after_idle(lambda: self.edit_instrument(item))
 
     def double_click(self, event):
+        if self.locked.get():
+            return
         col = self.tree.identify_column(event.x)
         if col == "#5":
             self.edit_email()
@@ -489,6 +540,12 @@ class CombosPanel:
             menu.add_command(label="Copy all emails",
                              command=lambda: self.copy_emails(combo))
             menu.add_separator()
+        if self.locked.get():                             # only copying (and looking) while locked
+            if kind == "pending":
+                menu.add_command(label="Check this combo...", command=lambda: self.check_pending(combo))
+            menu.add_command(label="Locked: untick 'Lock combos' to edit", state="disabled")
+            self.menu = menu
+            return menu
         if kind == "person":
             if email != combo.liaison:
                 menu.add_command(label="Make liaison", command=self.make_liaison)
@@ -624,6 +681,10 @@ class CombosPanel:
         marked while pending; view: 'load' (members change: read everything again), 'fill' (only names /
         instruments) or 'none' (the caller updates the cell; the combo's row is marked here); withdraw: (name, ref)
         of a combo withdrawn (its sets open on Confirm); people: the emails of the members it's about, marked too."""
+        if self.locked.get():                             # (the menus don't offer edits while locked)
+            dialogs.showinfo("Combos locked", "The combos are locked. Untick 'Lock combos' (top of the tab) to "
+                             "change them.")
+            return
         names = [combo] if isinstance(combo, str) else list(combo or [])
         self.pending.append(dict(change=change, text=message, combos=names, withdraw=withdraw, people=list(people)))
         if view == "load":
@@ -703,12 +764,22 @@ class CombosPanel:
             return False
         try:
             store = Store(folder)
+            titles_before = dict(store.titles)
             for p in self.pending:
                 p["change"](store)
             store.save()
         except (OSError, ValueError) as e:
             dialogs.showerror("Couldn't save", f"{e}\n\nThe changes are still pending.")
             return False
+        retitled = {e: store.titles.get(e, "") for e in set(titles_before) | set(store.titles)
+                    if titles_before.get(e, "") != store.titles.get(e, "")}
+        if retitled and has_schedule(folder):         # a coach's new title: also on the feedback nights they're at
+            from schedule_file import retitle_faculty
+            try:
+                retitle_faculty(folder, retitled)
+            except (OSError, ScheduleFileError) as e:
+                dialogs.showerror("Couldn't update the schedule", f"The title changed, but the feedback nights "
+                                  f"couldn't be updated: {e}")
         opened, backup = [], None
         for name, ref in dict.fromkeys(withdrawals):  # once each; not one that was put back again
             if store.member_changes(sem, ref)["withdrawn"]:

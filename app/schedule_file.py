@@ -347,6 +347,27 @@ def save_changes(folder, combos, sets=None, typed=None, what=(), faculty=None):
     return copy
 
 
+def retitle_faculty(folder, titles):
+    """A coach's title changed (Combos tab): titles = {email: new title ("" = none)}. The feedback nights they're the
+    faculty member of follow (a backup first, kept in the history). -> True when something changed."""
+    data = _read(folder)
+    titles = {e.lower(): t.strip() for e, t in titles.items()}
+    hits = [(d, who) for d, who in (data or {}).get("faculty", {}).items()
+            if who.get("email", "").lower() in titles and who.get("title", "") != titles[who["email"].lower()]]
+    if not hits:
+        return False
+    backup(folder)
+    for d, who in hits:
+        if titles[who["email"].lower()]:
+            who["title"] = titles[who["email"].lower()]
+        else:
+            who.pop("title", None)
+    data.setdefault("history", []).append(_entry([f"Faculty member's title on {d}: {who.get('title') or 'none'}"
+                                                  for d, who in hits]))
+    _write(folder, data)
+    return True
+
+
 def open_sets_of(folder, name, what=()):
     """Every set combo `name` plays becomes open (it was withdrawn), going by the schedule as saved now. A backup first.
     -> (the sets [(date, set)], the backup), or ([], None) when it plays none."""

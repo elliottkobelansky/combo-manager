@@ -41,7 +41,7 @@ class Store:
         except ValueError:
             raise ValueError(f"{self.path} is damaged. Restore it from {DATA_FILE}.bak next to it, or from a backup.")
         for key in ("numbers", "names", "instruments", "emails", "members", "new_combos", "overruled",
-                    "added_conflicts", "last_instrument", "linked", "titles"):
+                    "added_conflicts", "last_instrument", "linked", "titles", "locked"):
             self.data.setdefault(key, {})
         self.changed = False
 
@@ -73,6 +73,17 @@ class Store:
 
     def set_name(self, email, name):
         self.names[email.lower()] = name
+        self.changed = True
+
+    # Lock combos (Combos tab): no edits while on, per semester
+    def combos_locked(self, semester):
+        return bool(self.data["locked"].get(semester))
+
+    def set_combos_locked(self, semester, on):
+        if on:
+            self.data["locked"][semester] = True
+        else:
+            self.data["locked"].pop(semester, None)
         self.changed = True
 
     # titles (coaches: Prof., Dr., ...)
