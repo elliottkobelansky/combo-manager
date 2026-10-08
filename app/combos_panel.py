@@ -1041,6 +1041,7 @@ class AddMemberDialog:
         self.panel, self.combo = panel, combo
         self.known = panel.known_people()
         self.choices = sorted(f"{name}  <{e}>" for e, name in self.known.items() if e not in combo.members)
+        self.shown = {e for c in panel.data["combos"].values() for e in c.members | {c.professor}}   # on the tab
         self.name_typed = False
         win = self.win = tk.Toplevel(panel.frame)
         win.title(f"Add a member to {combo.name}")
@@ -1057,10 +1058,12 @@ class AddMemberDialog:
                 ("Email", self.email, "Someone new: type their email."),
                 ("Name", self.name, "Guessed from the email; change it if needed."),
                 ("Instrument", self.instrument, "Optional.")]
+        self.hints = {}
         for r, (label, widget, hint) in enumerate(rows, start=1):
             ttk.Label(box, text=label).grid(row=2 * r - 1, column=0, sticky="w", padx=(0, 12), pady=(6, 0))
             widget.grid(row=2 * r - 1, column=1, sticky="w", pady=(6, 0))
-            ttk.Label(box, text=hint, style="Hint.TLabel").grid(row=2 * r, column=1, sticky="w")
+            self.hints[label] = ttk.Label(box, text=hint, style="Hint.TLabel", wraplength=420, justify="left")
+            self.hints[label].grid(row=2 * r, column=1, sticky="w")
         self.warn = ttk.Label(box, text="", wraplength=420, justify="left", style="Warn.TLabel")
         self.warn.grid(row=9, column=0, columnspan=2, sticky="w", pady=(10, 0))
         bar = ttk.Frame(box)
@@ -1102,10 +1105,21 @@ class AddMemberDialog:
     def email_changed(self):
         """Fills in the name (unless one was typed) and shows what the addition would clash with."""
         e = self.clean_email()
-        if not self.name_typed:
+        known = EMAIL_RE.fullmatch(e) and e in self.shown
+        self.name.configure(state="normal")
+        if known:                                     # someone already known: their name is changed on the tab
             self.name.delete(0, "end")
-            if EMAIL_RE.fullmatch(e):
-                self.name.insert(0, self.known.get(e) or name_from_email(e))
+            self.name.insert(0, self.known[e])
+            self.name.configure(state="readonly")
+            self.name_typed = False
+            self.hints["Name"].configure(text="Already known. To change their name, right-click them on the Combos "
+                                              "tab > Change name.")
+        else:
+            self.hints["Name"].configure(text="Guessed from the email; change it if needed.")
+            if not self.name_typed:
+                self.name.delete(0, "end")
+                if EMAIL_RE.fullmatch(e):
+                    self.name.insert(0, name_from_email(e))
         warnings = []
         if EMAIL_RE.fullmatch(e):
             if e in self.combo.members:
@@ -1132,7 +1146,7 @@ class AddMemberDialog:
 
         def change(store):
             store.add_member(sem, self.combo.ref, e)
-            if name and name != (panel.data["names"].get(e) or name_from_email(e)):
+            if e not in self.shown and name and name != (panel.data["names"].get(e) or name_from_email(e)):
                 store.set_name(e, name)
             if instrument:
                 store.set_instrument(sem, self.combo.name, e, instrument)
