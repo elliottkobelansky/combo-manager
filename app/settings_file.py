@@ -21,15 +21,25 @@ MAX_VENUE = 15                   # characters; longer names don't fit in a calen
 
 REMINDER_EMAIL = """Hi everyone,
 
+A quick reminder that you're playing {night} at {venue}:
+
+{sets}
+
+{feedback: This is a feedback night: a faculty member will be in the audience and will write up some constructive comments on your performance.}
+
+Please arrive at least 15 minutes before your set. If anything comes up, let me know as soon as you can.
+
+Have a good show!"""
+# the first default (plain {feedback}, which is no longer allowed): read as the default above
+OLD_REMINDER = """Hi everyone,
+
 Reminder: you're playing {night} at {venue}.
 
 {sets}
 
-{feedback: This is a feedback night: a faculty member attends.}
+{feedback}
 
 Please arrive 15 minutes before your set. If something comes up, let me know as soon as possible."""
-OLD_REMINDER = REMINDER_EMAIL.replace("{feedback: This is a feedback night: a faculty member attends.}",
-                                      "{feedback}")
 CHANGE_EMAIL = """Hi,
 
 A change to the {semester} show schedule:
