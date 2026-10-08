@@ -51,7 +51,7 @@ Nothing else changes. Thanks!"""
 EMAIL_FILLINS = {
     "reminder_email": {"night": "Tue Jan 12", "venue": "the venue", "semester": "the semester name",
                        "sets": "a line per set: its time and who plays",
-                       "faculty": "the feedback night's faculty member (their name)"},
+                       "faculty": "the feedback night's faculty member (title and name, e.g. Prof. Ana Ruiz)"},
     "change_email": {"change": "what changes, combo by combo", "combos": "the combos involved",
                      "semester": "the semester name"},
 }

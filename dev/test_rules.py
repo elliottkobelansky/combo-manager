@@ -339,10 +339,10 @@ def main():
             or sf_.load(sdir, result.combos, s).sets != sch.sets:
         bad.append(f"the export: sheets {wb.sheetnames}, or it's taken for an old schedule")
     d0 = result.nights[0].date                        # a feedback night's faculty member: saved, kept, cleared
-    sf_.save_changes(sdir, result.combos, faculty={d0: ("Ana Ruiz", "ana.ruiz@mcgill.ca")}, what=["faculty"])
+    sf_.save_changes(sdir, result.combos, faculty={d0: sf_.Faculty("Prof.", "Ana Ruiz", "ana.ruiz@mcgill.ca")}, what=["faculty"])
     kept = sf_.load(sdir, result.combos, s)
     sf_.save_changes(sdir, result.combos, sets={(d0, 1): kept.sets[d0][1]}, what=["nothing"])
-    if sf_.load(sdir, result.combos, s).faculty != {d0: ("Ana Ruiz", "ana.ruiz@mcgill.ca")} or kept.sets != sch.sets:
+    if sf_.load(sdir, result.combos, s).faculty != {d0: ("Prof.", "Ana Ruiz", "ana.ruiz@mcgill.ca")} or kept.sets != sch.sets:
         bad.append("a feedback night's faculty member isn't saved (or other changes lose it)")
     sf_.save_changes(sdir, result.combos, faculty={d0: None}, what=["cleared"])
     if sf_.load(sdir, result.combos, s).faculty:

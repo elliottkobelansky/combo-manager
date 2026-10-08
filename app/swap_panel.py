@@ -38,9 +38,9 @@ class FacultyChange:
     with the swaps. name and email "" = cleared."""
     breaks = warnings = ()
 
-    def __init__(self, d, name, email):
-        self.d, self.name, self.email = d, name.strip(), email.strip()
-        self.title = (f"Faculty member on {make_label(d)}: {self.name} ({self.email})" if self.email else
+    def __init__(self, d, who):
+        self.d, self.who = d, who                     # a schedule_file.Faculty, or None (cleared)
+        self.title = (f"Faculty member on {make_label(d)}: {who.full} ({who.email})" if who else
                       f"Faculty member on {make_label(d)} cleared")
 
 
@@ -452,15 +452,15 @@ class SwapPanel:
         self.rebuild_sets()
         self.after_change(f"Added: {change.title}")
 
-    def set_faculty(self, d, name, email):
-        """A feedback night's faculty member (or cleared: ""), as an unsaved change."""
-        change = FacultyChange(d, name, email)
+    def set_faculty(self, d, who):
+        """A feedback night's faculty member (a schedule_file.Faculty, or None: cleared), as an unsaved change."""
+        change = FacultyChange(d, who)
         self.pending.append(change)
         self.rebuild_sets()
         self.after_change(f"Added: {change.title}")
 
     def faculty_changes(self):
-        """{night: (name, email), or None when cleared} where it differs from the saved schedule."""
+        """{night: Faculty, or None when cleared} where it differs from the saved schedule."""
         now, base = self.state["faculty"], self.base_faculty
         return {d: now.get(d) for d in set(now) | set(base) if now.get(d) != base.get(d)}
 
@@ -521,8 +521,8 @@ class SwapPanel:
         faculty = dict(self.base_faculty)
         for o in self.pending:
             if isinstance(o, FacultyChange):
-                if o.email:
-                    faculty[o.d] = (o.name, o.email)
+                if o.who:
+                    faculty[o.d] = o.who
                 else:
                     faculty.pop(o.d, None)
             elif isinstance(o, TextChange):

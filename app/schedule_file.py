@@ -7,7 +7,8 @@ and never read back, so editing them changes nothing.
                  "break": 15, "supervised": true}, ...],
      "sets":   {"2026-09-29": {"1": "Combo 28", "2": "Combo 30"}, ...},     combo names; a set not listed is open
      "typed":  {"2026-09-29": {"4": "Jam session"}},                        text in a set (it then counts as taken)
-     "faculty": {"2026-09-29": {"name": "Ana Ruiz", "email": "ana.ruiz@..."}}, a feedback night's faculty member
+     "faculty": {"2026-09-29": {"title": "Prof.", "name": "Ana Ruiz", "email": "ana.ruiz@..."}},
+                                                                            a feedback night's faculty member
      "report": [["warn", "..."], ...],                                      what the solver said when it was made
      "published": true,                                                     locked: Make schedule is off
      "history": [{"saved": "2026-10-20T15:02:11", "computer": "OFFICE-PC", "what": ["Trade with Combo 12: ..."],
@@ -27,7 +28,7 @@ import socket
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, NamedTuple, Optional, Set
 
 from core.model import Night
 from data_folder import (ARCHIVE, EXPORT_FILES, SCHEDULE_BACKUPS, SCHEDULE_FILE, SCHEDULE_XLSX, app_data, exports,
@@ -40,6 +41,18 @@ SEMESTER_FILES = EXPORT_FILES + [SCHEDULE_FILE, SCHEDULE_BACKUPS]
 
 class ScheduleFileError(Exception):
     pass
+
+
+class Faculty(NamedTuple):
+    """A feedback night's faculty member. title: Prof., Dr., Mr., ... or ""."""
+    title: str
+    name: str
+    email: str
+
+    @property
+    def full(self):
+        """'Prof. Ana Ruiz'"""
+        return f"{self.title} {self.name}".strip()
 
 
 @dataclass
@@ -55,7 +68,7 @@ class Schedule:
     published: bool = False                       # locked: no new schedule (Schedule tab)
     made: str = ""                                # when it was made (ISO date and time)
     converted: bool = False                       # just made from an old Schedule.xlsx
-    faculty: Dict[date, Tuple[str, str]] = field(default_factory=dict)   # feedback night -> (name, email)
+    faculty: Dict[date, Faculty] = field(default_factory=dict)   # feedback night -> its faculty member
 
 
 # ---------------------------------------------------------------- reading
@@ -136,7 +149,7 @@ def load(folder, combos, settings):
             typed[d] = texts
     supervised = ({date.fromisoformat(n["date"]) for n in data.get("nights", []) if n.get("supervised")}
                   if data.get("supervision", True) else None)
-    faculty = {date.fromisoformat(k): (v.get("name", ""), v.get("email", ""))
+    faculty = {date.fromisoformat(k): Faculty(v.get("title", ""), v.get("name", ""), v.get("email", ""))
                for k, v in data.get("faculty", {}).items() if k in by_date and (v.get("name") or v.get("email"))}
     return Schedule(data.get("semester", ""), nights, sets, typed, supervised, problems, report=data.get("report", []),
                     history=data.get("history", []), converted=converted, published=bool(data.get("published")),
@@ -283,7 +296,7 @@ def set_published(folder, on):
 
 def save_changes(folder, combos, sets=None, typed=None, what=(), faculty=None):
     """Changes some sets: sets = {(date, set): combo id or None (open)}, typed = {(date, set): text or None (open)},
-    and feedback nights' faculty members: faculty = {date: (name, email) or None (cleared)};
+    and feedback nights' faculty members: faculty = {date: Faculty or None (cleared)};
     what: what was done, in words (e.g. the swaps' titles), for the history. Reads the file again first, so changes
     saved meanwhile elsewhere (other sets) are kept; a backup goes into AppFiles/ScheduleBackups first. -> the
     backup's path. Raises ScheduleFileError (nothing changed) for a set that isn't in the schedule."""
@@ -316,7 +329,8 @@ def save_changes(folder, combos, sets=None, typed=None, what=(), faculty=None):
     data["typed"] = {d: r for d, r in data.get("typed", {}).items() if r}
     people, faculty_changed = data.setdefault("faculty", {}), False
     for d, who in (faculty or {}).items():
-        new = {"name": who[0].strip(), "email": who[1].strip()} if who else None
+        new = ({**({"title": who.title.strip()} if who.title.strip() else {}), "name": who.name.strip(),
+                "email": who.email.strip()} if who else None)
         if people.get(d.isoformat()) != new:
             faculty_changed = True
             if new:
