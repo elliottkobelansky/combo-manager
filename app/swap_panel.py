@@ -535,7 +535,8 @@ class SwapPanel:
         if not dialogs.askyesno("Confirm changes?", "Save the unsaved changes into the schedule?"
                                    + ("\n\nSome of them have a heads-up (\u26a0)." if warns else "")
                                    + ("\n\n\u2716 Some of them break a hard rule (agreed)." if breaks else "")
-                                   + "\n\nThe schedule as it is now is kept (Earlier versions...).", yes="Save", no="Cancel"):
+                                   + "\n\nYou can undo this later: the schedule as it is now is saved as an earlier version (Schedule tab > "
+                                     "Earlier versions...).", yes="Save", no="Cancel"):
             return
         if not self.same_as_on_disk():
             return

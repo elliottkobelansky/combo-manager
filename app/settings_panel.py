@@ -467,10 +467,10 @@ class SettingsPanel:
             fills = "   ".join([f"{{{f}}} {what}" for f, what in EMAIL_FILLINS[key].items()]
                                + [f"{{{c}: text}} the text {what}" for c, what in EMAIL_CONDITIONS[key].items()])
             hint = ttk.Label(foot, text=f"Fill-ins:  {fills}", style="Hint.TLabel", justify="left")
-            hint.pack(side="left", fill="x", expand=True)
-            hint.bind("<Configure>", lambda e, h=hint: h.configure(wraplength=max(e.width, 200)))
             ttk.Button(foot, text="Reset", command=lambda b=box, k=key, n=title: self.reset_email(b, k, n)).pack(
-                side="right", padx=(12, 0))
+                side="right", anchor="n", padx=(12, 0))           # (packed first: it keeps its room, the hint wraps)
+            hint.pack(side="left", fill="x", expand=True)
+            hint.bind("<Configure>", lambda e, h=hint: h.configure(wraplength=max(e.width - 8, 120)))
             self.widgets[key] = (box, "email")
         return tab
 
