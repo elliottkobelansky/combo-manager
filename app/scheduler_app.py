@@ -789,9 +789,10 @@ class App:
         if self.folder:
             ttk.Radiobutton(here, text="Into this data folder (usually the right choice)", value="here",
                             variable=mode, command=lambda: update()).pack(anchor="w")
-            ttk.Label(here, text="Everyone keeps using the same folder, and the forms keep writing to it. What's in "
-                                 f"it now is saved first (AppFiles > {BEFORE_RESTORE}), so this can be undone by "
-                                 "restoring that.", style="Hint.TLabel", wraplength=wrap, justify="left").pack(
+            ttk.Label(here, text="Everyone keeps using the same folder, and the forms keep writing to it. Only the "
+                                 "app's own files are replaced (settings, combos, the schedule, the Archive, the "
+                                 "exports): your own files in the folder are left alone. What's there now is saved "
+                                 f"first (AppFiles > {BEFORE_RESTORE}), so this can be undone by restoring that.", style="Hint.TLabel", wraplength=wrap, justify="left").pack(
                 anchor="w", padx=(26, 0))
             keep = ttk.Checkbutton(here, text="Keep the current Approvals.xlsx and Conflicts.xlsx (recommended: "
                                               "the forms keep adding to them)",

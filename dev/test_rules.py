@@ -879,6 +879,9 @@ def main():
     (live / dfo.CONFLICTS_FILE).write_text("new conflicts")
     (live / dfo.COMBOS_PDF).write_text("only here")
     (live / "Combo Scheduler backup old.zip").write_text("a zip saved here")
+    (live / "My notes.docx").write_text("mine")                  # someone's own files: left alone
+    (live / "Posters").mkdir()
+    (live / "Posters" / "a.png").write_text("poster")
     dfo.schedule_path(live).write_text("today's schedule")
     dfo.lock_path(live).write_text("our lock")
     (dfo.app_data(live) / "Logs" / "pc.txt").write_text("today's log")
@@ -886,6 +889,8 @@ def main():
     (old / dfo.ARCHIVE / "Fall 2026").mkdir(parents=True)
     (old / dfo.ARCHIVE / "Fall 2026" / dfo.SCHEDULE_XLSX).write_text("past")
     (old / dfo.APPROVALS_FILE).write_text("old sign-ups")
+    (old / "My notes.docx").write_text("an old version")         # ...and not taken from the backup either
+    (old / "Old file.txt").write_text("not ours")
     dfo.app_data(old).mkdir()
     dfo.schedule_path(old).write_text("yesterday's schedule")
     old_zip = tmp / "old.zip"
@@ -895,14 +900,15 @@ def main():
              and backup.BEFORE_RESTORE not in p.parts}
     want = {"Approvals.xlsx": "new sign-ups", "Conflicts.xlsx": "new conflicts", "Combo Scheduler backup old.zip":
             "a zip saved here", "AppFiles/schedule.json": "yesterday's schedule", "AppFiles/in_use.json": "our lock",
-            "AppFiles/Logs/pc.txt": "today's log", "Archive/Fall 2026/Schedule.xlsx": "past"}
+            "AppFiles/Logs/pc.txt": "today's log", "Archive/Fall 2026/Schedule.xlsx": "past",
+            "My notes.docx": "mine", "Posters/a.png": "poster"}
     if state != want or not safety.exists():
         bad.append(f"restore into the folder in use: {state}")
     backup.restore_in_place(old_zip, live, keep_inputs=False)
     if (live / dfo.APPROVALS_FILE).read_text() != "old sign-ups":
         bad.append("restoring with the backup's spreadsheets kept the current ones")
     backup.restore_in_place(safety, live)
-    if dfo.schedule_path(live).read_text() != "today's schedule" or (live / dfo.COMBOS_PDF).read_text() != "only here":
+    if dfo.schedule_path(live).read_text() != "today's schedule" or (live / dfo.EXPORTS / dfo.COMBOS_PDF).read_text() != "only here":
         bad.append("restoring the safety backup didn't undo the restore")
     keep = backup.KEEP_SAFETY                                   # only the newest safety copies are kept
     backup.KEEP_SAFETY = 2

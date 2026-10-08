@@ -19,8 +19,9 @@ import zipfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from data_folder import (APP_DATA, APPROVALS_FILE, BEFORE_RESTORE, CONFLICTS_FILE, LOCK_FILE, LOGS, OLD_APP_DATA,
-                         OLD_APPROVALS_FILE, SETTINGS_FILE, app_data, exports, usual_inputs)
+from data_folder import (_MOVED_IN, APP_DATA, APPROVALS_FILE, ARCHIVE, BEFORE_RESTORE, CONFLICTS_FILE, EXPORT_FILES,
+                         EXPORTS, LOCK_FILE, LOGS, OLD_APP_DATA, OLD_APPROVALS_FILE, RENAMED, SETTINGS_FILE, app_data,
+                         exports, usual_inputs)
 from shared_folder import remove
 
 INFO = "backup-info.json"
@@ -152,10 +153,11 @@ def restore_backup(path, dest):
 
 
 def restore_in_place(path, folder, keep_inputs=True):
-    """Puts the backup's files into the data folder in use, replacing the scheduler's own (settings, combo edits, the
-    schedule and its history and backups, Archive, the exports). First the folder as it is now is backed up into
-    AppFiles/BeforeRestore (restoring that zip undoes this). Kept: the input spreadsheets (unless keep_inputs is False:
-    an old copy would lose sign-ups the forms added since), the lock, the logs, and backup zips saved in the folder.
+    """Puts the backup's files into the data folder in use, replacing only the scheduler's own (settings, combo edits,
+    the schedule and its history and backups, Archive, the four exports). First the folder as it is now is backed up
+    into AppFiles/BeforeRestore (restoring that zip undoes this). Kept: the input spreadsheets (unless keep_inputs is
+    False: an old copy would lose sign-ups the forms added since), the lock, the logs, and anything else in the folder
+    (people's own files, backup zips); other files in the backup aren't brought back.
     The backup is unpacked beside it first, so a damaged zip changes nothing. -> the safety backup's path."""
     read_backup(path)
     folder = Path(folder)
@@ -171,25 +173,51 @@ def restore_in_place(path, folder, keep_inputs=True):
     work = app / f".restoring.{os.getpid()}"
     shutil.rmtree(work, ignore_errors=True)
 
-    def ours(p):
-        """Stays as it is: hidden, a backup zip, the lock / logs / safety backups, the inputs (when kept)."""
-        return (p.name.startswith(".") or (p.name.startswith(PREFIXES) and p.name.endswith(".zip"))
-                or (p.parent == app and p.name in KEPT_HERE) or (keep_inputs and p.parent == folder
-                                                                 and p.name in INPUTS))
+    exp = folder / EXPORTS
+
+    def managed(p):
+        """What a restore replaces: the app's own files (AppFiles, except the lock, logs and safety backups), the
+        Archive, the exports, and the input spreadsheets when they aren't kept. Anything else is left alone."""
+        if p.name.startswith("."):
+            return False
+        if p.parent == app:
+            return p.name not in KEPT_HERE
+        if p.parent == exp:
+            return p.name in EXPORT_FILES
+        return p.parent == folder and (p.name == ARCHIVE or p.name in EXPORT_FILES      # (exports at the top: old)
+                                       or (p.name in INPUTS and not keep_inputs))
+
+    def taken(src):
+        """Where a file of the backup goes (None: not restored). Older backups too: 'App data', exports at the top."""
+        top = src.relative_to(work).parts
+        if top[0] in (APP_DATA, OLD_APP_DATA):
+            return None if len(top) == 1 or top[1] in KEPT_HERE else app / top[1]
+        if top[0] == EXPORTS:
+            return exp / top[1] if len(top) == 2 and top[1] in EXPORT_FILES else None
+        if len(top) == 1 and top[0] in EXPORT_FILES:
+            return exp / top[0]
+        if len(top) == 1 and top[0] == ARCHIVE:
+            return folder / ARCHIVE
+        if len(top) == 1 and top[0] in INPUTS:
+            return folder / top[0] if not keep_inputs or not (folder / top[0]).exists() else None
+        if len(top) == 1 and top[0] in _MOVED_IN:     # the oldest layout: the app's files at the top
+            return app / RENAMED.get(top[0], top[0])
+        return None
     try:
         with zipfile.ZipFile(path) as zf:
             zf.extractall(work, [n for n in zf.namelist() if n != INFO])
-        for p in list(folder.iterdir()) + list(app.iterdir()):
-            if p == app or ours(p):
+        for p in list(folder.iterdir()) + list(app.iterdir()) + (list(exp.iterdir()) if exp.is_dir() else []):
+            if managed(p):
+                remove(p)
+        moves = [p for p in work.iterdir() if p.name not in (APP_DATA, OLD_APP_DATA, EXPORTS)]
+        for sub_ in (APP_DATA, OLD_APP_DATA, EXPORTS):
+            if (work / sub_).is_dir():
+                moves += list((work / sub_).iterdir())
+        for p in moves:
+            dest = taken(p)
+            if dest is None or dest.exists():
                 continue
-            remove(p)
-        new_app = work / APP_DATA
-        for p in list(work.iterdir()) + (list(new_app.iterdir()) if new_app.is_dir() else []):
-            if p == new_app:
-                continue
-            dest = (app if p.parent == new_app else folder) / p.name
-            if ours(dest) and (dest.exists() or dest.name not in INPUTS):   # an input the folder lacks: taken
-                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(p), str(dest))
     finally:
         shutil.rmtree(work, ignore_errors=True)
