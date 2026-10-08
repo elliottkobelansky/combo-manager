@@ -27,9 +27,12 @@ def copy_text(widget, text):
     """Puts text on the clipboard. Returns True if it will stay pasteable after the app closes.
     When a system tool is there, only the tool holds the text: Tk then never has to answer paste requests itself,
     which can make pasting into other programs lag on Linux."""
+    # UTF-8, said out loud: an app opened from the Finder has no LANG, and pbcopy then reads the text as Mac Roman
+    # (7:00–7:45 pasted as "7:00‚Äì7:45")
+    env = {**os.environ, "LANG": "en_US.UTF-8", "LC_ALL": "en_US.UTF-8", "LC_CTYPE": "UTF-8"}
     for cmd in system_tools():
         try:
-            subprocess.run(cmd, input=text, text=True, timeout=5, check=True,
+            subprocess.run(cmd, input=text.encode("utf-8"), timeout=5, check=True, env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
         except (OSError, subprocess.SubprocessError):

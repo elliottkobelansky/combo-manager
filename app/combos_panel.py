@@ -66,7 +66,7 @@ class CombosPanel:
         ttk.Label(top, text="Search").pack(side="left", padx=(0, 6))
         self.search = tk.StringVar()
         self.search.trace_add("write", lambda *_: self.fill())
-        search_box(top, self.search).pack(side="left")
+        search_box(top, self.search, on_clear=lambda: self.expand(False)).pack(side="left")
         self.info = ttk.Label(top, text="", style="Hint.TLabel")
         self.info.pack(side="left", padx=12)
 

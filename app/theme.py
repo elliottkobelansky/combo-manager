@@ -300,19 +300,24 @@ class ResultsBox(ttk.Frame):
         self.text.configure(state="disabled")
 
 
-def search_box(parent, var, width=28):
+def search_box(parent, var, width=28, on_clear=None):
     """A search field with a Clear button next to it (shown while there's text); Escape in the field clears it too.
-    Returns the frame to pack."""
+    on_clear(): called once the field is empty again (e.g. collapse the list). Returns the frame to pack."""
     frame = ttk.Frame(parent)
     entry = ttk.Entry(frame, textvariable=var, width=width)
     entry.pack(side="left")
     clear = ttk.Button(frame, text="Clear", command=lambda: (var.set(""), entry.focus_set()))
     entry.bind("<Escape>", lambda _: var.set(""))
 
+    was = [var.get()]
+
     def show(*_):
         if var.get():
             clear.pack(side="left", padx=(6, 0))
         else:
             clear.pack_forget()
+            if was[0] and on_clear:
+                frame.after_idle(on_clear)            # after the list is filled again
+        was[0] = var.get()
     var.trace_add("write", show)
     return frame

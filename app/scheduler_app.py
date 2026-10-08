@@ -1167,6 +1167,21 @@ def selftest(out):
             assert Path(buf.value).parent == Path(sys._MEIPASS), f"msvcp140.dll in use: {buf.value or 'none'}"
         step("the app's own C++ runtime", runtime)
 
+    if sys.platform == "darwin":
+        def paste():                                  # copying keeps "7:00–7:45" (no Mac Roman), as from the Finder
+            import clipboard
+            text = "7:00\u20137:45 \u00b7 \u201chead in\u201d"
+            saved = {k: os.environ.pop(k) for k in ("LANG", "LC_ALL", "LC_CTYPE") if k in os.environ}
+            try:
+                if not clipboard.copy_text(None, text):
+                    return                            # no pasteboard here (nothing to check)
+            finally:
+                os.environ.update(saved)
+            got = subprocess.run(["pbpaste"], capture_output=True, env={**os.environ, "LANG": "en_US.UTF-8"},
+                                 timeout=5).stdout.decode("utf-8", "replace")
+            assert got in (text, ""), f"pasted as {got!r}"
+        step("copying text keeps dashes and quotes", paste)
+
     def pdf():
         from reportlab.pdfgen import canvas
         c = canvas.Canvas(str(tmp / "t.pdf"))

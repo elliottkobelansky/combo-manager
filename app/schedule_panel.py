@@ -55,7 +55,7 @@ class SchedulePanel:
         ttk.Label(top, text="Search").pack(side="left")
         self.search = tk.StringVar()
         self.search.trace_add("write", lambda *_: self.refresh())
-        search_box(top, self.search).pack(side="left", padx=(6, 0))
+        search_box(top, self.search, on_clear=lambda: self.expand(False)).pack(side="left", padx=(6, 0))
         self.only_open = tk.BooleanVar()
         ttk.Checkbutton(top, text="Only nights with open sets", variable=self.only_open,
                         command=self.toggle_only_open).pack(side="left", padx=14)
