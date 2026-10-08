@@ -50,6 +50,7 @@ jobs:
         with:
           name: Combo-Manager-windows
           path: dist/Combo Manager/
+          include-hidden-files: true   # the solver's DLLs are in _internal/ortools/.libs: left out otherwise ("DLL load failed")
           retention-days: 30
 
       - name: Attach to a Release (tags only)
