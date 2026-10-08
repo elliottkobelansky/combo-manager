@@ -1151,9 +1151,15 @@ def selftest(out):
     if FROZEN and sys.platform == "win32":
         def runtime():                                # the app's own C++ runtime is the one in use
             import ctypes
+            from ctypes import wintypes
+            k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            k32.GetModuleHandleW.restype = wintypes.HMODULE      # (the default, int, cuts 64-bit handles)
+            k32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+            k32.GetModuleFileNameW.argtypes = [wintypes.HMODULE, wintypes.LPWSTR, wintypes.DWORD]
             buf = ctypes.create_unicode_buffer(1024)
-            ctypes.windll.kernel32.GetModuleFileNameW(ctypes.windll.kernel32.GetModuleHandleW("msvcp140.dll"),
-                                                      buf, 1024)
+            handle = k32.GetModuleHandleW("msvcp140.dll")
+            if handle:
+                k32.GetModuleFileNameW(handle, buf, 1024)
             assert Path(buf.value).parent == Path(sys._MEIPASS), f"msvcp140.dll in use: {buf.value or 'none'}"
         step("the app's own C++ runtime", runtime)
 
