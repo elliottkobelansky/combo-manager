@@ -1075,6 +1075,10 @@ class AddMemberDialog:
         self.find.bind("<<ComboboxSelected>>", self.picked)
         self.email.bind("<KeyRelease>", lambda _: self.email_changed())
         self.name.bind("<Key>", lambda _: setattr(self, "name_typed", True))
+        self.usual = panel.store.usual_instruments()       # someone known: their instrument is filled in
+        self.instrument_typed = False
+        self.instrument.bind("<Key>", lambda _: setattr(self, "instrument_typed", True))
+        self.instrument.bind("<<ComboboxSelected>>", lambda _: setattr(self, "instrument_typed", True))
         self.find.focus_set()
         dialogs.grab(win)
 
@@ -1116,6 +1120,8 @@ class AddMemberDialog:
                                               "tab > Change name.")
         else:
             self.hints["Name"].configure(text="Guessed from the email; change it if needed.")
+        if not self.instrument_typed:                 # their usual instrument (can still be changed)
+            self.instrument.set(self.usual.get(e, "") if EMAIL_RE.fullmatch(e) else "")
             if not self.name_typed:
                 self.name.delete(0, "end")
                 if EMAIL_RE.fullmatch(e):
