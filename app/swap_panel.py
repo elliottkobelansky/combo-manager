@@ -33,6 +33,17 @@ class TextChange:
                       f"Text in {make_label(d)} set {k} cleared")
 
 
+class FacultyChange:
+    """An unsaved change of a feedback night's faculty member (Schedule tab: Set faculty member / Clear); confirmed
+    with the swaps. name and email "" = cleared."""
+    breaks = warnings = ()
+
+    def __init__(self, d, name, email):
+        self.d, self.name, self.email = d, name.strip(), email.strip()
+        self.title = (f"Faculty member on {make_label(d)}: {self.name} ({self.email})" if self.email else
+                      f"Faculty member on {make_label(d)} cleared")
+
+
 class SwapPanel:
     def __init__(self, parent, get_folder, after_apply, get_palette=lambda: {}):
         self.get_folder, self.after_apply, self.get_palette = get_folder, after_apply, get_palette
@@ -40,6 +51,7 @@ class SwapPanel:
         self.labels, self.by_name = {}, {}
         self.pending, self.base_sets = [], None       # changes not saved yet; the schedule as it is on disk
         self.base_typed = {}                          # ...and the text in its sets, on disk
+        self.base_faculty = {}                        # ...and its feedback nights' faculty members, on disk
         self.search_id = 0                            # the latest option search (an older one's results are dropped)
         self.listeners = []                           # called whenever the (pending) schedule changes
         self.is_busy = lambda: False                  # set by the app: a step is running in the background
@@ -159,10 +171,11 @@ class SwapPanel:
                 if any(c and c not in combos for row in self.state["sets"].values() for c in row.values()):
                     return                    # a combo is gone: wait until the pending changes are confirmed
                 sets, supervised, typed = self.state["sets"], self.state["supervised"], self.state["typed"]
-                problems = []
+                faculty, problems = self.state["faculty"], []
             else:
                 sched = load_schedule(folder, combos, settings)
                 sets, problems, supervised, typed = sched.sets, sched.problems, sched.supervised, sched.typed
+                faculty = sched.faculty
         except (SettingsError, InputError, ScheduleFileError) as e:
             if keep:
                 return
@@ -185,7 +198,9 @@ class SwapPanel:
         if not keep:
             self.base_sets = {d: dict(row) for d, row in sets.items()}
             self.base_typed = {d: dict(row) for d, row in typed.items()}
+            self.base_faculty = dict(faculty)
         self.state = dict(settings=settings, inp=inp, combos=combos, sets=sets, supervised=supervised, typed=typed,
+                          faculty=faculty, names=names,
                           nights=sched.nights if not keep else self.state["nights"], name_of=name_of,
                           published=sched.published if not keep else self.state.get("published", False))
         # "Combo 07 (Ana Ruiz)": the liaison, so the director recognises the combo
@@ -437,6 +452,18 @@ class SwapPanel:
         self.rebuild_sets()
         self.after_change(f"Added: {change.title}")
 
+    def set_faculty(self, d, name, email):
+        """A feedback night's faculty member (or cleared: ""), as an unsaved change."""
+        change = FacultyChange(d, name, email)
+        self.pending.append(change)
+        self.rebuild_sets()
+        self.after_change(f"Added: {change.title}")
+
+    def faculty_changes(self):
+        """{night: (name, email), or None when cleared} where it differs from the saved schedule."""
+        now, base = self.state["faculty"], self.base_faculty
+        return {d: now.get(d) for d in set(now) | set(base) if now.get(d) != base.get(d)}
+
     def typed_changes(self):
         """{(night, set): text ('' = cleared)} where the text differs from the saved schedule."""
         typed, base = self.state["typed"], self.base_typed
@@ -491,8 +518,14 @@ class SwapPanel:
     def rebuild_sets(self):
         sets = {d: dict(row) for d, row in self.base_sets.items()}
         typed = {d: dict(row) for d, row in self.base_typed.items()}
+        faculty = dict(self.base_faculty)
         for o in self.pending:
-            if isinstance(o, TextChange):
+            if isinstance(o, FacultyChange):
+                if o.email:
+                    faculty[o.d] = (o.name, o.email)
+                else:
+                    faculty.pop(o.d, None)
+            elif isinstance(o, TextChange):
                 if o.text:
                     typed.setdefault(o.d, {})[o.k] = o.text
                 else:
@@ -501,6 +534,7 @@ class SwapPanel:
                 sets = apply_option(sets, o)
         self.state["sets"] = sets
         self.state["typed"] = {d: row for d, row in typed.items() if row}
+        self.state["faculty"] = faculty
 
     def undo_last(self):
         if self.pending:
@@ -524,8 +558,8 @@ class SwapPanel:
             return
         changes = {(d, k): c for d, row in st["sets"].items() for k, c in row.items()
                    if self.base_sets.get(d, {}).get(k) != c}
-        texts = self.typed_changes()
-        if not changes and not texts:
+        texts, people = self.typed_changes(), self.faculty_changes()
+        if not changes and not texts and not people:
             dialogs.showinfo("Nothing to save", "The unsaved changes cancel each other out.")
             self.pending = []
             self.after_change("Nothing to save.")
@@ -541,7 +575,7 @@ class SwapPanel:
         if not self.same_as_on_disk():
             return
         try:
-            backup = save_changes(self.get_folder(), st["combos"], sets=changes, typed=texts,
+            backup = save_changes(self.get_folder(), st["combos"], sets=changes, typed=texts, faculty=people,
                                   what=[("\u2716 rule overridden: " if o.breaks else "") + o.title for o in self.pending])
         except ScheduleFileError as e:
             dialogs.showerror("Couldn't save", str(e))
@@ -565,7 +599,7 @@ class SwapPanel:
         except ScheduleFileError as e:
             dialogs.showerror("Couldn't save", str(e))
             return False
-        if sched.sets == self.base_sets and sched.typed == self.base_typed:
+        if sched.sets == self.base_sets and sched.typed == self.base_typed and sched.faculty == self.base_faculty:
             return True
         if dialogs.askyesno(
                 "Schedule changed elsewhere", "The schedule was changed since these changes were planned (on "

@@ -72,8 +72,9 @@ def write_schedule_xlsx(path, schedule, combos, settings, name_of, instruments):
     ws["A2"].font = font(italic=True, color=GREY)
     for n in schedule.nights:
         ws.append([])
-        ws.append([f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  FB" if n.date in supervised
-                                                                   else "")])
+        fac = schedule.faculty.get(n.date)
+        ws.append([f"{make_label(n.date)}  ·  {n.venue}" + (("  ·  FB" + (f": {fac[0]}" if fac else ""))
+                                                            if n.date in supervised else "")])
         r = ws.max_row
         for col in range(1, 6):
             ws.cell(r, col).fill = NIGHT_FILL
@@ -138,10 +139,11 @@ def write_schedule_xlsx(path, schedule, combos, settings, name_of, instruments):
         if timed:
             s.cell(row=r, column=5).number_format = s.cell(row=r, column=6).number_format = "h:mm AM/PM"
     if schedule.supervised is not None:
-        sup = [[n.date, WEEKDAYS[n.date.weekday()], n.venue,
+        sup = [[n.date, WEEKDAYS[n.date.weekday()], n.venue, *schedule.faculty.get(n.date, ("", "")),
                 ", ".join(combos[c].name for k, c in sorted(schedule.sets.get(n.date, {}).items()) if c)]
                for n in schedule.nights if n.date in supervised]
-        s = sheet("Feedback nights", ["Date", "Day", "Venue", "Combos playing"], sup, (14, 12, 14, 60))
+        s = sheet("Feedback nights", ["Date", "Day", "Venue", "Faculty member", "Faculty email", "Combos playing"],
+                  sup, (14, 12, 14, 22, 30, 60))
         for r in range(2, s.max_row + 1):
             s.cell(row=r, column=1).number_format = "yyyy-mm-dd"
     rows = []

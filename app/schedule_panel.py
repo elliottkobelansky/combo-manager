@@ -137,7 +137,9 @@ class SchedulePanel:
                 lines.append((k, who, kind))
             n_open = sum(1 for _, _, kind in lines if kind == "open")
             open_total += n_open
-            title = f"{make_label(n.date)}  ·  {n.venue}" + ("  ·  FB" if n.date in sup else "")
+            fac = st.get("faculty", {}).get(n.date)
+            title = f"{make_label(n.date)}  ·  {n.venue}" + (
+                ("  ·  FB" + (f": {fac[0]}" if fac else "")) if n.date in sup else "")
             if self.only_open.get() and not n_open:
                 continue
             if q and q not in (title + " " + " ".join(w for _, w, _ in lines)).lower():
@@ -145,7 +147,7 @@ class SchedulePanel:
             band ^= 1
             shade = f"band{band}"
             note = f"{n_open} open" if n_open else ""
-            if any((n.date, k) in changed for k, _, _ in lines):
+            if any((n.date, k) in changed for k, _, _ in lines) or n.date in self.swaps.faculty_changes():
                 note = ("unsaved changes" + (f" · {note}" if note else ""))
             night = self.tree.insert("", "end", text=title, values=("", "", note), tags=("night", shade),
                                      open=bool(q) or self.only_open.get() or title in expanded
@@ -271,11 +273,19 @@ class SchedulePanel:
         menu.add_command(label=f"Copy all emails ({label})",
                          command=lambda: self.copy(night, "everyone"))
         menu.add_command(label=f"Copy reminder email ({label})", command=lambda: self.copy(night, "reminder"))
+        st = self.swaps.state
+        if night in (st["supervised"] or ()):            # a feedback night: its faculty member
+            fac = st["faculty"].get(night)
+            menu.add_separator()
+            menu.add_command(label="Change faculty member..." if fac else "Set faculty member...",
+                             command=lambda: self.pick_faculty(night))
+            if fac:
+                menu.add_command(label="Copy faculty member's email", command=lambda: self.copy(night, "faculty"))
+                menu.add_command(label="Clear faculty member", command=lambda: self.clear_faculty(night))
         if not slot:
             return menu
         menu.add_separator()
         d, k = slot
-        st = self.swaps.state
         c = st["sets"].get(d, {}).get(k)
         if c:
             menu.add_command(label=f"Go to combo ({st['combos'][c].name})", command=lambda: self.goto_combo(c))
@@ -429,7 +439,96 @@ class SchedulePanel:
                     no_liaison=no_liaison,
                     supervised=bool(st["supervised"] and d in st["supervised"]))
 
+    # a feedback night's faculty member
+    def faculty_pool(self):
+        """[(name, email)] to pick from: the combos' coaches and everyone already set on a feedback night, by name."""
+        from inputs import name_from_email
+        st, found = self.swaps.state, {}
+        for name, email in list(self.swaps.base_faculty.values()) + list(st["faculty"].values()):
+            found[email.lower()] = (name, email)
+        for c in st["combos"].values():
+            if c.professor and c.professor.lower() not in found:
+                found[c.professor.lower()] = (st["names"].get(c.professor) or name_from_email(c.professor), c.professor)
+        return sorted(found.values(), key=lambda p: p[0].lower())
+
+    def pick_faculty(self, d):
+        """The faculty member for feedback night d: one of the coaches (or anyone set before), or someone new (name
+        and email). An unsaved change."""
+        current = self.swaps.state["faculty"].get(d)
+        pool = self.faculty_pool()
+        labels = [f"{n} ({e})" for n, e in pool]
+        root = self.frame.winfo_toplevel()
+        win = tk.Toplevel(root)
+        win.withdraw()
+        win.title("Faculty member")
+        win.transient(root)
+        win.resizable(False, False)
+        box = ttk.Frame(win, padding=20)
+        box.pack(fill="both", expand=True)
+        ttk.Label(box, text=f"Faculty member for {make_label(d)}", style="CardTitle.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(box, text="Pick someone").grid(row=1, column=0, sticky="w", pady=(12, 4), padx=(0, 12))
+        pick = ttk.Combobox(box, values=labels, state="readonly", width=48)
+        pick.grid(row=1, column=1, sticky="w", pady=(12, 4))
+        if current and f"{current[0]} ({current[1]})" in labels:
+            pick.set(f"{current[0]} ({current[1]})")
+        ttk.Label(box, text="Or add someone new:", style="Hint.TLabel").grid(row=2, column=0, columnspan=2,
+                                                                           sticky="w", pady=(10, 2))
+        ttk.Label(box, text="Name").grid(row=3, column=0, sticky="w", pady=3)
+        name = ttk.Entry(box, width=50)
+        name.grid(row=3, column=1, sticky="w", pady=3)
+        ttk.Label(box, text="Email").grid(row=4, column=0, sticky="w", pady=3)
+        email = ttk.Entry(box, width=50)
+        email.grid(row=4, column=1, sticky="w", pady=3)
+        for w in (name, email):                           # typing someone new: the pick no longer counts
+            w.bind("<Key>", lambda _: pick.set(""))
+
+        def ok(_=None):
+            n, e = name.get().strip(), email.get().strip()
+            if n or e:
+                if not n or not e:
+                    dialogs.showerror("Faculty member", "Fill in both the name and the email.", parent=win)
+                    return
+                if " " in e or "@" not in e or "." not in e.split("@")[-1]:
+                    dialogs.showerror("Faculty member", f"'{e}' doesn't look like an email address.", parent=win)
+                    return
+            elif pick.get():
+                n, e = pool[labels.index(pick.get())]
+            else:
+                dialogs.showerror("Faculty member", "Pick someone, or fill in a new name and email.", parent=win)
+                return
+            win.destroy()
+            if current and (n, e) == current:
+                return
+            self.swaps.set_faculty(d, n, e)
+            self.status.configure(text=f"Not saved yet: {n} is the faculty member on {make_label(d)}. "
+                                       "(Confirm changes, above)")
+        bar = ttk.Frame(box)
+        bar.grid(row=5, column=0, columnspan=2, sticky="e", pady=(16, 0))
+        ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(bar, text="OK", style="Accent.TButton", command=ok).pack(side="right", padx=(0, 6))
+        win.bind("<Return>", ok)
+        win.bind("<Escape>", lambda _: win.destroy())
+        win.update_idletasks()
+        x = root.winfo_rootx() + max(0, (root.winfo_width() - win.winfo_reqwidth()) // 2)
+        y = root.winfo_rooty() + max(0, (root.winfo_height() - win.winfo_reqheight()) // 3)
+        win.geometry(f"+{x}+{y}")
+        win.deiconify()
+        dialogs.grab(win)
+        self.faculty_window = win                         # (kept for tests)
+
+    def clear_faculty(self, d):
+        self.swaps.set_faculty(d, "", "")
+        self.status.configure(text=f"Not saved yet: no faculty member on {make_label(d)}. (Confirm changes, above)")
+
     def copy(self, d, what):
+        if what == "faculty":
+            name, email = self.swaps.state["faculty"][d]
+            from clipboard import copy
+            copy(self.frame, email, f"{name}'s email", self.get_palette())
+            self.status.configure(text=f"Copied {name}'s email: paste with Ctrl+V.")
+            self.last_copied = email                      # (kept for tests)
+            return
         info = self.night_info(d)
         def count(n, word):
             return f"{n} {word} email{'' if n == 1 else 's'}"
@@ -443,11 +542,12 @@ class SchedulePanel:
         else:                                         # the reminder email (its text: Semester tab > Email Templates)
             from settings_file import fill_email
             n, settings = info["night"], self.swaps.state["settings"]
+            fac = self.swaps.state["faculty"].get(d) if info["supervised"] else None
             sets = "\n".join(f"{when or f'Set {k}'}  {who}" + (f": {', '.join(names)}" if names else "")
                              for k, when, who, names in info["sets"])
             text = fill_email(settings.reminder_email, {
-                "night": make_label(d), "venue": n.venue, "semester": settings.semester_name, "sets": sets},
-                when={"feedback": info["supervised"]})
+                "night": make_label(d), "venue": n.venue, "semester": settings.semester_name, "sets": sets,
+                "faculty": fac[0] if fac else ""}, when={"feedback": info["supervised"], "faculty": bool(fac)})
             msg = "the reminder email"
         from clipboard import copy
         copy(self.frame, text, f"{msg} for {make_label(d)}", self.get_palette())

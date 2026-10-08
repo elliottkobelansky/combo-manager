@@ -338,6 +338,15 @@ def main():
     if wb.sheetnames[:2] != ["By night", "All sets"] or is_old_schedule(sdir / "Schedule.xlsx") \
             or sf_.load(sdir, result.combos, s).sets != sch.sets:
         bad.append(f"the export: sheets {wb.sheetnames}, or it's taken for an old schedule")
+    d0 = result.nights[0].date                        # a feedback night's faculty member: saved, kept, cleared
+    sf_.save_changes(sdir, result.combos, faculty={d0: ("Ana Ruiz", "ana.ruiz@mcgill.ca")}, what=["faculty"])
+    kept = sf_.load(sdir, result.combos, s)
+    sf_.save_changes(sdir, result.combos, sets={(d0, 1): kept.sets[d0][1]}, what=["nothing"])
+    if sf_.load(sdir, result.combos, s).faculty != {d0: ("Ana Ruiz", "ana.ruiz@mcgill.ca")} or kept.sets != sch.sets:
+        bad.append("a feedback night's faculty member isn't saved (or other changes lose it)")
+    sf_.save_changes(sdir, result.combos, faculty={d0: None}, what=["cleared"])
+    if sf_.load(sdir, result.combos, s).faculty:
+        bad.append("clearing a feedback night's faculty member doesn't stick")
     moved = sf_.archive_semester(sdir, s.semester_name)
     if sf_.has_schedule(sdir) or not (moved / "schedule.json").exists():
         bad.append("archiving left the schedule behind")

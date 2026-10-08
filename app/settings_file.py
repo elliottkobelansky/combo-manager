@@ -50,12 +50,15 @@ Nothing else changes. Thanks!"""
 # the {fill-ins} each email text can use, with what they become (shown on the Semester tab)
 EMAIL_FILLINS = {
     "reminder_email": {"night": "Tue Jan 12", "venue": "the venue", "semester": "the semester name",
-                       "sets": "a line per set: its time and who plays"},
+                       "sets": "a line per set: its time and who plays",
+                       "faculty": "the feedback night's faculty member (their name)"},
     "change_email": {"change": "what changes, combo by combo", "combos": "the combos involved",
                      "semester": "the semester name"},
 }
 # {name: text}: the text only when name holds (e.g. {feedback: ...} on feedback nights only)
-EMAIL_CONDITIONS = {"reminder_email": {"feedback": "only on feedback nights"}, "change_email": {}}
+EMAIL_CONDITIONS = {"reminder_email": {"feedback": "only on feedback nights",
+                                         "faculty": "only when the night has a faculty member"},
+                    "change_email": {}}
 
 DEFAULTS = {
     "semester_name": "Winter 2027",
@@ -180,7 +183,7 @@ LABELS = {"semester_name": "Semester name", "start_date": "First possible show d
 
 EMAIL_NAMES = {"reminder_email": "reminder email", "change_email": "change email"}
 FILLIN = re.compile(r"\{(\w+)\}")
-CONDITION = re.compile(r"\{(\w+):\s*(.*?)\}", re.S)
+CONDITION = re.compile(r"\{(\w+):\s*((?:[^{}]|\{\w+\})*)\}")      # its text may hold {fill-ins}
 
 
 def fill_email(text, values, when=None):
@@ -189,6 +192,7 @@ def fill_email(text, values, when=None):
     when = when or {}
     out = CONDITION.sub(lambda m: m.group(2).strip() if when.get(m.group(1)) else "", text)
     out = FILLIN.sub(lambda m: str(values.get(m.group(1), m.group(0))), out)
+    out = re.sub(r"[ \t]+\n", "\n", out)
     return re.sub(r"\n{3,}", "\n\n", out).strip() + "\n"
 
 
@@ -364,7 +368,7 @@ def validate(data):
         if key == "reminder_email" and text == OLD_REMINDER:     # the first default (plain {feedback}): the new one
             text = DEFAULTS[key]
         conds = EMAIL_CONDITIONS[key]
-        for name in sorted(set(FILLIN.findall(text)) & set(conds)):
+        for name in sorted(set(FILLIN.findall(text)) & set(conds) - set(EMAIL_FILLINS[key])):
             errors.append(f"Email Templates: in the {EMAIL_NAMES[key]}, write {{{name}}} with the text to show, e.g. "
                           f"{{{name}: your text}} ({conds[name]}).")
         for name in sorted(set(n for n, _ in CONDITION.findall(text)) - set(conds)):
