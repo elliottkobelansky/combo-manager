@@ -343,6 +343,12 @@ def main():
         bad.append("archiving left the schedule behind")
     if (moved / "ScheduleBackups").exists() or sf_.schedule_backups(sdir).exists():
         bad.append("archiving kept the per-change schedule copies")
+    if sf_.archived(sdir, s.semester_name) != moved or sf_.archived(sdir, "Some other semester") is not None:
+        bad.append("the archived schedule isn't found by its semester")
+    sf_.unarchive_semester(sdir, moved)
+    if sf_.semester_of(sdir) != s.semester_name or moved.exists():
+        bad.append("bringing the archived schedule back didn't put it in place")
+    moved = sf_.archive_semester(sdir, s.semester_name)
     # an old, hand-editable Schedule.xlsx: converted once (typed text, supervised nights, a typo reported)
     old = Workbook()
     ws = old.active

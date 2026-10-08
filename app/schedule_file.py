@@ -364,6 +364,36 @@ def archive_semester(folder, semester):
     return dest
 
 
+def archived(folder, semester):
+    """The Archive folder with semester's schedule (the newest, if it was archived more than once), or None."""
+    found = []
+    base = Path(folder) / ARCHIVE
+    for d in (base.iterdir() if base.is_dir() else []):
+        p = d / SCHEDULE_FILE
+        try:
+            if p.is_file() and json.loads(p.read_text(encoding="utf-8")).get("semester") == semester:
+                found.append((p.stat().st_mtime, d))
+        except (OSError, ValueError):
+            continue
+    return max(found)[1] if found else None
+
+
+def unarchive_semester(folder, src):
+    """Puts an archived semester's files (from archived()) back in place: its schedule and exports. The folder's
+    current semester files must be gone (archive_semester) first. The emptied Archive folder is removed."""
+    folder, src = Path(folder), Path(src)
+    if semester_paths(folder):
+        raise ScheduleFileError("The current semester's files are still there: archive them first.")
+    for name in SEMESTER_FILES:
+        p = src / name
+        if p.exists():
+            dest = app_data(folder) / name if name in (SCHEDULE_FILE, SCHEDULE_BACKUPS) else exports(folder) / name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(p), str(dest))
+    if not any(src.iterdir()):
+        src.rmdir()
+
+
 def _old_xlsx(folder):
     """Schedule.xlsx when it's the old, hand-editable kind (a 'Schedule' sheet) and there's no schedule.json."""
     path = Path(folder) / SCHEDULE_XLSX

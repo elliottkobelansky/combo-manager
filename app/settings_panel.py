@@ -9,6 +9,7 @@ import tkinter as tk
 from datetime import date
 from tkinter import ttk
 
+import app_log
 import dialogs
 from core import generate_nights
 from core.model import WEEKDAYS, make_label
@@ -475,10 +476,34 @@ class SettingsPanel:
         self.check_unsaved()
         self.frame.after(500, self.watch)
 
-    def new_semester(self, new):
+    def from_archive(self, new):
+        """When the semester changes to one whose schedule is in the Archive (e.g. back to an older one): offers to
+        bring it back. -> its Archive folder (yes), None (no, or nothing there), or 'cancel' (don't save)."""
+        from schedule_file import archived, semester_of, ScheduleFileError
+        folder = self.get_folder()
+        try:
+            old = validate(read_data(self.path))[0] if self.path.exists() else None
+            on_file = semester_of(folder, old)
+        except (SettingsError, ScheduleFileError):
+            return None
+        if (old and old.semester_name == new.semester_name) or on_file == new.semester_name:
+            return None
+        src = archived(folder, new.semester_name)
+        if src is None:
+            return None
+        self.old_semester = on_file or (old.semester_name if old else "Old schedule")
+        first = (f"\n\n{self.old_semester}'s files (its schedule and its PDF and Excel files) are moved into the "
+                 "Archive first." if on_file is not None else "")
+        answer = dialogs.askyesnocancel(
+            "Bring back the schedule?", f"{new.semester_name}'s schedule is in 'Archive/{src.name}'. Bring it back "
+            f"as the current schedule (with its PDF and Excel files)?{first}",
+            yes="Bring it back", no="Start fresh", cancel="Don't save")
+        return "cancel" if answer is None else (src if answer else None)
+
+    def new_semester(self, new, quiet=False):
         """When the semester name changes and the old semester's schedule is in the data folder: offers to move its
         files into Archive/<semester> in the data folder. True = move, False = leave them, 'cancel' = don't save, None = no
-        semester change (or nothing to move)."""
+        semester change (or nothing to move). quiet: True without asking (an archived schedule is coming back)."""
         if not self.path.exists():
             return None
         try:
@@ -498,6 +523,8 @@ class SettingsPanel:
         if on_file == new.semester_name:              # the schedule is already the new semester's
             return None
         self.old_semester = on_file or old.semester_name
+        if quiet:
+            return True
         answer = dialogs.askyesnocancel(
             "New semester", f"The semester changes from {old.semester_name} to {new.semester_name}.\n\n"
             f"Move {self.old_semester}'s files (the final schedule and its PDF and Excel files) into "
@@ -570,15 +597,23 @@ class SettingsPanel:
             if not answer:
                 self.reload()
                 return False
-        archive = self.new_semester(new)              # None: same semester; True / False: move the old files?
-        if archive == "cancel" or (archive is None and not self.nights_ok(new)):
+        back = self.from_archive(new)                 # the new semester's schedule is in the Archive: bring it back?
+        if back == "cancel":
+            return False
+        archive = self.new_semester(new, quiet=bool(back))  # None: same semester; True / False: move the old files?
+        if archive == "cancel" or (archive is None and not back and not self.nights_ok(new)):
             return False
         save_data(self.path, data)
         self.read_as = fingerprint(self.path)
-        if archive:
-            from schedule_file import archive_semester
-            moved = archive_semester(self.get_folder(), self.old_semester)
-            warnings = [f"{self.old_semester}'s files moved to 'Archive/{moved.name}'."] + warnings
+        if archive or back:
+            from schedule_file import archive_semester, semester_paths, unarchive_semester
+            if semester_paths(self.get_folder()):
+                moved = archive_semester(self.get_folder(), self.old_semester)
+                warnings = [f"{self.old_semester}'s files moved to 'Archive/{moved.name}'."] + warnings
+            if back:
+                unarchive_semester(self.get_folder(), back)
+                warnings = [f"{new.semester_name}'s schedule brought back from 'Archive/{back.name}'."] + warnings
+                app_log.write(f"Semester tab: brought back {new.semester_name}'s schedule from Archive/{back.name}")
         self.saved = self.snapshot()
         self.check_unsaved()
         self.status.configure(text=f"Saved to {SETTINGS_FILE}." + (f" Note: {' '.join(warnings)}" if warnings else ""),
