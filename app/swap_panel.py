@@ -100,7 +100,7 @@ class SwapPanel:
         self.apply_button.pack(side="left")
         self.copy_buttons = [ttk.Button(buttons, text="Copy liaison emails", state="disabled",
                                         command=lambda: self.copy_option("liaisons")),
-                             ttk.Button(buttons, text="Copy swap summary", state="disabled",
+                             ttk.Button(buttons, text="Copy change email", state="disabled",
                                         command=lambda: self.copy_option("summary"))]
         for b in self.copy_buttons:
             b.pack(side="left", padx=(6, 0))
@@ -345,33 +345,51 @@ class SwapPanel:
         menu.add_command(label="Add this change", command=self.apply)
         menu.add_separator()
         menu.add_command(label="Copy liaison emails", command=lambda: self.copy_option("liaisons"))
-        menu.add_command(label="Copy swap summary", command=lambda: self.copy_option("summary"))
+        menu.add_command(label="Copy change email", command=lambda: self.copy_option("summary"))
         self.menu = menu                              # (kept for tests)
         popup(menu, event.x_root, event.y_root)
 
+    def liaison_emails(self, ids):
+        """(emails, names of combos without a liaison) for these combos: each one's liaison, or all its members."""
+        emails, no_liaison = [], []
+        for c in ids:
+            combo = self.state["combos"][c]
+            if not combo.liaison:
+                no_liaison.append(combo.name)
+            for e in [combo.liaison] if combo.liaison else sorted(combo.members):
+                if e not in emails:
+                    emails.append(e)
+        return emails, no_liaison
+
+    def change_email(self, options, sets, first=None):
+        """(combo ids involved, the change email) for these options, done one after the other starting from sets.
+        The text: Semester tab > Email texts."""
+        from settings_file import fill_email
+        st, ids, parts = self.state, [], []
+        for o in options:
+            for c in involved(sets, o, st["combos"], first):
+                if c not in ids:
+                    ids.append(c)
+            parts.append(swap_summary(sets, st["nights"], st["combos"], o, first, st["name_of"], st["inp"].blocked))
+            sets = apply_option(sets, o)
+        names = [st["combos"][c].name for c in ids]
+        combos = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1] if names else ""
+        return ids, fill_email(st["settings"].change_email, {
+            "change": "\n\n".join(parts), "combos": combos, "semester": st["settings"].semester_name})
+
     def copy_option(self, what):
         """Copies the picked option's liaison emails (every combo it touches; a combo without a liaison: all its
-        members) or its summary in words."""
+        members) or its change email."""
         o, st = self.picked_option(), self.state
         if not o:
             return
-        ids = involved(st["sets"], o, st["combos"], self.cid())
         if what == "liaisons":
-            emails, no_liaison = [], []
-            for c in ids:
-                combo = st["combos"][c]
-                if not combo.liaison:
-                    no_liaison.append(combo.name)
-                for e in [combo.liaison] if combo.liaison else sorted(combo.members):
-                    if e not in emails:
-                        emails.append(e)
+            emails, no_liaison = self.liaison_emails(involved(st["sets"], o, st["combos"], self.cid()))
             text = "; ".join(emails)
             msg = (f"Copied {len(emails)} liaison email{'' if len(emails) == 1 else 's'}"
                    + (f" (no liaison for {', '.join(no_liaison)}: all its members instead)" if no_liaison else ""))
         else:
-            text, msg = swap_summary(st["sets"], st["nights"], st["combos"], o, self.cid(), st["name_of"],
-                                     st["inp"].blocked), \
-                "Copied the summary"
+            text, msg = self.change_email([o], st["sets"], self.cid())[1], "Copied the change email"
         from clipboard import copy
         copy(self.frame, text, msg[len("Copied "):], self.get_palette())
         self.copy_status.configure(text=msg + ": paste with Ctrl+V.")
@@ -521,6 +539,8 @@ class SwapPanel:
             return
         if not self.same_as_on_disk():
             return
+        moves = [o for o in self.pending if not isinstance(o, TextChange)]
+        tell = self.change_email(moves, self.base_sets) if moves else None    # (before the pending list is cleared)
         try:
             backup = save_changes(self.get_folder(), st["combos"], sets=changes, typed=texts,
                                   what=[("\u2716 rule overridden: " if o.breaks else "") + o.title for o in self.pending])
@@ -536,6 +556,60 @@ class SwapPanel:
                                         "Rebuilding Schedule.pdf and Schedule.xlsx...")
         self.after_apply(f"Saved {n} change(s). Backup of the schedule before: {backup}\n",
                          lambda code: (self.pdf_done(code), then and then(code)))
+        if tell:
+            self.ask_to_send(*tell)
+
+    def ask_to_send(self, ids, text):
+        """After saving: the steps to tell the combos (their liaisons' emails, then the change email), until "I've
+        sent it" is clicked."""
+        emails, no_liaison = self.liaison_emails(ids)
+        names = [self.state["combos"][c].name for c in ids]
+        from clipboard import copy
+        root = self.frame.winfo_toplevel()
+        win = tk.Toplevel(root)
+        win.withdraw()
+        win.title("Tell the combos")
+        win.transient(root)
+        win.resizable(False, False)
+        box = ttk.Frame(win, padding=20)
+        box.pack(fill="both", expand=True)
+        ttk.Label(box, text="Saved. Now email the combos about it.", style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(box, text=f"Combos: {', '.join(names)}" + (
+            f"\n(No liaison for {', '.join(no_liaison)}: all its members get it.)" if no_liaison else ""),
+            style="Hint.TLabel", justify="left").pack(anchor="w", pady=(4, 12))
+        done = ttk.Label(box, text="", style="Hint.TLabel")
+        steps = [("1.", "Copy emails", "Paste them in the To line of a new email.", "; ".join(emails), "the emails"),
+                 ("2.", "Copy email text", "Paste it as the message, then send it.", text, "the change email")]
+        for num, button, what, content, msg in steps:
+            row = ttk.Frame(box)
+            row.pack(fill="x", pady=3)
+            ttk.Label(row, text=num, width=3).pack(side="left")
+            ttk.Button(row, text=button, width=16, command=lambda c=content, m=msg: (
+                copy(win, c, m, self.get_palette()), done.configure(text=f"Copied {m}."))).pack(side="left")
+            ttk.Label(row, text=what).pack(side="left", padx=(10, 0))
+        done.pack(anchor="w", pady=(8, 0))
+
+        def close():
+            if dialogs.askyesno("Sent?", "Did you send the email? The combos only know about the change once "
+                                "they get it.", yes="Yes, sent", no="Not yet", parent=win):
+                app_log.write("Swaps tab: change email marked as sent (" + ", ".join(names) + ")")
+                win.destroy()
+            else:
+                dialogs.grab(win)                     # (the question had it)
+        bar = ttk.Frame(box)
+        bar.pack(fill="x", pady=(16, 0))
+        ttk.Button(bar, text="I've sent it", style="Accent.TButton", command=lambda: (
+            app_log.write("Swaps tab: change email marked as sent (" + ", ".join(names) + ")"), win.destroy())).pack(
+            side="right")
+        win.protocol("WM_DELETE_WINDOW", close)
+        win.bind("<Escape>", lambda _: close())
+        win.update_idletasks()
+        x = root.winfo_rootx() + max(0, (root.winfo_width() - win.winfo_reqwidth()) // 2)
+        y = root.winfo_rooty() + max(0, (root.winfo_height() - win.winfo_reqheight()) // 3)
+        win.geometry(f"+{x}+{y}")
+        win.deiconify()
+        dialogs.grab(win)
+        self.last_send = (emails, text)               # (kept for tests)
 
     def same_as_on_disk(self):
         """True when the schedule still holds what the pending changes were planned against. Otherwise (another

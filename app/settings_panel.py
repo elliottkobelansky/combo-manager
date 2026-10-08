@@ -14,7 +14,7 @@ import dialogs
 from core import generate_nights
 from core.model import WEEKDAYS, make_label
 from data_folder import SETTINGS_FILE, settings_path
-from settings_file import DEFAULTS, HELP, MAX_VENUE, SettingsError, read_data, save_data, validate
+from settings_file import DEFAULTS, EMAIL_FILLINS, HELP, MAX_VENUE, SettingsError, read_data, save_data, validate
 from shared_folder import fingerprint
 from util import to_date
 
@@ -367,6 +367,7 @@ class SettingsPanel:
              ("break", "Break between sets (min)", "int?")],
             "Extra show date", sort_key=lambda r: str(r.get("date") or ""))
         inner.add(self.extra_dates.frame, text="Extra dates")
+        inner.add(self.email_texts(inner), text="Email texts")
 
         bar = ttk.Frame(self.frame)
         bar.pack(fill="x", pady=(12, 0))
@@ -407,6 +408,10 @@ class SettingsPanel:
                 w.set(choices.get(v or default, choices[default]))
             elif kind == "bool":
                 w.var.set(bool(v))
+            elif kind == "email":
+                w.delete("1.0", "end")
+                w.insert("1.0", v or DEFAULTS[key])
+                w.edit_reset()
             else:
                 w.delete(0, "end")
                 w.insert(0, "" if v is None else str(v))
@@ -435,6 +440,44 @@ class SettingsPanel:
     def recolor(self):
         PALETTE.update(self.get_palette())
         self.scroller.recolor(PALETTE)
+        for key, (w, kind) in self.widgets.items():
+            if kind == "email":
+                self.color_text(w)
+
+    def email_texts(self, parent):
+        """The two email texts the app copies (Schedule tab: Copy reminder email; Swaps tab: Copy change email),
+        with their {fill-ins} and a Reset."""
+        tab = ttk.Frame(parent, padding=(8, 12, 16, 12))
+        tab.columnconfigure(0, weight=1)
+        where = {"reminder_email": ("Reminder email", "Schedule tab: right-click a night > Copy reminder email."),
+                 "change_email": ("Change email", "Swaps tab: Copy change email, and after Confirm changes.")}
+        for i, (key, (title, used)) in enumerate(where.items()):
+            head = ttk.Frame(tab)
+            head.grid(row=3 * i, column=0, sticky="ew", pady=(14 if i else 0, 4))
+            ttk.Label(head, text=title, style="CardTitle.TLabel").pack(side="left")
+            ttk.Label(head, text=used, style="Hint.TLabel").pack(side="left", padx=(12, 0))
+            from theme import size, ui_font
+            box = tk.Text(tab, height=9, wrap="word", relief="solid", borderwidth=1, undo=True,
+                          font=(ui_font(), size(10)), padx=6, pady=4)
+            self.color_text(box)
+            box.grid(row=3 * i + 1, column=0, sticky="nsew")
+            tab.rowconfigure(3 * i + 1, weight=1)
+            foot = ttk.Frame(tab)
+            foot.grid(row=3 * i + 2, column=0, sticky="ew", pady=(4, 0))
+            fills = "   ".join(f"{{{f}}} {what}" for f, what in EMAIL_FILLINS[key].items())
+            hint = ttk.Label(foot, text=f"Fill-ins:  {fills}", style="Hint.TLabel", justify="left")
+            hint.pack(side="left", fill="x", expand=True)
+            hint.bind("<Configure>", lambda e, h=hint: h.configure(wraplength=max(e.width, 200)))
+            ttk.Button(foot, text="Reset", command=lambda b=box, k=key: (b.delete("1.0", "end"),
+                                                                          b.insert("1.0", DEFAULTS[k]))).pack(
+                side="right", padx=(12, 0))
+            self.widgets[key] = (box, "email")
+        return tab
+
+    def color_text(self, box):
+        p = PALETTE
+        box.configure(background=p.get("panel", "white"), foreground=p.get("text", "black"),
+                      insertbackground=p.get("text", "black"), highlightthickness=0)
 
     def collect(self):
         data = {}
@@ -445,6 +488,8 @@ class SettingsPanel:
                 data[key] = bool(w.var.get())
             elif kind in ("int", "int?"):
                 data[key] = as_int(w.get())
+            elif kind == "email":
+                data[key] = w.get("1.0", "end").strip() or None
             elif kind in MENUS:
                 data[key] = next(k for k, shown in MENUS[kind][0].items() if shown == w.get())
             else:

@@ -54,6 +54,8 @@ class Settings:
     min_members_per_combo: Optional[int] = 4      # warning only: combos with fewer members are flagged
     max_combos_rhythm: Optional[int] = 2          # warning only: combos per rhythm-section player (util.RHYTHM)
     max_combos_other: Optional[int] = 1           # warning only: combos per non-rhythm player (horns, voice, ...)
+    reminder_email: str = ""                       # email texts with {fill-ins} (settings_file.EMAIL_FILLINS)
+    change_email: str = ""
     max_shows_per_combo: Optional[int] = 4
     min_shows_per_combo: Optional[int] = None   # total, at any venues (venue minimums still apply); open mode: exactly.
                                                 # Required in semester.json; None only for a hand-built Settings

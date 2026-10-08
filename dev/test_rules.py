@@ -240,7 +240,7 @@ def main():
         print("      -", b)
     failures += not ok
 
-    # Swap summaries (the Swaps tab's "Copy swap summary"): both sides of every kind of option, in words.
+    # Swap summaries (the Swaps tab's "Copy change email"): both sides of every kind of option, in words.
     from core.swaps import involved, swap_summary
     headings = {("trade", False): "trade shows", ("trade", True): "swap set order", ("move", False): "moves to an open",
                 ("move", True): "another set the same night", ("give", False): "gives a show to",
@@ -544,6 +544,19 @@ def main():
         except SettingsError as e:
             if "longer than" not in str(e):
                 bad.append(f"long venue: unexpected message {e}")
+    from settings_file import fill_email
+    filled = fill_email("Hi {combos},\n\n{feedback}\n\n{change}", {"combos": "Combo 01", "feedback": "",
+                                                                   "change": "A moves."})
+    if filled != "Hi Combo 01,\n\nA moves.\n":
+        bad.append(f"email fill-ins: {filled!r}")
+    try:
+        validate({**DEFAULTS, "reminder_email": "Hi {combo}, you play {nite}."})
+        bad.append("an email text with an unknown fill-in is accepted")
+    except SettingsError as e:
+        if "{nite}" not in str(e) or "{combo}" not in str(e):
+            bad.append(f"unknown fill-in: unexpected message {e}")
+    if validate({**DEFAULTS, "change_email": ""})[0].change_email != DEFAULTS["change_email"]:
+        bad.append("a blank email text doesn't fall back to the default")
     outside = lambda inp: [t for _, t in inp.notes if "with an email outside" in t]
     anywhere, _ = validate({**DEFAULTS, "student_email_domain": ""})
     elsewhere, _ = validate({**DEFAULTS, "student_email_domain": "school.edu"})

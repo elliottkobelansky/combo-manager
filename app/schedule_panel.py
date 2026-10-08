@@ -260,7 +260,7 @@ class SchedulePanel:
         popup(menu, b.winfo_rootx(), max(0, b.winfo_rooty() - menu.winfo_reqheight()))
 
     def build_menu(self, item, slot):
-        """What can be done with a night (copy its emails or a summary) or a set (swaps, who could take it, text
+        """What can be done with a night (copy its emails or a reminder email) or a set (swaps, who could take it, text
         in it). None when nothing is picked."""
         night = self.night_rows.get(item) or (slot[0] if slot else None)
         if not night:
@@ -270,7 +270,7 @@ class SchedulePanel:
         menu.add_command(label=f"Copy liaison emails ({label})", command=lambda: self.copy(night, "liaisons"))
         menu.add_command(label=f"Copy all emails ({label})",
                          command=lambda: self.copy(night, "everyone"))
-        menu.add_command(label=f"Copy night summary ({label})", command=lambda: self.copy(night, "summary"))
+        menu.add_command(label=f"Copy reminder email ({label})", command=lambda: self.copy(night, "reminder"))
         if not slot:
             return menu
         menu.add_separator()
@@ -401,7 +401,7 @@ class SchedulePanel:
         restore.configure(command=do_restore)
         dialogs.grab(win)
 
-    # a night's emails and summary (copied)
+    # a night's emails and reminder email (copied)
     def night_info(self, d):
         """Who plays on night d (as shown, with unsaved changes): sets, student, liaison and supervisor emails (a combo
         without a liaison: its members as liaisons, named in no_liaison)."""
@@ -440,12 +440,15 @@ class SchedulePanel:
             text, msg = "; ".join(info["liaisons"]), count(len(info["liaisons"]), "liaison") + (
                 f" (no liaison for {', '.join(info['no_liaison'])}: all its members instead)" if info["no_liaison"]
                 else "")
-        else:
-            n = info["night"]
-            lines = [f"{make_label(d)}, {n.venue}" + (" (a faculty member attends)" if info["supervised"] else "")]
-            for k, when, who, names in info["sets"]:
-                lines.append(f"  {when or f'Set {k}'}  {who}" + (f": {', '.join(names)}" if names else ""))
-            text, msg = "\n".join(lines), "the night summary"
+        else:                                         # the reminder email (its text: Semester tab > Email texts)
+            from settings_file import fill_email
+            n, settings = info["night"], self.swaps.state["settings"]
+            sets = "\n".join(f"{when or f'Set {k}'}  {who}" + (f": {', '.join(names)}" if names else "")
+                             for k, when, who, names in info["sets"])
+            text = fill_email(settings.reminder_email, {
+                "night": make_label(d), "venue": n.venue, "semester": settings.semester_name, "sets": sets,
+                "feedback": "This is a feedback night: a faculty member attends." if info["supervised"] else ""})
+            msg = "the reminder email"
         from clipboard import copy
         copy(self.frame, text, f"{msg} for {make_label(d)}", self.get_palette())
         unsaved = any((d, k) in self.swaps.changed_cells() for k, _, _, _ in info["sets"])

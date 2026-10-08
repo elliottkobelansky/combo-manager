@@ -19,6 +19,31 @@ from util import blank, to_date, to_time
 
 MAX_VENUE = 15                   # characters; longer names don't fit in a calendar cell of the PDF
 
+REMINDER_EMAIL = """Hi everyone,
+
+Reminder: you're playing {night} at {venue}.
+
+{sets}
+
+{feedback}
+
+Please arrive 15 minutes before your set. If something comes up, let me know as soon as possible."""
+CHANGE_EMAIL = """Hi,
+
+A change to the {semester} show schedule:
+
+{change}
+
+Nothing else changes. Thanks!"""
+# the {fill-ins} each email text can use, with what they become (shown on the Semester tab)
+EMAIL_FILLINS = {
+    "reminder_email": {"night": "Tue Jan 12", "venue": "the venue", "semester": "the semester name",
+                       "sets": "a line per set: its time and who plays",
+                       "feedback": "a line saying a faculty member attends (feedback nights only)"},
+    "change_email": {"change": "what changes, combo by combo", "combos": "the combos involved",
+                     "semester": "the semester name"},
+}
+
 DEFAULTS = {
     "semester_name": "Winter 2027",
     "start_date": "2027-01-12",
@@ -32,6 +57,8 @@ DEFAULTS = {
     "min_members_per_combo": 4,
     "max_combos_rhythm": 2,
     "max_combos_other": 1,
+    "reminder_email": REMINDER_EMAIL,
+    "change_email": CHANGE_EMAIL,
     "extra_slot_policy": "open",
     "min_shows_per_combo": 2,
     "max_shows_per_combo": 4,
@@ -136,6 +163,17 @@ LABELS = {"semester_name": "Semester name", "start_date": "First possible show d
           "min_usable_nights_per_combo": "Warn: usable nights per combo",
           "min_members_per_combo": "Warn: members per combo", "solver_time_limit_sec": "Solver time (seconds)",
           "max_combos_rhythm": "Warn: combos per rhythm player", "max_combos_other": "Warn: combos per non-rhythm player"}
+
+
+EMAIL_NAMES = {"reminder_email": "reminder email", "change_email": "change email"}
+FILLIN = re.compile(r"\{(\w+)\}")
+
+
+def fill_email(text, values):
+    """The email text with its {fill-ins} replaced (values: name -> text). An empty fill-in on a line of its own
+    leaves no extra blank lines."""
+    out = FILLIN.sub(lambda m: str(values.get(m.group(1), m.group(0))), text)
+    return re.sub(r"\n{3,}", "\n\n", out).strip() + "\n"
 
 
 def label(key):
@@ -304,6 +342,16 @@ def validate(data):
         errors.append("Semester tab: the minimum shows per combo is missing (e.g. 2).")
     if min_total and max_total and min_total > max_total:
         errors.append(f"Semester tab: the minimum shows per combo ({min_total}) is more than the maximum ({max_total}).")
+    def email_text(key):
+        """An email text (blank = the default); a {fill-in} it doesn't know is an error."""
+        text = str(data.get(key) or "").strip() or DEFAULTS[key]
+        unknown = sorted(set(FILLIN.findall(text)) - set(EMAIL_FILLINS[key]))
+        if unknown:
+            errors.append(f"Email texts: the {EMAIL_NAMES[key]} has " + ", ".join("{" + u + "}" for u in unknown)
+                          + ", which isn't a fill-in. It can use: "
+                          + " ".join("{" + f + "}" for f in EMAIL_FILLINS[key]) + ".")
+        return text
+
     settings = Settings(
         semester_name=name, start_date=start, end_date=end, show_days=show_days,
         skip_dates=skips, extra_dates=extras, extra_times=extra_times,
@@ -314,6 +362,8 @@ def validate(data):
         min_members_per_combo=get_int("min_members_per_combo", low=1) if "min_members_per_combo" in data else 4,
         max_combos_rhythm=get_int("max_combos_rhythm", low=1) if "max_combos_rhythm" in data else 2,
         max_combos_other=get_int("max_combos_other", low=1) if "max_combos_other" in data else 1,
+        reminder_email=email_text("reminder_email"),
+        change_email=email_text("change_email"),
         max_shows_per_combo=max_total,
         min_shows_per_combo=min_total,
         extra_slot_policy=policy,
