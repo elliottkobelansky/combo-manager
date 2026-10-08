@@ -41,8 +41,6 @@ First real use: **Winter 2027**.
 
 ## Features
 
-- [ ] **Move feedback nights** without making a new schedule: mark a night as a feedback night or not, with the rule
-  check (every combo still on one, feedback nights full, the cap), like a swap.
 - [ ] **Guitarists:** rhythm section or not, for "Warn: combos per rhythm player"? (Today: rhythm section, with
   piano, bass and drums.)
 
@@ -70,3 +68,5 @@ First real use: **Winter 2027**.
   column keeps its name.
 - First-year combos are marked when approving ("Accept - first-year combo"), not by a question on the form.
 - The name is **Combo Manager**.
+- Feedback nights stay where the schedule put them (every combo is on one, so moving one strands its combos): when a
+  faculty member can't come, pick another. (A Move feedback night version is on the `feedback-moves` branch.)

@@ -481,8 +481,11 @@ class SchedulePanel:
         box.pack(fill="both", expand=True)
         ttk.Label(box, text=f"Faculty member for {make_label(d)}", style="CardTitle.TLabel").grid(
             row=0, column=0, columnspan=2, sticky="w")
-        ttk.Label(box, text="Pick a coach or someone from before, or 'Someone new...' to type their details.",
-                  style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 10))
+        ttk.Label(box, text="Pick a coach or someone from before, or 'Someone new...' to type their details.\n"
+                            "Feedback nights are part of the schedule (every combo is on one), so they stay where they "
+                            "are: if someone can't come, pick someone else.",
+                  style="Hint.TLabel", wraplength=460, justify="left").grid(row=1, column=0, columnspan=2, sticky="w",
+                                                                           pady=(2, 10))
         ttk.Label(box, text="Pick").grid(row=2, column=0, sticky="w", pady=3, padx=(0, 12))
         pick = ttk.Combobox(box, values=labels, state="readonly", width=48)
         pick.grid(row=2, column=1, sticky="w", pady=3)
