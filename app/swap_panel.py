@@ -126,6 +126,7 @@ class SwapPanel:
         self.discard_button.pack(side="left")
         self.save_status = ttk.Label(box, text="", style="Hint.TLabel", justify="left")
         self.save_status.pack(anchor="w", pady=(6, 0))
+        self.tell_bar = ttk.Frame(box)                # after saving: email the combos (until Done)
         self.recolor()
 
     def recolor(self):
@@ -560,55 +561,29 @@ class SwapPanel:
             self.ask_to_send(*tell)
 
     def ask_to_send(self, ids, text):
-        """After saving: the steps to tell the combos (their liaisons' emails, then the change email), until "I've
-        sent it" is clicked."""
-        emails, no_liaison = self.liaison_emails(ids)
+        """After saving: a line under the buttons to email the combos (their liaisons' emails, then the change email),
+        until Done."""
+        emails, _ = self.liaison_emails(ids)
         names = [self.state["combos"][c].name for c in ids]
         from clipboard import copy
-        root = self.frame.winfo_toplevel()
-        win = tk.Toplevel(root)
-        win.withdraw()
-        win.title("Tell the combos")
-        win.transient(root)
-        win.resizable(False, False)
-        box = ttk.Frame(win, padding=20)
-        box.pack(fill="both", expand=True)
-        ttk.Label(box, text="Saved. Now email the combos about it.", style="CardTitle.TLabel").pack(anchor="w")
-        ttk.Label(box, text=f"Combos: {', '.join(names)}" + (
-            f"\n(No liaison for {', '.join(no_liaison)}: all its members get it.)" if no_liaison else ""),
-            style="Hint.TLabel", justify="left").pack(anchor="w", pady=(4, 12))
-        done = ttk.Label(box, text="", style="Hint.TLabel")
-        steps = [("1.", "Copy emails", "Paste them in the To line of a new email.", "; ".join(emails), "the emails"),
-                 ("2.", "Copy email text", "Paste it as the message, then send it.", text, "the change email")]
-        for num, button, what, content, msg in steps:
-            row = ttk.Frame(box)
-            row.pack(fill="x", pady=3)
-            ttk.Label(row, text=num, width=3).pack(side="left")
-            ttk.Button(row, text=button, width=16, command=lambda c=content, m=msg: (
-                copy(win, c, m, self.get_palette()), done.configure(text=f"Copied {m}."))).pack(side="left")
-            ttk.Label(row, text=what).pack(side="left", padx=(10, 0))
-        done.pack(anchor="w", pady=(8, 0))
+        bar = self.tell_bar
+        for w in bar.winfo_children():
+            w.destroy()
+        who = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+        ttk.Label(bar, text=f"Email {who} about it:", style="Warn.TLabel").pack(anchor="w")
+        row = ttk.Frame(bar)
+        row.pack(anchor="w", pady=(4, 0))
+        for button, content, msg in (("Copy emails", "; ".join(emails), "the emails"),
+                                     ("Copy email text", text, "the change email")):
+            ttk.Button(row, text=button, command=lambda c=content, m=msg: (
+                copy(self.frame, c, m, self.get_palette()),
+                self.save_status.configure(text=f"Copied {m}: paste with Ctrl+V."))).pack(side="left", padx=(0, 6))
 
-        def close():
-            if dialogs.askyesno("Sent?", "Did you send the email? The combos only know about the change once "
-                                "they get it.", yes="Yes, sent", no="Not yet", parent=win):
-                app_log.write("Swaps tab: change email marked as sent (" + ", ".join(names) + ")")
-                win.destroy()
-            else:
-                dialogs.grab(win)                     # (the question had it)
-        bar = ttk.Frame(box)
-        bar.pack(fill="x", pady=(16, 0))
-        ttk.Button(bar, text="I've sent it", style="Accent.TButton", command=lambda: (
-            app_log.write("Swaps tab: change email marked as sent (" + ", ".join(names) + ")"), win.destroy())).pack(
-            side="right")
-        win.protocol("WM_DELETE_WINDOW", close)
-        win.bind("<Escape>", lambda _: close())
-        win.update_idletasks()
-        x = root.winfo_rootx() + max(0, (root.winfo_width() - win.winfo_reqwidth()) // 2)
-        y = root.winfo_rooty() + max(0, (root.winfo_height() - win.winfo_reqheight()) // 3)
-        win.geometry(f"+{x}+{y}")
-        win.deiconify()
-        dialogs.grab(win)
+        def done():
+            app_log.write("Swaps tab: emailed " + ", ".join(names) + " about the change (Done)")
+            bar.pack_forget()
+        ttk.Button(row, text="Done", command=done).pack(side="left")
+        bar.pack(anchor="w", fill="x", pady=(8, 0))
         self.last_send = (emails, text)               # (kept for tests)
 
     def same_as_on_disk(self):

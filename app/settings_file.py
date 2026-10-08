@@ -25,9 +25,11 @@ Reminder: you're playing {night} at {venue}.
 
 {sets}
 
-{feedback}
+{feedback: This is a feedback night: a faculty member attends.}
 
 Please arrive 15 minutes before your set. If something comes up, let me know as soon as possible."""
+OLD_REMINDER = REMINDER_EMAIL.replace("{feedback: This is a feedback night: a faculty member attends.}",
+                                      "{feedback}")
 CHANGE_EMAIL = """Hi,
 
 A change to the {semester} show schedule:
@@ -38,11 +40,12 @@ Nothing else changes. Thanks!"""
 # the {fill-ins} each email text can use, with what they become (shown on the Semester tab)
 EMAIL_FILLINS = {
     "reminder_email": {"night": "Tue Jan 12", "venue": "the venue", "semester": "the semester name",
-                       "sets": "a line per set: its time and who plays",
-                       "feedback": "a line saying a faculty member attends (feedback nights only)"},
+                       "sets": "a line per set: its time and who plays"},
     "change_email": {"change": "what changes, combo by combo", "combos": "the combos involved",
                      "semester": "the semester name"},
 }
+# {name: text}: the text only when name holds (e.g. {feedback: ...} on feedback nights only)
+EMAIL_CONDITIONS = {"reminder_email": {"feedback": "only on feedback nights"}, "change_email": {}}
 
 DEFAULTS = {
     "semester_name": "Winter 2027",
@@ -167,12 +170,15 @@ LABELS = {"semester_name": "Semester name", "start_date": "First possible show d
 
 EMAIL_NAMES = {"reminder_email": "reminder email", "change_email": "change email"}
 FILLIN = re.compile(r"\{(\w+)\}")
+CONDITION = re.compile(r"\{(\w+):\s*(.*?)\}", re.S)
 
 
-def fill_email(text, values):
-    """The email text with its {fill-ins} replaced (values: name -> text). An empty fill-in on a line of its own
-    leaves no extra blank lines."""
-    out = FILLIN.sub(lambda m: str(values.get(m.group(1), m.group(0))), text)
+def fill_email(text, values, when=None):
+    """The email text with its {fill-ins} replaced (values: name -> text), and each {name: text} kept as text when
+    when[name] is true, dropped otherwise. What's dropped leaves no extra blank lines."""
+    when = when or {}
+    out = CONDITION.sub(lambda m: m.group(2).strip() if when.get(m.group(1)) else "", text)
+    out = FILLIN.sub(lambda m: str(values.get(m.group(1), m.group(0))), out)
     return re.sub(r"\n{3,}", "\n\n", out).strip() + "\n"
 
 
@@ -345,7 +351,16 @@ def validate(data):
     def email_text(key):
         """An email text (blank = the default); a {fill-in} it doesn't know is an error."""
         text = str(data.get(key) or "").strip() or DEFAULTS[key]
-        unknown = sorted(set(FILLIN.findall(text)) - set(EMAIL_FILLINS[key]))
+        if key == "reminder_email" and text == OLD_REMINDER:     # the first default (plain {feedback}): the new one
+            text = DEFAULTS[key]
+        conds = EMAIL_CONDITIONS[key]
+        for name in sorted(set(FILLIN.findall(text)) & set(conds)):
+            errors.append(f"Email texts: in the {EMAIL_NAMES[key]}, write {{{name}}} with the text to show, e.g. "
+                          f"{{{name}: your text}} ({conds[name]}).")
+        for name in sorted(set(n for n, _ in CONDITION.findall(text)) - set(conds)):
+            errors.append(f"Email texts: in the {EMAIL_NAMES[key]}, {{{name}: ...}} isn't a choice."
+                          + (" It can use: " + " ".join(f"{{{c}: ...}}" for c in conds) + "." if conds else ""))
+        unknown = sorted(set(FILLIN.findall(text)) - set(EMAIL_FILLINS[key]) - set(conds))
         if unknown:
             errors.append(f"Email texts: the {EMAIL_NAMES[key]} has " + ", ".join("{" + u + "}" for u in unknown)
                           + ", which isn't a fill-in. It can use: "

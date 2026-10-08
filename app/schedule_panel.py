@@ -446,8 +446,8 @@ class SchedulePanel:
             sets = "\n".join(f"{when or f'Set {k}'}  {who}" + (f": {', '.join(names)}" if names else "")
                              for k, when, who, names in info["sets"])
             text = fill_email(settings.reminder_email, {
-                "night": make_label(d), "venue": n.venue, "semester": settings.semester_name, "sets": sets,
-                "feedback": "This is a feedback night: a faculty member attends." if info["supervised"] else ""})
+                "night": make_label(d), "venue": n.venue, "semester": settings.semester_name, "sets": sets},
+                when={"feedback": info["supervised"]})
             msg = "the reminder email"
         from clipboard import copy
         copy(self.frame, text, f"{msg} for {make_label(d)}", self.get_palette())

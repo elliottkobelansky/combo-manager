@@ -14,7 +14,7 @@ import dialogs
 from core import generate_nights
 from core.model import WEEKDAYS, make_label
 from data_folder import SETTINGS_FILE, settings_path
-from settings_file import DEFAULTS, EMAIL_FILLINS, HELP, MAX_VENUE, SettingsError, read_data, save_data, validate
+from settings_file import DEFAULTS, EMAIL_CONDITIONS, EMAIL_FILLINS, HELP, MAX_VENUE, SettingsError, read_data, save_data, validate
 from shared_folder import fingerprint
 from util import to_date
 
@@ -464,15 +464,25 @@ class SettingsPanel:
             tab.rowconfigure(3 * i + 1, weight=1)
             foot = ttk.Frame(tab)
             foot.grid(row=3 * i + 2, column=0, sticky="ew", pady=(4, 0))
-            fills = "   ".join(f"{{{f}}} {what}" for f, what in EMAIL_FILLINS[key].items())
+            fills = "   ".join([f"{{{f}}} {what}" for f, what in EMAIL_FILLINS[key].items()]
+                               + [f"{{{c}: text}} the text {what}" for c, what in EMAIL_CONDITIONS[key].items()])
             hint = ttk.Label(foot, text=f"Fill-ins:  {fills}", style="Hint.TLabel", justify="left")
             hint.pack(side="left", fill="x", expand=True)
             hint.bind("<Configure>", lambda e, h=hint: h.configure(wraplength=max(e.width, 200)))
-            ttk.Button(foot, text="Reset", command=lambda b=box, k=key: (b.delete("1.0", "end"),
-                                                                          b.insert("1.0", DEFAULTS[k]))).pack(
+            ttk.Button(foot, text="Reset", command=lambda b=box, k=key, n=title: self.reset_email(b, k, n)).pack(
                 side="right", padx=(12, 0))
             self.widgets[key] = (box, "email")
         return tab
+
+    def reset_email(self, box, key, name):
+        """Puts the original wording back (after asking; Save keeps it, Undo changes brings yours back)."""
+        if box.get("1.0", "end").strip() == DEFAULTS[key].strip():
+            return
+        if dialogs.askyesno("Reset the email?", f"Replace your {name.lower()} with the original wording? Your text "
+                            "is lost once you save (until then, Undo changes brings it back).", yes="Reset",
+                            no="Cancel", icon="warning", default="no"):
+            box.delete("1.0", "end")
+            box.insert("1.0", DEFAULTS[key])
 
     def color_text(self, box):
         p = PALETTE

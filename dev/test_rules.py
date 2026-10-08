@@ -545,16 +545,19 @@ def main():
             if "longer than" not in str(e):
                 bad.append(f"long venue: unexpected message {e}")
     from settings_file import fill_email
-    filled = fill_email("Hi {combos},\n\n{feedback}\n\n{change}", {"combos": "Combo 01", "feedback": "",
-                                                                   "change": "A moves."})
-    if filled != "Hi Combo 01,\n\nA moves.\n":
-        bad.append(f"email fill-ins: {filled!r}")
-    try:
-        validate({**DEFAULTS, "reminder_email": "Hi {combo}, you play {nite}."})
-        bad.append("an email text with an unknown fill-in is accepted")
-    except SettingsError as e:
-        if "{nite}" not in str(e) or "{combo}" not in str(e):
-            bad.append(f"unknown fill-in: unexpected message {e}")
+    text = "Hi {night},\n\n{feedback: Faculty: there.}\n\n{sets}"
+    off = fill_email(text, {"night": "Tue", "sets": "7 pm"}, when={"feedback": False})
+    on = fill_email(text, {"night": "Tue", "sets": "7 pm"}, when={"feedback": True})
+    if off != "Hi Tue,\n\n7 pm\n" or on != "Hi Tue,\n\nFaculty: there.\n\n7 pm\n":
+        bad.append(f"email fill-ins: {off!r} / {on!r}")
+    for wrong, want in (("Hi {combo}, you play {nite}.", ["{nite}", "{combo}"]), ("{feedback}", ["{feedback: your text}"]),
+                        ("{first_year: hi}", ["isn't a choice"])):
+        try:
+            validate({**DEFAULTS, "reminder_email": wrong})
+            bad.append(f"the email text {wrong!r} is accepted")
+        except SettingsError as e:
+            if not all(w in str(e) for w in want):
+                bad.append(f"email text {wrong!r}: unexpected message {e}")
     if validate({**DEFAULTS, "change_email": ""})[0].change_email != DEFAULTS["change_email"]:
         bad.append("a blank email text doesn't fall back to the default")
     outside = lambda inp: [t for _, t in inp.notes if "with an email outside" in t]
