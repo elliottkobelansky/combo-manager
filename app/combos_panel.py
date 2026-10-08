@@ -186,8 +186,8 @@ class CombosPanel:
                          rules=EmailRules.from_settings(settings))
         self.show_links()
         n_people = len({e for c in combos.values() for e in c.members})
-        self.info.configure(text=f"{len(combos)} combos, {n_people} students." + (
-            " * = feedback night." if shows else " (No schedule yet: shows aren't listed.)"))
+        self.summary = f"{len(combos)} combos, {n_people} students." + (
+            " * = feedback night." if shows else " (No schedule yet: shows aren't listed.)")
         self.fill()
 
     def show_links(self):
@@ -309,6 +309,12 @@ class CombosPanel:
                 pid = self.tree.insert(item, "end", text="    " + self.coach_name(c.professor) + "  (coach)",
                                        values=("", "", "", "", c.professor), tags=("removed",))
                 self.withdrawn_items[pid] = c
+        q = self.search.get().strip()
+        if q:                                         # searching: how many match, not the totals
+            n = len(self.combo_items)
+            self.info.configure(text=f"{n} of {len(combos)} combos match '{q}'." if n else f"Nothing matches '{q}'.")
+        else:
+            self.info.configure(text=getattr(self, "summary", ""))
 
     UNSAVED = "   \u25cf unsaved changes"
 
