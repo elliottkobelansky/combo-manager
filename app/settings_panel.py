@@ -157,7 +157,7 @@ class DateField(ttk.Frame):
         cal.bind("<<CalendarSelected>>", done)
         ttk.Button(top, text="Cancel", command=top.destroy).pack(pady=(0, 12))
         place_below(top, self)
-        top.grab_set()
+        dialogs.grab(top)
 
     def get(self):
         return self.var.get().strip() or None
@@ -290,7 +290,7 @@ class ListEditor:
         bar.grid(row=len(self.fields) + 1, column=0, columnspan=2, pady=(14, 0), sticky="e")
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="OK", style="Accent.TButton", command=ok).pack(side="right", padx=(0, 6))
-        win.grab_set()
+        dialogs.grab(win)
 
 
 class SettingsPanel:

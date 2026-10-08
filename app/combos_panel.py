@@ -843,7 +843,7 @@ class CombosPanel:
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="OK", style="Accent.TButton",
                    command=lambda: (picked.append(choice.get()), win.destroy())).pack(side="right", padx=(0, 6))
-        win.grab_set()
+        dialogs.grab(win)
         self.frame.wait_window(win)
         return picked[0] if picked else None
 
@@ -976,7 +976,7 @@ class AddMemberDialog:
         self.email.bind("<KeyRelease>", lambda _: self.email_changed())
         self.name.bind("<Key>", lambda _: setattr(self, "name_typed", True))
         self.find.focus_set()
-        win.grab_set()
+        dialogs.grab(win)
 
     def filter(self, event=None):
         """Narrows the list to what's typed; typing a whole email fills in the Email field too."""
@@ -1077,7 +1077,7 @@ class NewComboDialog:
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="Add", style="Accent.TButton", command=self.add).pack(side="right", padx=(0, 6))
         self.liaison.focus_set()
-        win.grab_set()
+        dialogs.grab(win)
 
     def clean(self, text, supervisor=False):
         """The emails in text, lowercased, with the app's email fixes. Students' also get the settings' domain fixes
@@ -1169,7 +1169,7 @@ class ConflictsDialog:
         bar.pack(fill="x", pady=(14, 0))
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="OK", style="Accent.TButton", command=self.ok).pack(side="right", padx=(0, 6))
-        win.grab_set()
+        dialogs.grab(win)
 
     def row(self, d, counts, source):
         self.vars[d] = tk.BooleanVar(value=counts)
@@ -1253,7 +1253,7 @@ class LinkDialog:
         ttk.Button(bar, text="OK", style="Accent.TButton", command=self.ok).pack(side="right", padx=(0, 6))
         box.columnconfigure(0, weight=1)
         self.show()
-        win.grab_set()
+        dialogs.grab(win)
 
     def show(self):
         folder = self.panel.get_folder()

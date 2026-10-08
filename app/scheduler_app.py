@@ -875,7 +875,7 @@ class App:
         go.pack(side="right", padx=(0, 6))
         box.columnconfigure(1, weight=1)
         update()
-        win.grab_set()
+        dialogs.grab(win)
         self.root.wait_window(win)
         return result[0] if result else None
 

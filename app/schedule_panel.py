@@ -396,7 +396,7 @@ class SchedulePanel:
             self.export(lambda code: self.status.configure(text=self.status.cget("text").replace(
                 " Rebuilding the exports...", " Exports rebuilt.")))
         restore.configure(command=do_restore)
-        win.grab_set()
+        dialogs.grab(win)
 
     # a night's emails and summary (copied)
     def night_info(self, d):

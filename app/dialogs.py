@@ -16,6 +16,15 @@ import theme
 MARKS = {"warning": ("⚠", "warn"), "error": ("✖", "bad")}   # icon -> (mark, palette colour)
 
 
+def grab(win, tries=80):
+    """Makes win modal; until it's on screen (Linux refuses to grab a window that isn't shown yet), tries again."""
+    try:
+        win.grab_set()
+    except tk.TclError:
+        if tries and win.winfo_exists():
+            win.after(25, grab, win, tries - 1)
+
+
 def _ask(title, message, buttons, default, cancel, icon=None, parent=None):
     """buttons: [(label, value)], left to right; default / cancel: the values for Enter / Escape."""
     root = parent.winfo_toplevel() if parent else tk._default_root
@@ -61,7 +70,7 @@ def _ask(title, message, buttons, default, cancel, icon=None, parent=None):
     win.geometry(f"+{x}+{y}")
     win.deiconify()
     win.lift()
-    win.grab_set()
+    grab(win)
     root.wait_window(win)
     return result[0]
 
