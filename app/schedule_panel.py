@@ -440,7 +440,7 @@ class SchedulePanel:
             text, msg = "; ".join(info["liaisons"]), count(len(info["liaisons"]), "liaison") + (
                 f" (no liaison for {', '.join(info['no_liaison'])}: all its members instead)" if info["no_liaison"]
                 else "")
-        else:                                         # the reminder email (its text: Semester tab > Email texts)
+        else:                                         # the reminder email (its text: Semester tab > Email Templates)
             from settings_file import fill_email
             n, settings = info["night"], self.swaps.state["settings"]
             sets = "\n".join(f"{when or f'Set {k}'}  {who}" + (f": {', '.join(names)}" if names else "")

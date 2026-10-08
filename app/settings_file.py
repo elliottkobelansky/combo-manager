@@ -355,14 +355,14 @@ def validate(data):
             text = DEFAULTS[key]
         conds = EMAIL_CONDITIONS[key]
         for name in sorted(set(FILLIN.findall(text)) & set(conds)):
-            errors.append(f"Email texts: in the {EMAIL_NAMES[key]}, write {{{name}}} with the text to show, e.g. "
+            errors.append(f"Email Templates: in the {EMAIL_NAMES[key]}, write {{{name}}} with the text to show, e.g. "
                           f"{{{name}: your text}} ({conds[name]}).")
         for name in sorted(set(n for n, _ in CONDITION.findall(text)) - set(conds)):
-            errors.append(f"Email texts: in the {EMAIL_NAMES[key]}, {{{name}: ...}} isn't a choice."
+            errors.append(f"Email Templates: in the {EMAIL_NAMES[key]}, {{{name}: ...}} isn't a choice."
                           + (" It can use: " + " ".join(f"{{{c}: ...}}" for c in conds) + "." if conds else ""))
         unknown = sorted(set(FILLIN.findall(text)) - set(EMAIL_FILLINS[key]) - set(conds))
         if unknown:
-            errors.append(f"Email texts: the {EMAIL_NAMES[key]} has " + ", ".join("{" + u + "}" for u in unknown)
+            errors.append(f"Email Templates: the {EMAIL_NAMES[key]} has " + ", ".join("{" + u + "}" for u in unknown)
                           + ", which isn't a fill-in. It can use: "
                           + " ".join("{" + f + "}" for f in EMAIL_FILLINS[key]) + ".")
         return text

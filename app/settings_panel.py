@@ -367,7 +367,7 @@ class SettingsPanel:
              ("break", "Break between sets (min)", "int?")],
             "Extra show date", sort_key=lambda r: str(r.get("date") or ""))
         inner.add(self.extra_dates.frame, text="Extra dates")
-        inner.add(self.email_texts(inner), text="Email texts")
+        inner.add(self.email_texts(inner), text="Email Templates")
 
         bar = ttk.Frame(self.frame)
         bar.pack(fill="x", pady=(12, 0))
@@ -450,7 +450,7 @@ class SettingsPanel:
         tab = ttk.Frame(parent, padding=(8, 12, 16, 12))
         tab.columnconfigure(0, weight=1)
         where = {"reminder_email": ("Reminder email", "Schedule tab: right-click a night > Copy reminder email."),
-                 "change_email": ("Change email", "Swaps tab: Copy change email, and after Confirm changes.")}
+                 "change_email": ("Change email", "Swaps tab: Copy change email.")}
         for i, (key, (title, used)) in enumerate(where.items()):
             head = ttk.Frame(tab)
             head.grid(row=3 * i, column=0, sticky="ew", pady=(14 if i else 0, 4))

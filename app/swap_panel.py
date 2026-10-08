@@ -126,7 +126,6 @@ class SwapPanel:
         self.discard_button.pack(side="left")
         self.save_status = ttk.Label(box, text="", style="Hint.TLabel", justify="left")
         self.save_status.pack(anchor="w", pady=(6, 0))
-        self.tell_bar = ttk.Frame(box)                # after saving: email the combos (until Done)
         self.recolor()
 
     def recolor(self):
@@ -364,7 +363,7 @@ class SwapPanel:
 
     def change_email(self, options, sets, first=None):
         """(combo ids involved, the change email) for these options, done one after the other starting from sets.
-        The text: Semester tab > Email texts."""
+        The text: Semester tab > Email Templates."""
         from settings_file import fill_email
         st, ids, parts = self.state, [], []
         for o in options:
@@ -540,12 +539,6 @@ class SwapPanel:
             return
         if not self.same_as_on_disk():
             return
-        moves = [o for o in self.pending if not isinstance(o, TextChange)]
-        tell, sets = [], self.base_sets               # an email per change, to its own combos (worked out now: the
-        for o in moves:                               # pending list is cleared below)
-            heading = swap_summary(sets, st["nights"], st["combos"], o, None, st["name_of"]).split("\n")[0]
-            tell.append((heading, *self.change_email([o], sets)))
-            sets = apply_option(sets, o)
         try:
             backup = save_changes(self.get_folder(), st["combos"], sets=changes, typed=texts,
                                   what=[("\u2716 rule overridden: " if o.breaks else "") + o.title for o in self.pending])
@@ -561,70 +554,6 @@ class SwapPanel:
                                         "Rebuilding Schedule.pdf and Schedule.xlsx...")
         self.after_apply(f"Saved {n} change(s). Backup of the schedule before: {backup}\n",
                          lambda code: (self.pdf_done(code), then and then(code)))
-        if tell:
-            self.ask_to_send(tell)
-
-    def ask_to_send(self, changes):
-        """After saving: the changes still to email (title, combo ids, change email), in a short list under the
-        buttons. Copy emails (its combos' liaisons) and Copy email text act on the picked one; Sent takes it off.
-        The list goes away once it's empty; more saved changes are added to it."""
-        from clipboard import copy
-        bar = self.tell_bar
-        if not getattr(self, "to_send", None):
-            self.to_send = []
-            for w in bar.winfo_children():
-                w.destroy()
-            self.tell_title = ttk.Label(bar, text="", style="Warn.TLabel")
-            self.tell_title.pack(anchor="w")
-            self.tell_list = ttk.Treeview(bar, columns=("change",), show="", selectmode="browse")
-            self.tell_list.column("change", anchor="w")
-            self.tell_list.pack(fill="x", pady=(4, 4))
-            row = ttk.Frame(bar)
-            row.pack(anchor="w")
-
-            def picked():
-                sel = self.tell_list.selection()
-                return self.to_send[self.tell_list.index(sel[0])] if sel else None
-
-            def copy_it(i, what):
-                ch = picked()
-                if ch:
-                    content = "; ".join(self.liaison_emails(ch[1])[0]) if i == 0 else ch[2]
-                    copy(self.frame, content, f"{what} ({ch[0]})", self.get_palette())
-                    self.save_status.configure(text=f"Copied {what} for: {ch[0]}. Paste with Ctrl+V.")
-
-            def sent():
-                ch = picked()
-                if not ch:
-                    return
-                i = self.to_send.index(ch)
-                self.to_send.pop(i)
-                app_log.write(f"Swaps tab: emailed the combos about: {ch[0]}")
-                self.show_to_send(min(i, len(self.to_send) - 1))
-            ttk.Button(row, text="Copy emails", command=lambda: copy_it(0, "the emails")).pack(side="left")
-            ttk.Button(row, text="Copy email text", command=lambda: copy_it(1, "the change email")).pack(
-                side="left", padx=6)
-            ttk.Button(row, text="Sent", command=sent).pack(side="left")
-        self.to_send += changes
-        self.show_to_send(len(self.to_send) - len(changes))
-        self.last_send = [(self.liaison_emails(ids)[0], text) for _, ids, text in self.to_send]   # (for tests)
-
-    def show_to_send(self, pick=0):
-        """Redraws the list of changes still to email (hidden once there are none), with row pick selected."""
-        n = len(self.to_send)
-        if not n:
-            self.tell_bar.pack_forget()
-            return
-        self.tell_title.configure(text="Email the combos about this change:" if n == 1 else
-                                  f"Email the combos ({n} changes):")
-        self.tell_list.delete(*self.tell_list.get_children())
-        for title, _, _ in self.to_send:
-            self.tell_list.insert("", "end", values=(title,))
-        self.tell_list.configure(height=min(n, 4))
-        item = self.tell_list.get_children()[max(0, pick)]
-        self.tell_list.selection_set(item)
-        self.tell_list.see(item)
-        self.tell_bar.pack(anchor="w", fill="x", pady=(8, 0))
 
     def same_as_on_disk(self):
         """True when the schedule still holds what the pending changes were planned against. Otherwise (another
