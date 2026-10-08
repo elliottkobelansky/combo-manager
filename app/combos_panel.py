@@ -971,7 +971,7 @@ class CombosPanel:
         """Combos.pdf and Combos.xlsx brought up to date (after saved changes), quietly: one open elsewhere is left."""
         from outputs.combos_xlsx import write_combos_xlsx
         combos = sorted(self.data["combos"].values(), key=lambda c: c.name)
-        args = (combos, self.name, self.data["settings"].semester_name, self.data["instruments"])
+        args = (combos, self.coach_name, self.data["settings"].semester_name, self.data["instruments"])   # (titles)
         try:
             write_combos_xlsx(export_path(self.get_folder(), COMBOS_XLSX), *args, self.data["shows"])
         except (OSError, PermissionError):
@@ -1002,7 +1002,7 @@ class CombosPanel:
         path = export_path(self.get_folder(), COMBOS_PDF)
         combos = sorted(self.data["combos"].values(), key=lambda c: c.name)
         try:
-            write_combos_pdf(path, combos, self.name, self.data["settings"].semester_name, self.data["instruments"])
+            write_combos_pdf(path, combos, self.coach_name, self.data["settings"].semester_name, self.data["instruments"])
         except PermissionError:
             dialogs.showerror("Combo list", f"Can't write {path.name}: it's open in another program. Close it and "
                                                "try again.")
@@ -1023,7 +1023,7 @@ class CombosPanel:
         path = export_path(self.get_folder(), COMBOS_XLSX)
         combos = sorted(self.data["combos"].values(), key=lambda c: c.name)
         try:
-            write_combos_xlsx(path, combos, self.name, self.data["settings"].semester_name, self.data["instruments"],
+            write_combos_xlsx(path, combos, self.coach_name, self.data["settings"].semester_name, self.data["instruments"],
                               self.data["shows"])
         except PermissionError:
             dialogs.showerror("Combo list", f"Can't write {path.name}: it's open in Excel. Close it and try again.")

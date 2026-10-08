@@ -922,6 +922,10 @@ class App:
             self.settings.reload()
         self.autoload()
         self.check_copies()
+        if self.combos and self.combos.data:          # the exports in the backup may be older: made again
+            self.combos.write_exports()
+        if self.swaps and self.swaps.state and not self.busy:
+            self.run(["--stats", "--export"], "Making Schedule.pdf and Schedule.xlsx again...")
         dialogs.showinfo("Restored", "The backup is now in this data folder. Other computers get it through "
                             f"the sync.\n\nWhat was in the folder before is saved in:\n{path}\n(To undo: "
                             "Restore... that file.)")

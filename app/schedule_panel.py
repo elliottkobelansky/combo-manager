@@ -402,7 +402,9 @@ class SchedulePanel:
                 return
             if not dialogs.askyesno(
                     "Restore this version?", f"Put back the schedule as it was on {when(v.replaced)}?\n\nThe "
-                    "schedule as it is now is kept as a version too, so this can be undone here.",
+                    "schedule as it is now is kept as a version too, so this can be undone here.\n\nOnly the schedule goes "
+                    "back: the combos stay as they are now. Check schedule then points out anything that no longer "
+                    "fits (e.g. a combo withdrawn since).",
                     yes="Restore", no="Cancel", icon="warning", default="no", parent=win):
                 return
             try:
