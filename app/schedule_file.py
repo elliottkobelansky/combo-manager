@@ -294,9 +294,10 @@ def set_published(folder, on):
     _write(folder, data)
 
 
-def save_changes(folder, combos, sets=None, typed=None, what=(), faculty=None):
+def save_changes(folder, combos, sets=None, typed=None, what=(), faculty=None, supervised=None):
     """Changes some sets: sets = {(date, set): combo id or None (open)}, typed = {(date, set): text or None (open)},
-    and feedback nights' faculty members: faculty = {date: Faculty or None (cleared)};
+    feedback nights' faculty members: faculty = {date: Faculty or None (cleared)}, and which nights are feedback
+    nights: supervised = {date: True / False};
     what: what was done, in words (e.g. the swaps' titles), for the history. Reads the file again first, so changes
     saved meanwhile elsewhere (other sets) are kept; a backup goes into AppFiles/ScheduleBackups first. -> the
     backup's path. Raises ScheduleFileError (nothing changed) for a set that isn't in the schedule."""
@@ -306,7 +307,7 @@ def save_changes(folder, combos, sets=None, typed=None, what=(), faculty=None):
     size = {n["date"]: int(n.get("sets", 0)) for n in data.get("nights", [])}
     todo = list((sets or {}).items()) + [((d, k), ("text", t)) for (d, k), t in (typed or {}).items()]
     missing = [f"{d} set {k}" for (d, k), _ in todo if not 1 <= k <= size.get(d.isoformat(), 0)] + [
-        f"{d}" for d in (faculty or {}) if d.isoformat() not in size]
+        f"{d}" for d in list(faculty or {}) + list(supervised or {}) if d.isoformat() not in size]
     if missing:
         raise ScheduleFileError("These sets aren't in the schedule: " + ", ".join(missing) + ". Nothing was changed.")
     copy = backup(folder)
@@ -327,6 +328,11 @@ def save_changes(folder, combos, sets=None, typed=None, what=(), faculty=None):
             row.pop(num, None)
     data["sets"] = {d: r for d, r in data.get("sets", {}).items() if r}
     data["typed"] = {d: r for d, r in data.get("typed", {}).items() if r}
+    marks_changed = False
+    for n in data.get("nights", []):
+        on = (supervised or {}).get(date.fromisoformat(n["date"]))
+        if on is not None and bool(n.get("supervised")) != on:
+            n["supervised"], marks_changed = on, True
     people, faculty_changed = data.setdefault("faculty", {}), False
     for d, who in (faculty or {}).items():
         new = ({**({"title": who.title.strip()} if who.title.strip() else {}), "name": who.name.strip(),
@@ -341,7 +347,7 @@ def save_changes(folder, combos, sets=None, typed=None, what=(), faculty=None):
         data.pop("faculty")
     changes = [{"night": d.isoformat(), "set": k, "before": before[(d, k)], "after": _shown(data, d.isoformat(), str(k))}
                for d, k in sorted(before) if before[(d, k)] != _shown(data, d.isoformat(), str(k))]
-    if changes or faculty_changed:
+    if changes or faculty_changed or marks_changed:
         data.setdefault("history", []).append(_entry(what, changes))
     _write(folder, data)
     return copy

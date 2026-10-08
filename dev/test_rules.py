@@ -351,6 +351,24 @@ def main():
     sf_.save_changes(sdir, result.combos, faculty={d0: None}, what=["cleared"])
     if sf_.load(sdir, result.combos, s).faculty:
         bad.append("clearing a feedback night's faculty member doesn't stick")
+    from core.feedback import feedback_moves, feedback_option   # moving a feedback night: options, saving
+    sch = sf_.load(sdir, result.combos, s)
+    if sch.supervised:
+        src = sorted(sch.supervised)[0]
+        moves = feedback_moves(sch.sets, sch.nights, result.combos, inp, s, sch.supervised, sch.typed, src)
+        if not moves or any(m.target in sch.supervised for m in moves) or \
+                [m.score for m in moves] != sorted(m.score for m in moves):
+            bad.append("the feedback-night moves aren't every other night, best first")
+        on_src = {c for c in sch.sets[src].values() if c}
+        alone = [c for c in on_src if sum(1 for d in sch.supervised if c in sch.sets[d].values())
+                 <= s.min_supervised_per_combo]
+        gone = feedback_option(sch.sets, sch.nights, result.combos, inp, s, sch.supervised, sch.typed, src, None)
+        if alone and not gone.breaks:
+            bad.append("removing a feedback night that combos need isn't flagged as breaking a rule")
+        t_ = moves[0].target
+        sf_.save_changes(sdir, result.combos, supervised={src: False, t_: True}, what=["moved"])
+        if sf_.load(sdir, result.combos, s).supervised != (sch.supervised - {src}) | {t_}:
+            bad.append("a moved feedback night isn't saved")
     moved = sf_.archive_semester(sdir, s.semester_name)
     if sf_.has_schedule(sdir) or not (moved / "schedule.json").exists():
         bad.append("archiving left the schedule behind")

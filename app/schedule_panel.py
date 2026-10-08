@@ -149,7 +149,8 @@ class SchedulePanel:
             band ^= 1
             shade = f"band{band}"
             note = f"{n_open} open" if n_open else ""
-            if any((n.date, k) in changed for k, _, _ in lines) or n.date in self.swaps.faculty_changes():
+            if (any((n.date, k) in changed for k, _, _ in lines) or n.date in self.swaps.faculty_changes()
+                    or n.date in self.swaps.supervised_changes()):
                 note = ("unsaved changes" + (f" · {note}" if note else ""))
             night = self.tree.insert("", "end", text=title, values=("", "", note), tags=("night", shade),
                                      open=bool(q) or self.only_open.get() or title in expanded
@@ -278,6 +279,13 @@ class SchedulePanel:
         menu.add_command(label=f"Copy all emails ({label})",
                          command=lambda: self.copy(night, "everyone"))
         menu.add_command(label=f"Copy reminder email ({label})", command=lambda: self.copy(night, "reminder"))
+        if st["supervised"] is not None:                 # moving feedback nights
+            menu.add_separator()
+            if night in st["supervised"]:
+                menu.add_command(label="Move feedback night...", command=lambda: self.move_feedback(night))
+                menu.add_command(label="Remove feedback night...", command=lambda: self.change_feedback(night, None))
+            else:
+                menu.add_command(label="Make feedback night...", command=lambda: self.change_feedback(None, night))
         if night in (st["supervised"] or ()):            # a feedback night: its faculty member
             fac = st["faculty"].get(night)
             menu.add_separator()
@@ -621,6 +629,104 @@ class SchedulePanel:
         p = self.get_palette() or {}
         return tk.Menu(self.tree, tearoff=0, background=p.get("panel"), foreground=p.get("text"),
                        activebackground=p.get("accent"), activeforeground=p.get("accent_text"))
+
+    # moving feedback nights (core/feedback.py)
+    def change_feedback(self, source, target):
+        """Make a night a feedback night (source None) or stop one being one (target None): says what it changes and
+        what it would break, then adds it as an unsaved change."""
+        from core.feedback import feedback_option
+        st = self.swaps.state
+        o = feedback_option(st["sets"], st["nights"], st["combos"], st["inp"], st["settings"], st["supervised"],
+                            st["typed"], source, target, st["name_of"])
+        fac = st["faculty"].get(source) if source else None
+        lines = o.notes + [f"\u26a0 {w}" for w in o.warnings] + [f"\u2716 Breaks a rule: {b}" for b in o.breaks] + (
+            [f"Its faculty member ({fac.full}) is cleared."] if fac else [])
+        if not dialogs.askyesno(o.title.rstrip(".") + "?", "\n".join(lines) or "Nothing else changes.",
+                                yes="Remove it" if source else "Make it one", no="Cancel",
+                                icon="warning" if o.breaks else None, default="no" if o.breaks else "yes"):
+            return
+        self.swaps.move_feedback(o, asked=True)
+        self.status.configure(text=f"Not saved yet: {o.title}. (Confirm changes, above)")
+
+    def move_feedback(self, source):
+        """The nights the feedback night `source` could move to, best first, like the swap options: black = fine,
+        yellow = less ideal, red = breaks a rule (asked before it's added). Its faculty member moves with it."""
+        from core.feedback import feedback_moves
+        st = self.swaps.state
+        root = self.frame.winfo_toplevel()
+        win = tk.Toplevel(root)
+        win.withdraw()
+        win.title("Move feedback night")
+        win.transient(root)
+        box = ttk.Frame(win, padding=20)
+        box.pack(fill="both", expand=True)
+        ttk.Label(box, text=f"Move the feedback night from {make_label(source)} to...", style="CardTitle.TLabel"
+                  ).pack(anchor="w")
+        fac = st["faculty"].get(source)
+        ttk.Label(box, text="Best first. Yellow: allowed but less ideal. Red: breaks a rule."
+                  + (f" {fac.full} (its faculty member) moves with it." if fac else ""),
+                  style="Hint.TLabel", wraplength=640, justify="left").pack(anchor="w", pady=(2, 10))
+        table, tree = scrolled_tree(box, [("#0", "Night", 170, False), ("what", "What changes", 470, True)])
+        table.pack(fill="both", expand=True)
+        tree.configure(height=12)
+        p = self.get_palette() or {}
+        tree.tag_configure("warn", foreground=p.get("warn"))
+        tree.tag_configure("breaks", foreground=p.get("bad"))
+        details = ttk.Label(box, text="Working out the options...", wraplength=640, justify="left")
+        details.pack(anchor="w", fill="x", pady=(10, 0))
+        bar = ttk.Frame(box)
+        bar.pack(fill="x", pady=(14, 0))
+        ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
+        go = ttk.Button(bar, text="Move it", style="Accent.TButton", state="disabled")
+        go.pack(side="right", padx=(0, 6))
+        options = []
+
+        def show(found):
+            if not win.winfo_exists():
+                return
+            options[:] = found
+            for i, o in enumerate(found):
+                n = next(x for x in st["nights"] if x.date == o.target)
+                what = (f"\u2716 {o.breaks[0]}" if o.breaks else f"\u26a0 {o.warnings[0]}" if o.warnings else
+                        "no problems") + (f"  ({'; '.join(o.notes)})" if o.notes else "")
+                tree.insert("", "end", iid=str(i), text=f"{make_label(o.target)} \u00b7 {n.venue}", values=(what,),
+                            tags=("breaks",) if o.breaks else ("warn",) if o.warnings else ())
+            if found:
+                tree.selection_set("0")
+            else:
+                details.configure(text="There's no other night to move it to.")
+
+        def picked(_=None):
+            sel = tree.selection()
+            if not sel:
+                return
+            o = options[int(sel[0])]
+            details.configure(text="\n".join([o.title] + o.notes + [f"\u26a0 {w}" for w in o.warnings]
+                                              + [f"\u2716 Breaks a rule: {b}" for b in o.breaks]))
+            go.configure(state="normal")
+
+        def move(_=None):
+            sel = tree.selection()
+            if not sel:
+                return
+            o = options[int(sel[0])]
+            win.destroy()
+            self.swaps.move_feedback(o)               # (asks first when it breaks a rule)
+            self.status.configure(text=f"Not saved yet: {o.title}. (Confirm changes, above)")
+        tree.bind("<<TreeviewSelect>>", picked)
+        tree.bind("<Double-1>", move)
+        go.configure(command=move)
+        win.bind("<Escape>", lambda _: win.destroy())
+        win.update_idletasks()
+        x = root.winfo_rootx() + max(0, (root.winfo_width() - win.winfo_reqwidth()) // 2)
+        y = root.winfo_rooty() + max(0, (root.winfo_height() - win.winfo_reqheight()) // 3)
+        win.geometry(f"+{x}+{y}")
+        win.deiconify()
+        dialogs.grab(win)
+        self.feedback_window = win                    # (kept for tests)
+        in_background(self.frame, lambda: feedback_moves(st["sets"], st["nights"], st["combos"], st["inp"],
+                                                         st["settings"], st["supervised"], st["typed"], source,
+                                                         st["name_of"]), show)
 
     def show_claimers(self, item, d, k):
         st = self.swaps.state

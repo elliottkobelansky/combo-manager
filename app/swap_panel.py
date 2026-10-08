@@ -44,6 +44,15 @@ class FacultyChange:
                       f"Faculty member on {make_label(d)} cleared")
 
 
+class FeedbackChange:
+    """An unsaved move of a feedback night (Schedule tab: Move / Make / Remove feedback night): option is a
+    core.feedback.FeedbackOption. Its faculty member moves with it (a removed one's is cleared)."""
+
+    def __init__(self, option):
+        self.option, self.source, self.target = option, option.source, option.target
+        self.title, self.warnings, self.breaks = option.title, option.warnings, option.breaks
+
+
 class SwapPanel:
     def __init__(self, parent, get_folder, after_apply, get_palette=lambda: {}):
         self.get_folder, self.after_apply, self.get_palette = get_folder, after_apply, get_palette
@@ -52,6 +61,7 @@ class SwapPanel:
         self.pending, self.base_sets = [], None       # changes not saved yet; the schedule as it is on disk
         self.base_typed = {}                          # ...and the text in its sets, on disk
         self.base_faculty = {}                        # ...and its feedback nights' faculty members, on disk
+        self.base_supervised = None                   # ...and which nights are feedback nights, on disk
         self.search_id = 0                            # the latest option search (an older one's results are dropped)
         self.listeners = []                           # called whenever the (pending) schedule changes
         self.is_busy = lambda: False                  # set by the app: a step is running in the background
@@ -200,6 +210,7 @@ class SwapPanel:
             self.base_sets = {d: dict(row) for d, row in sets.items()}
             self.base_typed = {d: dict(row) for d, row in typed.items()}
             self.base_faculty = dict(faculty)
+            self.base_supervised = set(supervised) if supervised is not None else None
         self.state = dict(settings=settings, inp=inp, combos=combos, sets=sets, supervised=supervised, typed=typed,
                           faculty=faculty, names=names, titles=store.titles,
                           nights=sched.nights if not keep else self.state["nights"], name_of=name_of,
@@ -460,6 +471,23 @@ class SwapPanel:
         self.rebuild_sets()
         self.after_change(f"Added: {change.title}")
 
+    def move_feedback(self, option, asked=False):
+        """A feedback night moved, added or removed (a core.feedback.FeedbackOption), as an unsaved change. asked:
+        a rule it breaks was already agreed to."""
+        if not asked and not self.override_ok(option):
+            return
+        change = FeedbackChange(option)
+        self.pending.append(change)
+        self.rebuild_sets()
+        self.after_change(f"Added: {change.title}")
+
+    def supervised_changes(self):
+        """{night: True / False} where being a feedback night differs from the saved schedule."""
+        now, base = self.state["supervised"], self.base_supervised
+        if now is None or base is None:
+            return {}
+        return {d: d in now for d in now ^ base}
+
     def faculty_changes(self):
         """{night: Faculty, or None when cleared} where it differs from the saved schedule."""
         now, base = self.state["faculty"], self.base_faculty
@@ -520,8 +548,17 @@ class SwapPanel:
         sets = {d: dict(row) for d, row in self.base_sets.items()}
         typed = {d: dict(row) for d, row in self.base_typed.items()}
         faculty = dict(self.base_faculty)
+        supervised = set(self.base_supervised) if self.base_supervised is not None else None
         for o in self.pending:
-            if isinstance(o, FacultyChange):
+            if isinstance(o, FeedbackChange):
+                if supervised is not None:
+                    supervised.discard(o.source)
+                    if o.target:
+                        supervised.add(o.target)
+                who = faculty.pop(o.source, None) if o.source else None
+                if who and o.target:                  # the faculty member moves with the night
+                    faculty[o.target] = who
+            elif isinstance(o, FacultyChange):
                 if o.who:
                     faculty[o.d] = o.who
                 else:
@@ -536,6 +573,7 @@ class SwapPanel:
         self.state["sets"] = sets
         self.state["typed"] = {d: row for d, row in typed.items() if row}
         self.state["faculty"] = faculty
+        self.state["supervised"] = supervised
 
     def undo_last(self):
         if self.pending:
@@ -559,8 +597,8 @@ class SwapPanel:
             return
         changes = {(d, k): c for d, row in st["sets"].items() for k, c in row.items()
                    if self.base_sets.get(d, {}).get(k) != c}
-        texts, people = self.typed_changes(), self.faculty_changes()
-        if not changes and not texts and not people:
+        texts, people, marks = self.typed_changes(), self.faculty_changes(), self.supervised_changes()
+        if not changes and not texts and not people and not marks:
             dialogs.showinfo("Nothing to save", "The unsaved changes cancel each other out.")
             self.pending = []
             self.after_change("Nothing to save.")
@@ -576,7 +614,7 @@ class SwapPanel:
         if not self.same_as_on_disk():
             return
         try:
-            backup = save_changes(self.get_folder(), st["combos"], sets=changes, typed=texts, faculty=people,
+            backup = save_changes(self.get_folder(), st["combos"], sets=changes, typed=texts, faculty=people, supervised=marks,
                                   what=[("\u2716 rule overridden: " if o.breaks else "") + o.title for o in self.pending])
         except ScheduleFileError as e:
             dialogs.showerror("Couldn't save", str(e))
@@ -621,7 +659,8 @@ class SwapPanel:
         except ScheduleFileError as e:
             dialogs.showerror("Couldn't save", str(e))
             return False
-        if sched.sets == self.base_sets and sched.typed == self.base_typed and sched.faculty == self.base_faculty:
+        if (sched.sets == self.base_sets and sched.typed == self.base_typed and sched.faculty == self.base_faculty
+                and (sched.supervised or set()) == (self.base_supervised or set())):
             return True
         if dialogs.askyesno(
                 "Schedule changed elsewhere", "The schedule was changed since these changes were planned (on "

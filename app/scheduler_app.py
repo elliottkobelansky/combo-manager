@@ -1139,7 +1139,7 @@ def selftest(out):
     tmp = Path(tempfile.mkdtemp())
     for mod in ("solve", "inputs", "settings_file", "schedule_file", "backup", "app_log", "clipboard", "theme",
                 "settings_panel", "swap_panel", "combos_panel", "schedule_panel", "outputs.excel_schedule",
-                "outputs.schedule_pdf", "outputs.combos_pdf", "outputs.combos_xlsx", "core.solver", "core.swaps"):
+                "outputs.schedule_pdf", "outputs.combos_pdf", "outputs.combos_xlsx", "core.solver", "core.swaps", "core.feedback"):
         step(f"import {mod}", lambda m=mod: importlib.import_module(m))
 
     def solver():
