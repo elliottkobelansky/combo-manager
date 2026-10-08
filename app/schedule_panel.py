@@ -26,6 +26,7 @@ class SchedulePanel:
         self.open_file = open_file or (lambda path: None)
         self.goto_combo = goto_combo or (lambda cid: None)
         self.is_busy = lambda: False                      # set by the app: a step is running in the background
+        self.other_semester = lambda: None                # set by the app: the schedule's semester, if not this one
         self.get_palette = get_palette
         self.rows = {}                                    # tree item -> (night, set number)
         self.night_rows = {}                              # tree item -> night (the bold rows)
@@ -167,11 +168,13 @@ class SchedulePanel:
 
     def refresh_tools(self):
         """The Make button: 'Make schedule' before there's a schedule, 'Make a new schedule...' after; blue, and grey
-        (off) while the schedule is locked or a step runs."""
+        (off) while the schedule is locked or a step runs. Last semester's lock doesn't count: its schedule is filed
+        away when the new one is made."""
         st = self.swaps.state
-        exists, sent = bool(st), bool(st and st.get("published"))
+        old = self.other_semester() if st else None
+        exists, sent = bool(st), bool(st and st.get("published")) and old is None
         self.sent.set(sent)
-        self.sent_box.configure(state="normal" if exists else "disabled")
+        self.sent_box.configure(state="normal" if exists and old is None else "disabled")
         self.make_button.configure(text="Make a new schedule..." if exists else "Make schedule",
                                    style="Accent.TButton",     # blue; grey while locked or a step runs
                                    state="disabled" if sent else "normal")

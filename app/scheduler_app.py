@@ -357,6 +357,7 @@ class App:
                          self.combos.confirm_button, self.swaps.save_button]
         self.buttons += self.schedule.file_buttons + self.combos.file_buttons     # the files are being rewritten
         self.schedule.is_busy = self.swaps.is_busy = lambda: self.busy
+        self.schedule.other_semester = self.other_semester
         self.status = ttk.Label(shell, text="Ready.", style="Hint.TLabel")
         self.status.pack(fill="x", pady=(8, 0))
         self.root.after(300, self.autoload)
