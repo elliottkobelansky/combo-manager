@@ -424,7 +424,7 @@ class App:
         semester's settings, shared by every computer, are the Semester tab."""
         tab = ttk.Frame(self.tabs, padding=(28, 24))
         ttk.Label(tab, text="Data folder", style="CardTitle.TLabel").pack(anchor="w")
-        ttk.Label(tab, text="Where everything is kept. Every computer that uses it picks the same folder.",
+        ttk.Label(tab, text="Where everything is kept. If you use a shared folder (e.g. OneDrive), all computers need to pick the same one.",
                   style="Hint.TLabel").pack(anchor="w", pady=(2, 8))
         self.folder_label2 = ttk.Label(tab, text=str(self.folder))
         self.folder_label2.pack(anchor="w")
