@@ -6,7 +6,7 @@ claim only adds a pending change, and the exports ask what to do with unsaved ch
 straight away: text typed into an open set (e.g. "Jam session"), or clearing it.
 """
 import tkinter as tk
-from tkinter import simpledialog, ttk
+from tkinter import ttk
 
 import app_log
 import dialogs
@@ -322,7 +322,7 @@ class SchedulePanel:
         if clear:
             text = ""
         else:
-            text = simpledialog.askstring(
+            text = dialogs.askstring(
                 "Text in a set", f"{make_label(d)}, set {k}: the text to show instead of a combo (e.g. Jam session). "
                 "The set then counts as taken. Leave it empty to open the set again.", initialvalue=current,
                 parent=self.frame)

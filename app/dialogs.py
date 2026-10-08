@@ -5,6 +5,7 @@ the message, and buttons named for what they do. Same calls as messagebox, plus 
     dialogs.askyesno(title, message, yes="Unlock", no="Keep locked", default="no", icon="warning")  -> True / False
     dialogs.askyesnocancel(title, message, yes=..., no=..., cancel=...)                              -> True / False / None
     dialogs.askokcancel(title, message, ok=..., cancel=...)                                          -> True / False
+    dialogs.askstring(title, message, initialvalue="", ok="OK")                     -> the text typed / None (cancelled)
 
 Enter = the default button (blue), Escape or closing the window = cancel (No where there's no Cancel).
 """
@@ -25,8 +26,9 @@ def grab(win, tries=80):
             win.after(25, grab, win, tries - 1)
 
 
-def _ask(title, message, buttons, default, cancel, icon=None, parent=None):
-    """buttons: [(label, value)], left to right; default / cancel: the values for Enter / Escape."""
+def _ask(title, message, buttons, default, cancel, icon=None, parent=None, entry=None):
+    """buttons: [(label, value)], left to right; default / cancel: the values for Enter / Escape. entry: a text box
+    under the message, with this text in it; the default button then returns what's typed."""
     root = parent.winfo_toplevel() if parent else tk._default_root
     p = theme.PALETTE
     win = tk.Toplevel(root)
@@ -38,7 +40,7 @@ def _ask(title, message, buttons, default, cancel, icon=None, parent=None):
     result = [cancel]
 
     def close(value):
-        result[0] = value
+        result[0] = box_.get() if box_ is not None and value == default else value
         win.grab_release()
         win.destroy()
     box = ttk.Frame(win, padding=(22, 20, 22, 16))
@@ -51,14 +53,22 @@ def _ask(title, message, buttons, default, cancel, icon=None, parent=None):
             side="left", anchor="n", padx=(0, 10))
     ttk.Label(head, text=title, style="CardTitle.TLabel", wraplength=theme.size(440)).pack(side="left", anchor="w")
     ttk.Label(box, text=message.strip(), wraplength=theme.size(470), justify="left").pack(anchor="w", pady=(10, 0))
+    box_ = None
+    if entry is not None:
+        box_ = ttk.Entry(box, width=52)
+        box_.insert(0, entry)
+        box_.select_range(0, "end")
+        box_.pack(anchor="w", fill="x", pady=(10, 0))
     bar = ttk.Frame(box)
     bar.pack(fill="x", pady=(18, 0))
     for label, value in reversed(buttons):            # right-aligned, in the given order
         b = ttk.Button(bar, text=label, command=lambda v=value: close(v),
                        style="Accent.TButton" if value == default else "TButton")
         b.pack(side="right", padx=(8, 0))
-        if value == default:
+        if value == default and box_ is None:
             b.focus_set()
+    if box_ is not None:
+        box_.focus_set()
     win.bind("<Return>", lambda _: close(default))
     win.bind("<KP_Enter>", lambda _: close(default))
     win.bind("<Escape>", lambda _: close(cancel))
@@ -98,3 +108,8 @@ def askyesnocancel(title, message, yes="Yes", no="No", cancel="Cancel", default=
 
 def askokcancel(title, message, ok="OK", cancel="Cancel", default="ok", icon=None, parent=None, **_):
     return bool(_ask(title, message, [(cancel, False), (ok, True)], default != "cancel", False, icon, parent))
+
+
+def askstring(title, message, initialvalue="", ok="OK", parent=None, **_):
+    """A line of text: what's typed, or None when cancelled."""
+    return _ask(title, message, [("Cancel", None), (ok, True)], True, None, None, parent, entry=initialvalue or "")

@@ -7,7 +7,7 @@ member changes are kept in scheduler_data.json in the data folder (store.py), so
 tab all use them. The linked sheets themselves are never changed.
 """
 import tkinter as tk
-from tkinter import simpledialog, ttk
+from tkinter import ttk
 
 import app_log
 from app_config import input_files
@@ -319,9 +319,9 @@ class CombosPanel:
             dialogs.showinfo("Change an email", "Open a combo and pick a person (double-click their email works "
                                                    "too).")
             return
-        new = simpledialog.askstring(
+        new = dialogs.askstring(
             "Change email", f"Correct email for {self.name(email)}:\n(Used everywhere: their combos and their "
-            "conflicts.)", initialvalue=email, parent=self.frame)
+            "conflicts.)", initialvalue=email, ok="Change", parent=self.frame)
         if new is None:
             return
         new = new.strip().lower()
@@ -368,8 +368,9 @@ class CombosPanel:
     def type_instrument(self, item):
         combo, email = self.people[item]
         current = self.data["instruments"].get((combo, email), "")
-        typed = simpledialog.askstring("Other instrument", f"Instrument for {self.name(email)} in {combo}:",
-                                       initialvalue="" if current in INSTRUMENTS else current, parent=self.frame)
+        typed = dialogs.askstring("Other instrument", f"Instrument for {self.name(email)} in {combo}:",
+                                       initialvalue="" if current in INSTRUMENTS else current, ok="Set",
+                                       parent=self.frame)
         if typed is not None:
             self.set_instrument(item, typed.strip())
 
@@ -389,8 +390,8 @@ class CombosPanel:
         if not email:
             dialogs.showinfo("Change a name", "Open a combo and pick a person (double-click works too).")
             return
-        new = simpledialog.askstring("Change name", f"Name for {email}:", initialvalue=self.name(email),
-                                     parent=self.frame)
+        new = dialogs.askstring("Change name", f"Name for {email}:", initialvalue=self.name(email), ok="Change",
+                                parent=self.frame)
         if not new or not new.strip() or new.strip() == self.name(email):
             return
         old = self.name(email)
