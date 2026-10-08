@@ -29,8 +29,14 @@ First real use: **Winter 2027**.
 
 ### Hand-over
 - [ ] **Release v0.1.0:** tag it, so the apps are on the Releases page.
+- [ ] **Windows:** run the newest build on your own PC (Extract All, then the .exe in the folder): the fix for
+  "DLL load failed while importing cp_model_helper" passed GitHub's check but not yet a real PC.
 - [ ] Try it on the **director's** computer, including the "Open Anyway" / "Run anyway" step.
 - [ ] Try **two computers** on the shared OneDrive folder at once.
+- [ ] **"How do I…" guide** (after the Microsoft 365 items): one or two pages next to the Quick Start, by task,
+  2–4 lines each: a combo wants another date (swap / give away / claim); a combo drops out or a member changes;
+  undo a mistake (Earlier versions...); a new semester (or back to an old one); lock the final schedule; let a
+  coworker approve combos; something looks wrong (Check combos / Check schedule, who to contact). Link it in the README.
 - [ ] Walk the director through `Quick Start.pdf` once.
 
 ## Features

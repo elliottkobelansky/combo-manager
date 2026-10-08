@@ -33,10 +33,11 @@ from settings_file import SettingsError, load_settings
 from util import RHYTHM
 
 
-def show(report, levels=("warn",)):
+def show(report, levels=("warn",), skip=()):
+    """The report's lines of these levels (\u26a0), leaving out those already shown (skip)."""
     for lvl, txt in report:
-        if lvl in levels:
-            print(f"  [{lvl.upper()}] {txt}")
+        if lvl in levels and txt not in skip:
+            print(f"  \u26a0 {txt}")
 
 
 def compare_gaps(inp, settings, values):
@@ -232,7 +233,7 @@ def main(argv=None):
         "It's the best one for these settings." if result.stats["status"] == "OPTIMAL" else
         "It's a good one, but the time ran out before it was proven the best: a longer 'Solver time' (Semester tab) "
         "may improve it."))
-    show(result.report)
+    show(result.report, skip=set(warnings) | set(setting_warnings))
     print("\nSaved the schedule. Check schedule (Schedule tab) shows the details.")
     if a.export:
         write_exports(f, sched, combos, settings, Store(f))
