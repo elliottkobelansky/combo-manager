@@ -15,18 +15,19 @@ Makes the semester's combo show calendar and handles swaps during the semester.
 ## What it does
 
 - **Combos:** brings in the approved sign-ups and conflicts from the forms, or lets you add them by hand. Add or
-  remove members, change the liaison, fix names and emails, set instruments, mark first-year combos, withdraw a
-  combo. **Check combos** points out problems before the schedule is made, and **Check this combo** says whether
+  remove members, change the liaison, fix names, emails and coaches' titles, set instruments, mark first-year combos,
+  withdraw a combo, and **Lock combos** once they're final. **Check combos** points out problems before the schedule is made, and **Check this combo** says whether
   a combo waiting for a decision would fit, before you approve it.
 - **Schedule:** makes the whole semester in about a minute. Every combo gets its shows, never on a night one of its
   members can't make, with feedback nights (a faculty member attends), first-year combos starting later, and shows spread out. Exports a
-  calendar PDF and an Excel file, ready to send.
+  calendar PDF and an Excel file, ready to send. Each feedback night can be given its faculty member.
 - **Swaps:** when a combo can't make a show, lists every possible trade or move, best first, and warns about side
   effects. Also handles giving a show away and claiming an open set. Copies a ready-to-send email for the liaisons.
 - **Safe changes:** nothing is saved until **Confirm changes**. **Earlier versions** brings back the schedule as it
   was before any change, and **Lock schedule** stops it being remade by accident.
 - **Semester:** the dates, show nights, venues and rules, each explained in the app.
-- **Emails:** copy the liaisons' or everyone's emails for a night or a combo, ready to paste into Outlook.
+- **Emails:** copy the liaisons' or everyone's emails for a night or a combo, a night's reminder email, or a
+  change email, ready to paste into Outlook. Their wording is yours to edit (Semester tab > Email Templates).
 
 ## How the schedule is made
 

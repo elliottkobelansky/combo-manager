@@ -48,8 +48,10 @@ First real use: **Winter 2027**.
 
 ## Later (ideas)
 
-- **Ready-to-send emails** once the schedule is final (per combo: its dates, the swap policy, contacts).
-- **Faculty:** which faculty member attends each feedback night, and their availability.
+- **Schedule email per combo** once the schedule is final (its dates, the swap policy, contacts), as a third email
+  template. (The reminder and change emails are done.)
+- **Faculty availability:** which nights each faculty member can attend, offered when picking one. (Picking a
+  faculty member per feedback night is done.)
 - **Messy form entries:** point out member entries that aren't emails ("TBD", a name alone), domain typos, and the
   same person under two addresses.
 - **Warnings** when an approvals row changes after the combo was edited in the app.
