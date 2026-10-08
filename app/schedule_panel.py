@@ -144,7 +144,7 @@ class SchedulePanel:
                 ("  ·  FB" + (f": {fac.full}" if fac else "")) if n.date in sup else "")
             if self.only_open.get() and not n_open:
                 continue
-            if q and q not in (title + " " + " ".join(w for _, w, _ in lines)).lower():
+            if q and not all(word in (title + " " + " ".join(w for _, w, _ in lines)).lower() for word in q.split()):
                 continue
             band ^= 1
             shade = f"band{band}"
@@ -586,7 +586,7 @@ class SchedulePanel:
                              for k, when, who, names in info["sets"])
             text = fill_email(settings.reminder_email, {
                 "night": make_label(d), "venue": n.venue, "semester": settings.semester_name, "sets": sets,
-                "faculty": fac.full if fac else ""}, when={"feedback": info["supervised"], "faculty": bool(fac)})
+                "faculty": fac.full if fac else "a faculty member"}, when={"feedback": info["supervised"], "faculty": bool(fac)})
             msg = "the reminder email"
         from clipboard import copy
         copy(self.frame, text, f"{msg} for {make_label(d)}", self.get_palette())

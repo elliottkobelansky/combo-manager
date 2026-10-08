@@ -21,15 +21,22 @@ MAX_VENUE = 15                   # characters; longer names don't fit in a calen
 
 REMINDER_EMAIL = """Hi everyone,
 
-A quick reminder that you're playing {night} at {venue}:
+Reminder: you're playing {night} at {venue}.
 
 {sets}
 
-{feedback: This is a feedback night: a faculty member will be in the audience and will write up some constructive comments on your performance.}
+Please arrive at least 15 minutes before your set. If something comes up, let me know as soon as possible.
 
-Please arrive at least 15 minutes before your set. If anything comes up, let me know as soon as you can.
+{feedback: This is a feedback night: {faculty} will be attending and writing constructive comments on your performance.}
 
-Have a good show!"""
+{feedback: Liaisons, please give {faculty} the following information before your performance:
+- Lead sheets for every piece, including the names of composers and arrangers, in the order you will play them.}
+
+As band leader or liaison, you are encouraged to communicate with the audience, announce the players, and introduce the repertoire. If you are not accustomed to speaking to an audience, make a few notes in advance. Please share any other relevant information about your group’s performance. Remember to speak clearly. Try not to speak while people are applauding, as your announcement will likely not be heard.
+
+In your musical presentation, please refrain from relying on the generic “head in, horn solos, piano solo, bass solo, drum solo, head out” sequence. Make the music interesting. Create moods and colors, feature different soloists, and orchestrate your set and individual tunes thoughtfully.
+
+Wishing you all a great performance and a good evening."""
 # the first default (plain {feedback}, which is no longer allowed): read as the default above
 OLD_REMINDER = """Hi everyone,
 
@@ -51,7 +58,7 @@ Nothing else changes. Thanks!"""
 EMAIL_FILLINS = {
     "reminder_email": {"night": "Tue Jan 12", "venue": "the venue", "semester": "the semester name",
                        "sets": "a line per set: its time and who plays",
-                       "faculty": "the feedback night's faculty member (title and name, e.g. Prof. Ana Ruiz)"},
+                       "faculty": "the feedback night's faculty member (e.g. Prof. Ana Ruiz; 'a faculty member' if not set yet)"},
     "change_email": {"change": "what changes, combo by combo", "combos": "the combos involved",
                      "semester": "the semester name"},
 }

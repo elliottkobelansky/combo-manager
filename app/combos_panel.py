@@ -236,8 +236,9 @@ class CombosPanel:
         for cid in sorted(combos, key=lambda c: combos[c].name):
             c = combos[cid]
             people = self.member_order(c)
-            text = " ".join([c.name] + [self.name(e) + " " + e for e in people] + [c.professor]).lower()
-            if q and q not in text:
+            text = " ".join([c.name] + [self.name(e) + " " + e for e in people]
+                            + ([self.coach_name(c.professor), c.professor] if c.professor else [])).lower()
+            if q and not all(word in text for word in q.split()):     # every word, anywhere (names, emails, coach)
                 continue
             shows = ", ".join(self.data["shows"].get(cid, []))
             label = (f"{c.name} ({self.name(c.liaison)})" if c.liaison else c.name) + ("  \u00b7 first year" if c.first_year
@@ -275,7 +276,8 @@ class CombosPanel:
         for c in self.data["pending"]:                    # submitted, no decision yet: shown, not editable
             who = self.name(c.liaison) if c.liaison else "no liaison"
             label = f"Waiting for a decision \u00b7 {who}"
-            if q and q not in (label + " " + " ".join(c.members)).lower():
+            if q and not all(w in (label + " " + " ".join(self.name(e) + " " + e for e in c.members)).lower()
+                             for w in q.split()):
                 continue
             item = self.tree.insert("", "end", text=label, values=("approve or reject it in Outlook", "", "",
                                                                    "", ""),
@@ -290,7 +292,8 @@ class CombosPanel:
         for c in sorted(self.data["withdrawn"].values(), key=lambda c: c.name):
             label = (f"{c.name} ({self.name(c.liaison)})" if c.liaison else c.name) + "  \u00b7 withdrawn" + (
                 self.UNSAVED if c.name in touched else "")
-            if q and q not in (label + " " + " ".join(c.members)).lower():
+            if q and not all(w in (label + " " + " ".join(self.name(e) + " " + e for e in c.members)).lower()
+                             for w in q.split()):
                 continue
             item = self.tree.insert("", "end", text=label, values=("Actions: put back", "", "", "", ""),
                                     open=bool(q) or self.tree_key(label) in open_items, tags=("removed",))
@@ -1075,7 +1078,8 @@ class AddMemberDialog:
     def filter(self, event=None):
         """Narrows the list to what's typed; typing a whole email fills in the Email field too."""
         q = self.find.get().strip().lower()
-        self.find.configure(values=[c for c in self.choices if q in c.lower()] if q else self.choices)
+        self.find.configure(values=[c for c in self.choices if all(w in c.lower() for w in q.split())] if q
+                            else self.choices)
         if EMAIL_RE.fullmatch(q):
             self.set_email(q)
 
