@@ -10,7 +10,7 @@ Makes the semester's combo show calendar and handles swaps during the semester.
 |---|---|
 | ![The Combos tab](docs/combos.png) | ![The Swaps tab](docs/swaps.png) |
 
-*The screenshots use made-up data: the names and emails are fake.*
+*The screenshots use made-up data: the names, emails and venues are fake.*
 
 ## What it does
 
