@@ -18,7 +18,7 @@ from inputs import EMAIL_RE, EmailRules, InputError, email_warnings, load_input,
 from schedule_file import ScheduleFileError, has_schedule, load as load_schedule, open_sets_of
 from settings_file import SettingsError, load_settings
 from store import Store
-from theme import bind_right_click, popup, scrolled_tree
+from theme import bind_right_click, popup, scrolled_tree, search_box
 from util import INSTRUMENTS, by_instrument
 
 
@@ -66,7 +66,7 @@ class CombosPanel:
         ttk.Label(top, text="Search").pack(side="left", padx=(0, 6))
         self.search = tk.StringVar()
         self.search.trace_add("write", lambda *_: self.fill())
-        ttk.Entry(top, textvariable=self.search, width=28).pack(side="left")
+        search_box(top, self.search).pack(side="left")
         self.info = ttk.Label(top, text="", style="Hint.TLabel")
         self.info.pack(side="left", padx=12)
 

@@ -15,7 +15,7 @@ from util import TITLES
 from core.swaps import claimers
 from data_folder import SCHEDULE_PDF, SCHEDULE_XLSX
 
-from theme import RIGHT_CLICK, in_background, popup, scrolled_tree
+from theme import RIGHT_CLICK, in_background, popup, scrolled_tree, search_box
 
 
 class SchedulePanel:
@@ -55,7 +55,7 @@ class SchedulePanel:
         ttk.Label(top, text="Search").pack(side="left")
         self.search = tk.StringVar()
         self.search.trace_add("write", lambda *_: self.refresh())
-        ttk.Entry(top, textvariable=self.search, width=28).pack(side="left", padx=(6, 0))
+        search_box(top, self.search).pack(side="left", padx=(6, 0))
         self.only_open = tk.BooleanVar()
         ttk.Checkbutton(top, text="Only nights with open sets", variable=self.only_open,
                         command=self.toggle_only_open).pack(side="left", padx=14)
@@ -467,7 +467,8 @@ class SchedulePanel:
         and email). An unsaved change."""
         current = self.swaps.state["faculty"].get(d)
         pool = self.faculty_pool()
-        labels = [f"{p.name} ({p.email})" for p in pool]
+        new_one = "Someone new..."
+        labels = [new_one] + [f"{p.name} ({p.email})" for p in pool]
         root = self.frame.winfo_toplevel()
         win = tk.Toplevel(root)
         win.withdraw()
@@ -478,8 +479,8 @@ class SchedulePanel:
         box.pack(fill="both", expand=True)
         ttk.Label(box, text=f"Faculty member for {make_label(d)}", style="CardTitle.TLabel").grid(
             row=0, column=0, columnspan=2, sticky="w")
-        ttk.Label(box, text="Pick a coach or someone from before, or type someone new below.", style="Hint.TLabel"
-                  ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 10))
+        ttk.Label(box, text="Pick a coach or someone from before, or 'Someone new...' to type their details.",
+                  style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 10))
         ttk.Label(box, text="Pick").grid(row=2, column=0, sticky="w", pady=3, padx=(0, 12))
         pick = ttk.Combobox(box, values=labels, state="readonly", width=48)
         pick.grid(row=2, column=1, sticky="w", pady=3)
@@ -493,18 +494,37 @@ class SchedulePanel:
             w.grid(row=r, column=1, sticky="w", pady=3)
             fields[key] = w
 
+        note = ttk.Label(box, text="To change their name or email, use the Combos tab (right-click the coach: Change "
+                                   "name / Change email).", style="Hint.TLabel", wraplength=420, justify="left")
+
         def fill(who):
+            """who: someone from the list (their name and email can't be changed here), or None: someone new."""
             for key, w in fields.items():
+                w.configure(state="normal")
                 if key == "title":
-                    w.set(getattr(who, key))
+                    w.set(who.title if who else "")
                 else:
                     w.delete(0, "end")
-                    w.insert(0, getattr(who, key))
-        pick.bind("<<ComboboxSelected>>", lambda _: fill(pool[labels.index(pick.get())]))
+                    w.insert(0, getattr(who, key) if who else "")
+                    if who:
+                        w.configure(state="readonly")
+            if who:
+                note.grid(row=6, column=1, sticky="w", pady=(2, 0))
+            else:
+                note.grid_remove()
+                fields["name"].focus_set()
+
+        def picked(_=None):
+            i = labels.index(pick.get())
+            fill(pool[i - 1] if i else None)
+        pick.bind("<<ComboboxSelected>>", picked)
+        if current and f"{current.name} ({current.email})" in labels:
+            pick.set(f"{current.name} ({current.email})")
+        else:
+            pick.set(new_one)
+        picked()
         if current:
-            fill(current)
-            if f"{current.name} ({current.email})" in labels:
-                pick.set(f"{current.name} ({current.email})")
+            fields["title"].set(current.title)
 
         def ok(_=None):
             from schedule_file import Faculty
@@ -522,7 +542,7 @@ class SchedulePanel:
             self.status.configure(text=f"Not saved yet: {who.full} is the faculty member on {make_label(d)}. "
                                        "(Confirm changes, above)")
         bar = ttk.Frame(box)
-        bar.grid(row=6, column=0, columnspan=2, sticky="e", pady=(16, 0))
+        bar.grid(row=7, column=0, columnspan=2, sticky="e", pady=(16, 0))
         ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
         ttk.Button(bar, text="OK", style="Accent.TButton", command=ok).pack(side="right", padx=(0, 6))
         win.bind("<Return>", ok)
