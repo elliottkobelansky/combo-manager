@@ -347,23 +347,36 @@ def save_changes(folder, combos, sets=None, typed=None, what=(), faculty=None):
     return copy
 
 
-def retitle_faculty(folder, titles):
-    """A coach's title changed (Combos tab): titles = {email: new title ("" = none)}. The feedback nights they're the
-    faculty member of follow (a backup first, kept in the history). -> True when something changed."""
+def sync_faculty(folder, emails=None, names=None, titles=None):
+    """A person changed on the Combos tab: the feedback nights they're the faculty member of follow. emails = {old:
+    new}, names = {email: name}, titles = {email: title ("" = none)}; matched by email. A backup first, kept in the
+    history. -> True when something changed."""
     data = _read(folder)
-    titles = {e.lower(): t.strip() for e, t in titles.items()}
-    hits = [(d, who) for d, who in (data or {}).get("faculty", {}).items()
-            if who.get("email", "").lower() in titles and who.get("title", "") != titles[who["email"].lower()]]
-    if not hits:
+    emails = {o.lower(): n.lower() for o, n in (emails or {}).items()}
+    names = {e.lower(): n.strip() for e, n in (names or {}).items() if n and n.strip()}
+    titles = {e.lower(): t.strip() for e, t in (titles or {}).items()}
+    people = (data or {}).get("faculty", {})
+    new = {}
+    for d, who in people.items():
+        now = dict(who)
+        e = emails.get(now.get("email", "").lower(), now.get("email", "").lower())
+        if e != now.get("email", "").lower():
+            now["email"] = e
+        if e in names:
+            now["name"] = names[e]
+        if e in titles:
+            if titles[e]:
+                now["title"] = titles[e]
+            else:
+                now.pop("title", None)
+        if now != who:
+            new[d] = now
+    if not new:
         return False
     backup(folder)
-    for d, who in hits:
-        if titles[who["email"].lower()]:
-            who["title"] = titles[who["email"].lower()]
-        else:
-            who.pop("title", None)
-    data.setdefault("history", []).append(_entry([f"Faculty member's title on {d}: {who.get('title') or 'none'}"
-                                                  for d, who in hits]))
+    people.update(new)
+    data.setdefault("history", []).append(_entry([f"Faculty member on {d}: {(w.get('title', '') + ' ' + w['name']).strip()} "
+                                                  f"({w['email']})" for d, w in sorted(new.items())]))
     _write(folder, data)
     return True
 

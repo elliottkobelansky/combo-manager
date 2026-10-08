@@ -389,6 +389,8 @@ class CombosPanel:
         self.queue(lambda s: s.set_email(email, new), f"{email} becomes {new}" + (" (back to the original)" if back
                                                                                   else "") + ".",
                    combo=self.combos_of(email), people=[email, new])
+        if self.pending and self.pending[-1]["people"] == [email, new]:
+            self.pending[-1]["email"] = (email, new)       # (Confirm: the schedule's faculty members follow)
 
     def edit_instrument(self, item=None):
         """Opens the instrument menu at the person's Instrument cell; picking an item saves it straight away."""
@@ -764,21 +766,23 @@ class CombosPanel:
             return False
         try:
             store = Store(folder)
-            titles_before = dict(store.titles)
+            titles_before, names_before = dict(store.titles), dict(store.names)
             for p in self.pending:
                 p["change"](store)
             store.save()
         except (OSError, ValueError) as e:
             dialogs.showerror("Couldn't save", f"{e}\n\nThe changes are still pending.")
             return False
-        retitled = {e: store.titles.get(e, "") for e in set(titles_before) | set(store.titles)
-                    if titles_before.get(e, "") != store.titles.get(e, "")}
-        if retitled and has_schedule(folder):         # a coach's new title: also on the feedback nights they're at
-            from schedule_file import retitle_faculty
+        titles = {e: store.titles.get(e, "") for e in set(titles_before) | set(store.titles)
+                  if titles_before.get(e, "") != store.titles.get(e, "")}
+        names = {e: n for e, n in store.names.items() if names_before.get(e) != n}
+        emails = dict(p["email"] for p in self.pending if p.get("email"))
+        if (titles or names or emails) and has_schedule(folder):   # a person's new title, name or email: also on
+            from schedule_file import sync_faculty                 # the feedback nights they're the faculty member of
             try:
-                retitle_faculty(folder, retitled)
+                sync_faculty(folder, emails=emails, names=names, titles=titles)
             except (OSError, ScheduleFileError) as e:
-                dialogs.showerror("Couldn't update the schedule", f"The title changed, but the feedback nights "
+                dialogs.showerror("Couldn't update the schedule", f"Saved, but the feedback nights' faculty members "
                                   f"couldn't be updated: {e}")
         opened, backup = [], None
         for name, ref in dict.fromkeys(withdrawals):  # once each; not one that was put back again

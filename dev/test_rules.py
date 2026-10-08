@@ -344,6 +344,10 @@ def main():
     sf_.save_changes(sdir, result.combos, sets={(d0, 1): kept.sets[d0][1]}, what=["nothing"])
     if sf_.load(sdir, result.combos, s).faculty != {d0: ("Prof.", "Ana Ruiz", "ana.ruiz@mcgill.ca")} or kept.sets != sch.sets:
         bad.append("a feedback night's faculty member isn't saved (or other changes lose it)")
+    sf_.sync_faculty(sdir, emails={"ana.ruiz@mcgill.ca": "ana.ruiz@mail.mcgill.ca"},
+                     names={"ana.ruiz@mail.mcgill.ca": "Ana Ruiz-Lopez"}, titles={"ana.ruiz@mail.mcgill.ca": "Dr."})
+    if sf_.load(sdir, result.combos, s).faculty != {d0: ("Dr.", "Ana Ruiz-Lopez", "ana.ruiz@mail.mcgill.ca")}:
+        bad.append("a person's new email, name and title don't reach the feedback nights they're the faculty member of")
     sf_.save_changes(sdir, result.combos, faculty={d0: None}, what=["cleared"])
     if sf_.load(sdir, result.combos, s).faculty:
         bad.append("clearing a feedback night's faculty member doesn't stick")

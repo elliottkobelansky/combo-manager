@@ -581,6 +581,7 @@ class SwapPanel:
         except ScheduleFileError as e:
             dialogs.showerror("Couldn't save", str(e))
             return
+        self.share_faculty(people)
         n = len(self.pending)
         app_log.write(f"Swaps tab: saved {n} change(s); backup {backup}\n"
                       + "\n".join(("RULE OVERRIDDEN: " if o.breaks else "") + o.title for o in self.pending))
@@ -590,6 +591,26 @@ class SwapPanel:
                                         "Rebuilding Schedule.pdf and Schedule.xlsx...")
         self.after_apply(f"Saved {n} change(s). Backup of the schedule before: {backup}\n",
                          lambda code: (self.pdf_done(code), then and then(code)))
+
+    def share_faculty(self, people):
+        """After saving: each new faculty member's name and title go into the app's names (scheduler_data.json), so
+        a coach shows them on the Combos tab too, and they're offered next time."""
+        people = [w for w in people.values() if w]
+        if not people:
+            return
+        try:
+            store = Store(self.get_folder())
+            for w in people:
+                e = w.email.lower()
+                if w.name and (store.names.get(e) or name_from_email(e)) != w.name:
+                    store.set_name(e, w.name)
+                if store.titles.get(e, "") != w.title:
+                    store.set_title(e, w.title)
+            if store.changed:
+                store.save()
+        except (OSError, ValueError) as e:
+            dialogs.showerror("Couldn't save", f"The schedule was saved, but the faculty member's name or title "
+                              f"couldn't be shared with the Combos tab: {e}")
 
     def same_as_on_disk(self):
         """True when the schedule still holds what the pending changes were planned against. Otherwise (another
