@@ -17,10 +17,6 @@ ends up as a calendar PDF and an Excel file, ready to share.
 |---|---|
 | ![The Combos tab](docs/combos.png) | ![The Swaps tab](docs/swaps.png) |
 
-The calendar students get (Schedule.pdf):
-
-![The show calendar](docs/calendar.png)
-
 *The screenshots use made-up data: the names, emails and venues are fake.*
 
 ## What it does
