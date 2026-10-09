@@ -1,6 +1,13 @@
 # Combo Manager
 
-Makes the semester's combo show calendar and handles swaps during the semester.
+A desktop app (Windows and Mac) that runs a combo program's performance schedule from sign-up to the last show.
+
+It reads the combos approved through the sign-up forms and every student's conflict dates, then builds the whole
+semester's show calendar in about a minute with an optimizer: every combo gets its shows, never on a night one of
+its members can't make, with feedback nights, first-year combos and well-spaced shows handled for you. During the
+semester it keeps the schedule current: it finds every possible swap when a combo can't make a show, handles
+withdrawals and late changes, drafts the emails to send, and keeps every earlier version so nothing is lost. Everything
+ends up as a calendar PDF and an Excel file, ready to share.
 
 **How to use it: see `Quick Start.pdf`.**
 
